@@ -8,6 +8,7 @@
 - Added single-surface scrolling integration, text scaling, long-document smoke tests, CJK layout tests, and the Stage 1A Weft Lab article.
 - Added per-line link hit regions, hit testing across wrapped links, and the public `WeftView.onLinkTap` callback.
 - Added block-level width, min/max width, box-sizing, and solid border support with content-box/border-box layout tests.
+- Added five representative conformance fixtures, a structural corpus test, and a diagnostic Chrome/Edge browser screenshot generator.
 - Table and image elements currently trigger fallback rather than silent content removal.
 
 ## 0.1.0-dev.1

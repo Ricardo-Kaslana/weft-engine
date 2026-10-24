@@ -34,6 +34,8 @@ dart run tool/verify.dart
 
 黄金图片不得批量无审查更新。PR 必须解释差异、提供前后对比并关联浏览器参考。性能修改必须附同设备、同文档、同资源条件下的前后数据。
 
+可使用 `node tool/browser_references.mjs` 生成 Chrome/Edge 诊断截图。当前产物不是 CI 黄金基线；未固定字体、浏览器版本和 Flutter 截图环境前，不得把单次截图批准为跨平台像素真相。
+
 ## 完成定义
 
 任务只有同时满足以下条件才能标记 Done：

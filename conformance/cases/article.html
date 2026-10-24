@@ -1,0 +1,22 @@
+<style>
+  .lead { color: #57606a; font-size: 18px; }
+  .note {
+    background-color: #fff8c5;
+    border: 1px solid #d4a72c;
+    padding: 12px;
+  }
+</style>
+<h1>受控内容渲染</h1>
+<p class="lead">这是一篇用于验证标题、段落、列表、引用、代码和链接的基础文章。</p>
+<h2>内容结构</h2>
+<ul>
+  <li>支持受控 HTML 标签和基础 CSS。</li>
+  <li>链接具有按行命中区域，导航交由宿主处理。</li>
+  <li>复杂内容通过支持度报告显式回退。</li>
+</ul>
+<blockquote>
+  <p>内容正确性优先于新增能力。</p>
+</blockquote>
+<h2>代码示例</h2>
+<pre><code>final snapshot = normalizer.normalize(html, id: 'article');</code></pre>
+<p class="note">查看 <a href="https://example.com/weft/reference">参考文档</a> 了解当前能力边界。</p>

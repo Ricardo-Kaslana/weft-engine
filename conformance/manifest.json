@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "viewport": {
+    "deviceScaleFactor": 1,
+    "defaultWidth": 360,
+    "defaultHeight": 900
+  },
+  "cases": [
+    {
+      "id": "article",
+      "file": "cases/article.html",
+      "width": 360,
+      "height": 1200,
+      "minHeight": 400,
+      "minTextCommands": 8,
+      "minBoxes": 6,
+      "linkHrefs": [
+        "https://example.com/weft/reference"
+      ]
+    },
+    {
+      "id": "typography",
+      "file": "cases/typography.html",
+      "width": 360,
+      "height": 900,
+      "minHeight": 300,
+      "minTextCommands": 6,
+      "minBoxes": 5,
+      "linkHrefs": []
+    },
+    {
+      "id": "box_model",
+      "file": "cases/box_model.html",
+      "width": 480,
+      "height": 700,
+      "minHeight": 100,
+      "minTextCommands": 3,
+      "minBoxes": 4,
+      "linkHrefs": []
+    },
+    {
+      "id": "nested_lists",
+      "file": "cases/nested_lists.html",
+      "width": 360,
+      "height": 700,
+      "minHeight": 200,
+      "minTextCommands": 7,
+      "minBoxes": 5,
+      "linkHrefs": []
+    },
+    {
+      "id": "cjk_wrap",
+      "file": "cases/cjk_wrap.html",
+      "width": 320,
+      "height": 700,
+      "minHeight": 150,
+      "minTextCommands": 3,
+      "minBoxes": 3,
+      "linkHrefs": []
+    }
+  ]
+}

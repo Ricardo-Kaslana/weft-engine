@@ -16,7 +16,8 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - 链接按行生成命中矩形，跨行链接可点击，并通过 `WeftView.onLinkTap` 交给宿主处理。
 - 单一 `RenderObject` 渲染表面、可滚动公开视图和真实文本/背景绘制指令。
 - 中英文内容、窄宽度换行及 300 段长文档的布局烟测。
-- Dart Pub workspace、40 项自动测试、统一验证脚本和 GitHub Actions CI。
+- 五类代表性内容语料，以及 Chrome/Edge 诊断参考截图生成器。
+- Dart Pub workspace、46 项自动测试、统一验证脚本和 GitHub Actions CI。
 
 尚未实现：
 
@@ -39,8 +40,10 @@ packages/
   weft_quickjs/         QuickJS 原生适配边界
   weft_capabilities/    内置能力标识与装载策略
 example/weft_lab/       开发、示例和未来一致性实验室
+conformance/            代表性语料和浏览器参考输入
 docs/                   架构、规范、计划和管理文档
 tool/verify.dart        全包测试入口
+tool/browser_references.mjs  Chrome/Edge 诊断截图生成器
 .github/workflows/      持续集成
 ```
 
@@ -51,6 +54,7 @@ tool/verify.dart        全包测试入口
 - Dart SDK 3.5 或更高，低于 4.0。
 - Flutter SDK 3.22 或更高，建议使用 stable。
 - Android/iOS 真机验证需要对应平台工具链。
+- Node.js 22 或更高仅用于可选的 Chrome/Edge 参考截图工具。
 
 仓库使用 Dart Pub workspace，要求所有包在 workspace 根目录统一解析依赖。
 
@@ -84,6 +88,7 @@ flutter run
 - [内容规范化](docs/content-normalization.md)
 - [开发里程碑](docs/development-plan.md)
 - [测试与性能策略](docs/testing-strategy.md)
+- [一致性语料与浏览器参考](conformance/README.md)
 - [安全与资源限制](docs/security.md)
 - [项目管理](docs/project-management.md)
 - [发布与回退](docs/release.md)
