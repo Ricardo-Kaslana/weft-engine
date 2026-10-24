@@ -28,19 +28,14 @@ const BROWSER_CANDIDATES = [
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
 ];
 
-const BASE_STYLE = `
-html, body {
-  margin: 0;
-  padding: 0;
-  background: #ffffff;
-}
-body {
-  color: #1f2328;
-  font-family: Arial, "Microsoft YaHei", sans-serif;
-  font-size: 16px;
-  line-height: 1.5;
-}
-`;
+const FONT_FACES = [
+  ['WeftRoboto', 'Roboto-Regular.ttf', 400, 'normal'],
+  ['WeftRoboto', 'Roboto-Bold.ttf', 700, 'normal'],
+  ['WeftRoboto', 'Roboto-Italic.ttf', 400, 'italic'],
+  ['WeftRoboto', 'Roboto-BoldItalic.ttf', 700, 'italic'],
+  ['WeftRobotoMono', 'RobotoMono-Regular.ttf', 400, 'normal'],
+  ['WeftRobotoMono', 'RobotoMono-Bold.ttf', 700, 'normal'],
+];
 
 const { values } = parseArgs({
   options: {
@@ -61,6 +56,11 @@ async function main() {
   const output = resolve(values.output ?? DEFAULT_OUTPUT);
   const manifest = JSON.parse(readFileSync(MANIFEST_PATH, 'utf8'));
   const allCases = manifest.cases;
+  const fontFaceCss = buildFontFaceCss();
+  const compatCss = readFileSync(
+    join(ROOT, 'conformance', 'browser_compat.css'),
+    'utf8',
+  );
   const selected = new Set(values.case ?? []);
   const known = new Set(allCases.map((item) => item.id));
   const unknown = [...selected].filter((id) => !known.has(id));
@@ -88,7 +88,15 @@ async function main() {
 
     const rendered = [];
     for (const item of cases) {
-      const result = await renderCase(cdp, item, output, htmlDir, imageDir);
+      const result = await renderCase(
+        cdp,
+        item,
+        output,
+        htmlDir,
+        imageDir,
+        fontFaceCss,
+        compatCss,
+      );
       rendered.push(result);
       console.log(`rendered ${item.id} -> ${result.screenshot}`);
     }
@@ -194,13 +202,23 @@ function browserInfo(browser) {
   return { name, version };
 }
 
-function wrapDocument(fragment) {
+function buildFontFaceCss() {
+  return FONT_FACES.map(([family, file, weight, style]) => {
+    const bytes = readFileSync(join(ROOT, 'conformance', 'fonts', file));
+    return `@font-face{font-family:"${family}";` +
+      `src:url(data:font/ttf;base64,${bytes.toString('base64')}) ` +
+      `format("truetype");font-weight:${weight};font-style:${style};}`;
+  }).join('\n');
+}
+
+function wrapDocument(fragment, fontFaceCss, compatCss) {
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<style>${BASE_STYLE}</style>
+<style>${fontFaceCss}</style>
+<style>${compatCss}</style>
 </head>
 <body>
 ${fragment}
@@ -222,6 +240,9 @@ async function launchBrowser(browser, profile) {
       '--no-first-run',
       '--no-default-browser-check',
       '--force-device-scale-factor=1',
+      '--force-color-profile=srgb',
+      '--font-render-hinting=none',
+      '--disable-lcd-text',
       '--remote-debugging-port=0',
       `--user-data-dir=${profile}`,
       'about:blank',
@@ -266,7 +287,15 @@ async function openPage(port) {
   throw new Error('Timed out waiting for a debuggable browser page.');
 }
 
-async function renderCase(cdp, item, output, htmlDir, imageDir) {
+async function renderCase(
+  cdp,
+  item,
+  output,
+  htmlDir,
+  imageDir,
+  fontFaceCss,
+  compatCss,
+) {
   const width = Number(item.width);
   const height = Number(item.height);
   const fragment = readFileSync(
@@ -275,7 +304,11 @@ async function renderCase(cdp, item, output, htmlDir, imageDir) {
   );
   const htmlPath = join(htmlDir, `${item.id}.html`);
   const imagePath = join(imageDir, `${item.id}.png`);
-  writeFileSync(htmlPath, wrapDocument(fragment), 'utf8');
+  writeFileSync(
+    htmlPath,
+    wrapDocument(fragment, fontFaceCss, compatCss),
+    'utf8',
+  );
 
   await cdp.send('Emulation.setDeviceMetricsOverride', {
     width,

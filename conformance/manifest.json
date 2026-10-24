@@ -5,6 +5,11 @@
     "defaultWidth": 360,
     "defaultHeight": 900
   },
+  "crossEngineTarget": {
+    "channelTolerance": 8,
+    "maxDiffRatio": 0.01,
+    "description": "Advisory target; Flutter baseline goldens are the enforced regression gate."
+  },
   "cases": [
     {
       "id": "article",
@@ -16,7 +21,8 @@
       "minBoxes": 6,
       "linkHrefs": [
         "https://example.com/weft/reference"
-      ]
+      ],
+      "pixel": false
     },
     {
       "id": "typography",
@@ -26,7 +32,8 @@
       "minHeight": 300,
       "minTextCommands": 6,
       "minBoxes": 5,
-      "linkHrefs": []
+      "linkHrefs": [],
+      "pixel": false
     },
     {
       "id": "box_model",
@@ -36,7 +43,8 @@
       "minHeight": 100,
       "minTextCommands": 3,
       "minBoxes": 4,
-      "linkHrefs": []
+      "linkHrefs": [],
+      "pixel": true
     },
     {
       "id": "nested_lists",
@@ -46,7 +54,8 @@
       "minHeight": 200,
       "minTextCommands": 7,
       "minBoxes": 5,
-      "linkHrefs": []
+      "linkHrefs": [],
+      "pixel": false
     },
     {
       "id": "cjk_wrap",
@@ -56,7 +65,21 @@
       "minHeight": 150,
       "minTextCommands": 3,
       "minBoxes": 3,
-      "linkHrefs": []
+      "linkHrefs": [],
+      "pixel": false
+    },
+    {
+      "id": "pixel_basic",
+      "file": "cases/pixel_basic.html",
+      "width": 360,
+      "height": 800,
+      "minHeight": 300,
+      "minTextCommands": 8,
+      "minBoxes": 6,
+      "linkHrefs": [
+        "https://example.com/golden"
+      ],
+      "pixel": true
     }
   ]
 }

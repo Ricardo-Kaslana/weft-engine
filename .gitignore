@@ -11,3 +11,5 @@ coverage/
 .DS_Store
 Thumbs.db
 .workbuddy/
+__pycache__/
+*.pyc

@@ -7,7 +7,7 @@
 | 单元测试 | 值类型、解析、级联、断行、浮动、选择映射、URL 策略 | 每次 PR |
 | 契约测试 | Runtime 后端、能力 Schema、资源提供和自定义标签 | 每次 PR |
 | Widget/集成 | 控制器、回退、手势、复制、语义和 Runtime 生命周期 | 每次 PR |
-| 黄金测试 | 固定 Chromium 参考下的目标子集 | 每次布局 PR |
+| 黄金测试 | 固定字体和视口的 Flutter 基线；Chromium 参考为诊断输入 | Windows CI 每次 PR；浏览器参考按需生成 |
 | 模糊/属性测试 | 任意输入不崩溃、随机宽度、随机选区和脚本中止 | 烟测每次 PR，全量定期执行 |
 | 真机性能 | 首次布局、帧耗时、内存、图片加载和恢复 | 候选版本及重大性能修改 |
 
@@ -20,7 +20,7 @@ dart analyze
 dart run tool/verify.dart
 ```
 
-当前 CI 覆盖格式、静态分析、纯 Dart 测试和 Flutter 单元/Widget 测试，共 46 项：
+当前主 CI 覆盖格式、静态分析、纯 Dart 测试和 Flutter 单元/Widget 测试，共 47 项；另有 Windows 独立执行的 2 项 Flutter 像素基线测试：
 
 - 规范化：标签、属性、URL、未知元素、回退能力、节点上限。
 - CSS：选择器结构、后代/子代匹配、特异性、内联覆盖、声明过滤。
@@ -31,15 +31,21 @@ dart run tool/verify.dart
 - 一致性语料：文章、排版、盒模型、嵌套列表和 CJK 的内容/链接/盒边界检查。
 - 公开层：控制器、显式回退、渲染表面替换。
 
-黄金、模糊、真机和完整安全任务尚未加入 CI，不能把当前绿灯理解为阶段 1 或产品发布门禁。阶段 1B 已加入 Chromium 对照输入和基于 DevTools Protocol 的诊断截图生成器，并对视口和 PNG 尺寸做运行时校验；尚未固定字体与 Flutter 截图，因此还不能形成可阻断的像素门禁，详见 `conformance/README.md`。
+模糊、真机和完整安全任务尚未加入 CI，不能把当前绿灯理解为阶段 1 或产品发布门禁。像素基线当前只覆盖两个拉丁案例；CJK 像素字体和跨引擎预算仍未完成，详见 `conformance/README.md`。
 
 ## 黄金一致性
 
-固定 Chromium 版本、Flutter 版本、字体文件、视口、DPR、主题和动画状态。建议初始目标为：每通道误差不超过 2 时，差异像素比例不高于 0.5%，并要求无文本缺失和布局重叠。阶段 1 通过实验冻结阈值，之后不得为通过测试单方面放宽。
+目前已固定：
 
-黄金更新必须附浏览器参考、前后差异和人工审查。跨平台字体光栅差异与同环境布局错误分开记录。
+- Flutter 3.35.5、Windows CI runner、DPR 1、显式视口和白色背景。
+- Apache 2.0 Roboto/Roboto Mono 字体文件及 Flutter `FontLoader` 别名。
+- `pixel_basic` 和 `box_model` 两个 Flutter PNG 基线。
 
-阶段 1A 只用临时真实字体预览做过人工视觉检查，未提交平台相关截图或黄金基线。
+Flutter 黄金门禁在 Windows CI 执行 `packages/weft_engine/tool/golden_pixel_test.dart`，任何像素变化都会阻断。更新基线必须提供差异图、浏览器参考和合理原因，禁止批量无审查刷新。
+
+Chromium 参考通过 DevTools Protocol 精确设置视口并校验运行时尺寸和 PNG 尺寸。当前跨引擎 advisory 目标为每通道容差 8、差异像素不超过 1%；实测 `box_model` 为 1.064%、`pixel_basic` 为 7.260%，尚未达标，主要来自字形抗锯齿、1–2px 基线差异和未完整的父子 margin 折叠。跨引擎比较脚本输出 overlay 和放大的差异图，但在达到目标前不加入阻断 CI。
+
+CJK 结构化布局已有测试，但尚无固定 CJK 字体，因此不提交中文像素基线，也不宣称中文像素一致。
 
 ## 长文档测试
 

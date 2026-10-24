@@ -4,7 +4,7 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 
 ## 当前状态
 
-当前为 **阶段 1B（进行中）：基础静态渲染与链接交互**，可用于受控内容子集的实验和内部验证，尚不是稳定版本。
+当前为 **阶段 1B（进行中）：基础静态渲染、链接交互与像素基线**，可用于受控内容子集的实验和内部验证，尚不是稳定版本。
 
 已实现：
 
@@ -16,12 +16,14 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - 链接按行生成命中矩形，跨行链接可点击，并通过 `WeftView.onLinkTap` 交给宿主处理。
 - 单一 `RenderObject` 渲染表面、可滚动公开视图和真实文本/背景绘制指令。
 - 中英文内容、窄宽度换行及 300 段长文档的布局烟测。
-- 五类代表性内容语料，以及 Chrome/Edge 诊断参考截图生成器。
-- Dart Pub workspace、46 项自动测试、统一验证脚本和 GitHub Actions CI。
+- 六类代表性内容语料，以及 Chrome/Edge 诊断参考截图生成器。
+- Apache 2.0 Roboto/Roboto Mono 固定字体、两个 Flutter 像素黄金基线和 Windows CI 门禁。
+- Dart Pub workspace、47 项常规自动测试、2 项像素测试和 GitHub Actions CI。
 
 尚未实现：
 
-- Float、图片、表格、CJK 禁则和浏览器黄金像素基线。
+- Float、图片、表格和 CJK 禁则。
+- 完整父子 margin 折叠、CJK 像素字体和跨引擎像素预算达标。
 - 跨段落选择、复制菜单和可访问性语义。
 - 分块 Picture 缓存、视口虚拟化和内部滚动容器。
 - QuickJS 原生库、FFI 绑定和真实脚本执行。
@@ -40,10 +42,11 @@ packages/
   weft_quickjs/         QuickJS 原生适配边界
   weft_capabilities/    内置能力标识与装载策略
 example/weft_lab/       开发、示例和未来一致性实验室
-conformance/            代表性语料和浏览器参考输入
+conformance/            语料、固定字体、Flutter 基线和浏览器参考输入
 docs/                   架构、规范、计划和管理文档
 tool/verify.dart        全包测试入口
 tool/browser_references.mjs  Chrome/Edge 诊断截图生成器
+tool/compare_goldens.py     跨引擎像素差异报告
 .github/workflows/      持续集成
 ```
 
@@ -55,6 +58,7 @@ tool/browser_references.mjs  Chrome/Edge 诊断截图生成器
 - Flutter SDK 3.22 或更高，建议使用 stable。
 - Android/iOS 真机验证需要对应平台工具链。
 - Node.js 22 或更高仅用于可选的 Chrome/Edge 参考截图工具。
+- Python 3.11 或更高与 Pillow 仅用于可选的跨引擎像素报告。
 
 仓库使用 Dart Pub workspace，要求所有包在 workspace 根目录统一解析依赖。
 
@@ -68,6 +72,15 @@ dart run tool/verify.dart
 ```
 
 `tool/verify.dart` 分别使用 `dart test` 和 `flutter test` 执行纯 Dart 包与 Flutter 包测试。
+
+固定字体的 Flutter 像素基线需要在 Windows 环境单独验证：
+
+```bash
+cd packages/weft_engine
+flutter test tool/golden_pixel_test.dart --timeout 120s
+```
+
+CI 使用 Windows + Flutter 3.35.5 执行同一命令。
 
 ## 运行实验室
 

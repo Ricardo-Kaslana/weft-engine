@@ -34,7 +34,16 @@ dart run tool/verify.dart
 
 黄金图片不得批量无审查更新。PR 必须解释差异、提供前后对比并关联浏览器参考。性能修改必须附同设备、同文档、同资源条件下的前后数据。
 
-可使用 `node tool/browser_references.mjs` 生成 Chrome/Edge 诊断截图。当前产物不是 CI 黄金基线；未固定字体、浏览器版本和 Flutter 截图环境前，不得把单次截图批准为跨平台像素真相。
+涉及当前像素案例时额外执行：
+
+```bash
+cd packages/weft_engine
+flutter test tool/golden_pixel_test.dart --timeout 120s
+```
+
+Flutter 基线位于 `conformance/goldens/flutter/images/`，Windows CI 会阻断像素变化。有意更新时使用 `--update-goldens`，并同时提交差异 overlay、浏览器参考和原因。
+
+可使用 `node tool/browser_references.mjs` 生成 Chrome/Edge 诊断截图，再用 `python tool/compare_goldens.py --report-only` 输出跨引擎差异。跨引擎比较当前仍是 advisory，不得把单次报告批准为跨平台像素一致。
 
 ## 完成定义
 
