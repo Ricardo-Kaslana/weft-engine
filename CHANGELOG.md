@@ -10,6 +10,8 @@
 - Added block-level width, min/max width, box-sizing, and solid border support with content-box/border-box layout tests.
 - Added six representative conformance fixtures, a structural corpus test, and a diagnostic Chrome/Edge browser screenshot generator.
 - Added bundled Roboto/Roboto Mono fixtures, two Flutter pixel baselines, a Windows CI golden job, and a Pillow-based cross-engine difference report.
+- Added CSS 2.1 adjacent, parent-child, and collapse-through block margin collapsing, including negative margins and padding/border blockers.
+- Matched CSS half-leading with `TextLeadingDistribution.even`; block geometry now aligns with Chromium within 0.5px for the pixel fixtures.
 - Table and image elements currently trigger fallback rather than silent content removal.
 
 ## 0.1.0-dev.1

@@ -59,8 +59,8 @@ flowchart TB
 
 阶段 1A 的 `RenderWeftSurface` 已执行真实布局与绘制：
 
-- 块级内容按行叠放，支持基础相邻 margin 折叠、padding、背景色、块级宽度约束、`box-sizing` 和 solid 边框。
-- 行内内容由跨样式文本片段组成，经 `TextPainter` 完成空白折叠、换行、对齐和多行绘制。
+- 块级内容按行叠放，支持 CSS 2.1 相邻、父子与空块 margin 折叠、padding、背景色、块级宽度约束、`box-sizing` 和 solid 边框。
+- 行内内容由跨样式文本片段组成，经 `TextPainter` 完成空白折叠、换行、对齐和多行绘制；行高按 CSS 半行距分配（`TextLeadingDistribution.even`），固定字体下与 Chromium 的块级几何误差小于 0.5px。
 - 列表标记单独绘制，不进入正文选择文本。
 - 链接显示文本在布局后按字符范围查询行盒，生成跨行命中矩形；命中由单一表面解析，宿主通过 `onLinkTap` 决定导航。
 - `WeftView` 当前使用外部 `SingleChildScrollView` 提供滚动；后续将替换为引擎内部视口和分块缓存。
@@ -113,3 +113,4 @@ JS 不获得节点、盒树或渲染对象。它只能通过版本化能力桥�
 - `0007`：以 TextPainter 和直接布局交付阶段 1A，再逐步引入 Fragment 与分块缓存。
 - `0008`：从布局文本行盒派生链接命中区域，不引入逐链接 Widget。
 - `0009`：在布局阶段解析块级边框盒宽度，统合 box-sizing、padding、border 和约束。
+- `0010`：实现 CSS 兼容的相邻/父子/空块 margin 折叠与半行距。

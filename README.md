@@ -11,19 +11,20 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - 受控 HTML 解析、标签白名单、属性清洗、支持度诊断和显式回退。
 - 标签、类、ID、后代和子代选择器，以及基础层叠、内联样式和常用文本/盒模型属性。
 - 标题、段落、强调、链接、列表、引用、代码块、分隔线和强制换行。
-- Block/Inline 布局、空白折叠、基础 margin 折叠、列表标记和可缩放文本绘制。
+- Block/Inline 布局、空白折叠、相邻与父子 margin 折叠、列表标记和可缩放文本绘制。
+- 与 CSS 半行距一致的文本行高分配，固定字体下块级几何与 Chromium 误差小于 0.5px。
 - 块级 `width`/`min-width`/`max-width`、`box-sizing` 和基础实线边框绘制。
 - 链接按行生成命中矩形，跨行链接可点击，并通过 `WeftView.onLinkTap` 交给宿主处理。
 - 单一 `RenderObject` 渲染表面、可滚动公开视图和真实文本/背景绘制指令。
 - 中英文内容、窄宽度换行及 300 段长文档的布局烟测。
 - 六类代表性内容语料，以及 Chrome/Edge 诊断参考截图生成器。
 - Apache 2.0 Roboto/Roboto Mono 固定字体、两个 Flutter 像素黄金基线和 Windows CI 门禁。
-- Dart Pub workspace、47 项常规自动测试、2 项像素测试和 GitHub Actions CI。
+- Dart Pub workspace、56 项常规自动测试、2 项像素测试和 GitHub Actions CI。
 
 尚未实现：
 
 - Float、图片、表格和 CJK 禁则。
-- 完整父子 margin 折叠、CJK 像素字体和跨引擎像素预算达标。
+- CJK 像素字体与跨引擎像素预算达标。
 - 跨段落选择、复制菜单和可访问性语义。
 - 分块 Picture 缓存、视口虚拟化和内部滚动容器。
 - QuickJS 原生库、FFI 绑定和真实脚本执行。

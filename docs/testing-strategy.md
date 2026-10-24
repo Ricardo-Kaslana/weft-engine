@@ -20,11 +20,12 @@ dart analyze
 dart run tool/verify.dart
 ```
 
-当前主 CI 覆盖格式、静态分析、纯 Dart 测试和 Flutter 单元/Widget 测试，共 47 项；另有 Windows 独立执行的 2 项 Flutter 像素基线测试：
+当前主 CI 覆盖格式、静态分析、纯 Dart 测试和 Flutter 单元/Widget 测试，共 56 项；另有 Windows 独立执行的 2 项 Flutter 像素基线测试：
 
 - 规范化：标签、属性、URL、未知元素、回退能力、节点上限。
 - CSS：选择器结构、后代/子代匹配、特异性、内联覆盖、声明过滤。
-- 布局：标题/段落、层叠、空白折叠、强制换行、列表、margin 折叠、隐藏内容。
+- 布局：标题/段落、层叠、空白折叠、强制换行、列表、隐藏内容。
+- Margin 折叠：父子边、padding 阻断、负 margin、空块折叠穿透、行内内容阻断和嵌套包装传播。
 - 稳健性：窄宽度换行、中文文本、300 段长文档。
 - 链接：跨行区域、相邻链接、非链接区域、渲染表面命中和公开回调。
 - 盒模型：content-box/border-box、最小/最大宽度、边框简写覆盖和不支持样式的降级。
@@ -43,7 +44,9 @@ dart run tool/verify.dart
 
 Flutter 黄金门禁在 Windows CI 执行 `packages/weft_engine/tool/golden_pixel_test.dart`，任何像素变化都会阻断。更新基线必须提供差异图、浏览器参考和合理原因，禁止批量无审查刷新。
 
-Chromium 参考通过 DevTools Protocol 精确设置视口并校验运行时尺寸和 PNG 尺寸。当前跨引擎 advisory 目标为每通道容差 8、差异像素不超过 1%；实测 `box_model` 为 1.064%、`pixel_basic` 为 7.260%，尚未达标，主要来自字形抗锯齿、1–2px 基线差异和未完整的父子 margin 折叠。跨引擎比较脚本输出 overlay 和放大的差异图，但在达到目标前不加入阻断 CI。
+Chromium 参考通过 DevTools Protocol 精确设置视口并校验运行时尺寸和 PNG 尺寸。当前跨引擎 advisory 目标为每通道容差 8、差异像素不超过 1%；实测 `box_model` 为 0.920%、`pixel_basic` 为 5.973%，后者仍未达标。
+
+逐块几何对比显示固定字体下 Weft 与 Chromium 的 `body`、`h1`、首个段落位置完全一致（21.44 / 21.44 / 82.88），`h2` 起累计偏差小于 0.2px；剩余差异集中在字形抗锯齿和行高取整，而不是结构错位。跨引擎比较脚本输出 overlay 和放大的差异图，但在达到目标前不加入阻断 CI。
 
 CJK 结构化布局已有测试，但尚无固定 CJK 字体，因此不提交中文像素基线，也不宣称中文像素一致。
 

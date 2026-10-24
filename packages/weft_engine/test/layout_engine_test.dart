@@ -102,6 +102,22 @@ void main() {
     expect(texts, containsAll(<String>['1.', 'First', '2.', 'Second']));
   });
 
+  test('empty list items still render their marker', () {
+    final document = const WeftNormalizer().normalize(
+      '<ul><li></li><li>Item</li></ul>',
+      id: 'empty-list-item',
+    );
+    final layout = const WeftLayoutEngine().layout(document, width: 320);
+    addTearDown(layout.dispose);
+
+    final texts = layout.commands
+        .whereType<WeftTextPaintCommand>()
+        .map((command) => command.painter.text?.toPlainText())
+        .toList();
+    expect(texts.where((text) => text == '\u2022'), hasLength(2));
+    expect(texts, contains('Item'));
+  });
+
   test('collapses adjacent block margins instead of summing them', () {
     final document = const WeftNormalizer().normalize(
       '<p style="margin: 0 0 30px 0">First</p>'

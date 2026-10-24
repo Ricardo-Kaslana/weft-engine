@@ -43,17 +43,22 @@ final class WeftLayoutEngine {
       parent: WeftComputedStyle.initial,
       ancestors: const [],
     );
+    // Margins of the body's first/last block descendants collapse through the
+    // body's own margins. They sit outside its border box, so they must be
+    // measured before the box is placed and added to the document extent.
+    final outerTop = context.outerMarginTop(body, bodyStyle, const []);
+    final outerBottom = context.outerMarginBottom(body, bodyStyle, const []);
     final bodyLayout = context.layoutBlock(
       element: body,
       style: bodyStyle,
       availableWidth: width,
       left: 0,
-      top: 0,
+      top: outerTop,
       ancestors: const [],
     );
 
     return WeftLayoutResult(
-      size: Size(width, bodyLayout.height),
+      size: Size(width, outerTop + bodyLayout.height + outerBottom),
       boxes: context.boxes,
       commands: context.commands,
       links: context.links,
@@ -83,7 +88,7 @@ final class _LayoutContext {
     String? marker,
   }) {
     if (style.display == WeftDisplay.none) {
-      return const _BlockLayout(height: 0, marginTop: 0, marginBottom: 0);
+      return const _BlockLayout(height: 0);
     }
 
     final boxX = left + style.marginLeft;
@@ -163,11 +168,7 @@ final class _LayoutContext {
       );
     }
 
-    return _BlockLayout(
-      height: height,
-      marginTop: style.marginTop,
-      marginBottom: style.marginBottom,
-    );
+    return _BlockLayout(height: height);
   }
 
   double _resolveBoxWidth({
@@ -263,13 +264,25 @@ final class _LayoutContext {
   }) {
     var cursor = contentY;
     var pendingMargin = 0.0;
+    var hasPendingMargin = false;
+    // A block with no top border or padding lets its first in-flow block
+    // child's top margin collapse into its own outer margin.
+    var leadingCollapses = style.borderTop.width == 0 && style.paddingTop == 0;
+    var trailingCollapses =
+        style.borderBottom.width == 0 && style.paddingBottom == 0;
     var orderedItem = 0;
     final inline = _InlineAccumulator(this);
 
     double flushInline() {
       if (!inline.hasContent) return 0;
-      cursor += pendingMargin;
-      pendingMargin = 0;
+      if (hasPendingMargin) {
+        // A margin accumulated before inline content cannot collapse with it.
+        // When the margin still belongs to the leading edge, the outer margin
+        // already includes it, so it must not be applied twice.
+        if (!leadingCollapses) cursor += pendingMargin;
+        pendingMargin = 0;
+        hasPendingMargin = false;
+      }
       final height = _appendInline(
         inline,
         parentNodeId: element.id,
@@ -280,6 +293,8 @@ final class _LayoutContext {
       );
       cursor += height;
       inline.reset();
+      leadingCollapses = false;
+      trailingCollapses = false;
       return height;
     }
 
@@ -307,8 +322,41 @@ final class _LayoutContext {
         orderedItem += 1;
       }
 
-      final gap = math.max(pendingMargin, childStyle.marginTop);
+      final outerTop = outerMarginTop(child, childStyle, childAncestors);
+      final outerBottom = outerMarginBottom(child, childStyle, childAncestors);
+      final selfCollapsing = _isSelfCollapsing(
+        child,
+        childStyle,
+        childAncestors,
+      );
+
+      if (selfCollapsing) {
+        // Collapse-through blocks have no border box to place. Their margins
+        // merge with the surrounding margins instead of advancing the cursor.
+        pendingMargin = hasPendingMargin
+            ? _collapseMargins(pendingMargin, outerTop, outerBottom)
+            : _collapseMargins(outerTop, outerBottom);
+        hasPendingMargin = true;
+        // Leading fold-through is only applied when the outer margin chain
+        // accounted for the empty child; keep later content positioned by the
+        // accumulated margin instead.
+        leadingCollapses = false;
+        trailingCollapses = false;
+        continue;
+      }
+
+      final gap = leadingCollapses
+          ? 0.0
+          : hasPendingMargin
+              ? _collapseMargins(pendingMargin, outerTop)
+              : outerTop;
       cursor += gap;
+      pendingMargin = 0;
+      hasPendingMargin = false;
+      leadingCollapses = false;
+      trailingCollapses =
+          style.borderBottom.width == 0 && style.paddingBottom == 0;
+
       final marker = _markerFor(
         child: child,
         childStyle: childStyle,
@@ -324,12 +372,217 @@ final class _LayoutContext {
         marker: marker,
       );
       cursor += result.height;
-      pendingMargin = childStyle.marginBottom;
+      pendingMargin = outerBottom;
+      hasPendingMargin = true;
     }
 
     flushInline();
-    cursor += pendingMargin;
+    if (hasPendingMargin && !trailingCollapses) {
+      cursor += pendingMargin;
+    }
     return math.max(0, cursor - contentY);
+  }
+
+  /// Collapses margins following CSS 2.1: the largest positive margin plus the
+  /// smallest negative margin. Adjacent margins never sum.
+  double _collapseMargins(double first, [double? second, double? third]) {
+    var positive = math.max(0.0, first);
+    var negative = math.min(0.0, first);
+    for (final margin in <double?>[second, third]) {
+      if (margin == null) continue;
+      positive = math.max(positive, math.max(0.0, margin));
+      negative = math.min(negative, math.min(0.0, margin));
+    }
+    return positive + negative;
+  }
+
+  /// The top margin that ends up outside [element]'s border box, following the
+  /// first in-flow block child chain while no top border or padding blocks it.
+  double outerMarginTop(
+    WeftElement element,
+    WeftComputedStyle style,
+    List<WeftElement> ancestors,
+  ) {
+    var margin = style.marginTop;
+    var current = element;
+    var currentStyle = style;
+    var currentAncestors = ancestors;
+    for (var depth = 0; depth < 32; depth++) {
+      if (currentStyle.borderTop.width > 0 || currentStyle.paddingTop > 0) {
+        break;
+      }
+      if (current.tag == 'hr') break;
+      final edge = _firstBlockChild(current, currentStyle, currentAncestors);
+      if (edge == null) break;
+      if (_isSelfCollapsing(edge.element, edge.style, edge.ancestors)) {
+        // Treat empty children as ordinary in-flow space so leading margins of
+        // later siblings are not counted twice.
+        break;
+      }
+      margin = _collapseMargins(margin, edge.style.marginTop);
+      current = edge.element;
+      currentStyle = edge.style;
+      currentAncestors = edge.ancestors;
+    }
+    return margin;
+  }
+
+  /// The bottom margin that ends up outside [element]'s border box.
+  double outerMarginBottom(
+    WeftElement element,
+    WeftComputedStyle style,
+    List<WeftElement> ancestors,
+  ) {
+    var margin = style.marginBottom;
+    var current = element;
+    var currentStyle = style;
+    var currentAncestors = ancestors;
+    for (var depth = 0; depth < 32; depth++) {
+      if (currentStyle.borderBottom.width > 0 ||
+          currentStyle.paddingBottom > 0) {
+        break;
+      }
+      if (current.tag == 'hr') break;
+      final edge = _lastBlockChild(current, currentStyle, currentAncestors);
+      if (edge == null) break;
+      if (_isSelfCollapsing(edge.element, edge.style, edge.ancestors)) break;
+      margin = _collapseMargins(margin, edge.style.marginBottom);
+      current = edge.element;
+      currentStyle = edge.style;
+      currentAncestors = edge.ancestors;
+    }
+    return margin;
+  }
+
+  _FlowEdge? _firstBlockChild(
+    WeftElement parent,
+    WeftComputedStyle parentStyle,
+    List<WeftElement> ancestors,
+  ) {
+    final childAncestors = <WeftElement>[...ancestors, parent];
+    for (final child in parent.children) {
+      if (child is WeftText) {
+        if (_isBlankText(child.text, parentStyle.whiteSpace)) continue;
+        return null;
+      }
+      if (child is! WeftElement) continue;
+      final style = styleResolver.resolve(
+        child,
+        parent: parentStyle,
+        ancestors: childAncestors,
+      );
+      if (style.display == WeftDisplay.none) continue;
+      if (style.display == WeftDisplay.inline) {
+        if (_isInlineEmpty(child, style, childAncestors)) continue;
+        return null;
+      }
+      return _FlowEdge(child, style, childAncestors);
+    }
+    return null;
+  }
+
+  _FlowEdge? _lastBlockChild(
+    WeftElement parent,
+    WeftComputedStyle parentStyle,
+    List<WeftElement> ancestors,
+  ) {
+    final childAncestors = <WeftElement>[...ancestors, parent];
+    for (final child in parent.children.reversed) {
+      if (child is WeftText) {
+        if (_isBlankText(child.text, parentStyle.whiteSpace)) continue;
+        return null;
+      }
+      if (child is! WeftElement) continue;
+      final style = styleResolver.resolve(
+        child,
+        parent: parentStyle,
+        ancestors: childAncestors,
+      );
+      if (style.display == WeftDisplay.none) continue;
+      if (style.display == WeftDisplay.inline) {
+        if (_isInlineEmpty(child, style, childAncestors)) continue;
+        return null;
+      }
+      return _FlowEdge(child, style, childAncestors);
+    }
+    return null;
+  }
+
+  /// A block with no border, padding or visible content collapses its own top
+  /// and bottom margins together and contributes no height.
+  bool _isSelfCollapsing(
+    WeftElement element,
+    WeftComputedStyle style,
+    List<WeftElement> ancestors, [
+    int depth = 0,
+  ]) {
+    if (depth > 32) return false;
+    if (style.borderTop.width > 0 ||
+        style.borderBottom.width > 0 ||
+        style.paddingTop > 0 ||
+        style.paddingBottom > 0) {
+      return false;
+    }
+    if (element.tag == 'hr') return false;
+    // An empty list item still renders a marker, so it must be laid out.
+    if (style.display == WeftDisplay.listItem) return false;
+    final childAncestors = <WeftElement>[...ancestors, element];
+    for (final child in element.children) {
+      if (child is WeftText) {
+        if (!_isBlankText(child.text, style.whiteSpace)) return false;
+        continue;
+      }
+      if (child is! WeftElement) continue;
+      final childStyle = styleResolver.resolve(
+        child,
+        parent: style,
+        ancestors: childAncestors,
+      );
+      if (childStyle.display == WeftDisplay.none) continue;
+      if (childStyle.display == WeftDisplay.inline) {
+        if (!_isInlineEmpty(child, childStyle, childAncestors)) return false;
+        continue;
+      }
+      if (!_isSelfCollapsing(
+        child,
+        childStyle,
+        childAncestors,
+        depth + 1,
+      )) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool _isInlineEmpty(
+    WeftElement element,
+    WeftComputedStyle style,
+    List<WeftElement> ancestors,
+  ) {
+    final childAncestors = <WeftElement>[...ancestors, element];
+    for (final child in element.children) {
+      if (child is WeftText) {
+        if (!_isBlankText(child.text, style.whiteSpace)) return false;
+        continue;
+      }
+      if (child is! WeftElement) continue;
+      if (child.tag == 'br') return false;
+      final childStyle = styleResolver.resolve(
+        child,
+        parent: style,
+        ancestors: childAncestors,
+      );
+      if (childStyle.display == WeftDisplay.none) continue;
+      if (!_isInlineEmpty(child, childStyle, childAncestors)) return false;
+    }
+    return true;
+  }
+
+  static bool _isBlankText(String text, WeftWhiteSpace whiteSpace) {
+    if (text.isEmpty) return true;
+    if (whiteSpace == WeftWhiteSpace.normal) return text.trim().isEmpty;
+    return false;
   }
 
   double _appendInline(
@@ -415,15 +668,17 @@ final class _LayoutContext {
 }
 
 final class _BlockLayout {
-  const _BlockLayout({
-    required this.height,
-    required this.marginTop,
-    required this.marginBottom,
-  });
+  const _BlockLayout({required this.height});
 
   final double height;
-  final double marginTop;
-  final double marginBottom;
+}
+
+final class _FlowEdge {
+  const _FlowEdge(this.element, this.style, this.ancestors);
+
+  final WeftElement element;
+  final WeftComputedStyle style;
+  final List<WeftElement> ancestors;
 }
 
 final class _InlineRun {

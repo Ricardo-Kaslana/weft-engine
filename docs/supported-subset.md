@@ -1,6 +1,6 @@
 # HTML/CSS 子集状态
 
-本文同时记录目标子集与当前实现状态。**阶段 1A 尚未建立 Chromium 黄金基线，不能据此宣称浏览器像素级兼容。**
+本文同时记录目标子集与当前实现状态。已建立固定字体 Flutter 像素门禁和 Chromium 诊断参考，但跨引擎像素预算尚未达标，不能据此宣称完整浏览器兼容。
 
 状态说明：
 
@@ -52,10 +52,10 @@
 | 类别 | 当前属性 | 状态 |
 |---|---|---|
 | 字体 | `font-family/size/style/weight` | 部分实现：family 只识别通用族和首个名称 |
-| 行高 | `line-height` | 已实现：普通数字、百分比和 px |
+| 行高 | `line-height` | 已实现：普通数字、百分比和 px；按 CSS 半行距分配 |
 | 文本 | `color/text-align/text-decoration/white-space` | 已实现基础值 |
 | 背景 | `background-color` | 已实现块背景和行内文本背景 |
-| 盒模型 | `margin(-side)`、`padding(-side)` | 已实现非负 padding、可负 margin |
+| 盒模型 | `margin(-side)`、`padding(-side)` | 已实现非负 padding、可负 margin 和相邻/父子/空块折叠 |
 | 显示 | `display: block/inline/list-item/none` | 已实现 |
 | 列表 | `list-style-type: disc/decimal/none` | 已实现 |
 | 宽度 | `width/min-width/max-width/box-sizing` | 部分实现：块级 px/em/rem，不含百分比和 auto margin |
@@ -90,8 +90,9 @@
 - 宽度和边框只作用到块级盒；行内边框、百分比宽度、`auto` margin、CSS 高度和圆角尚未实现。
 - 边框只支持 `solid` 简写；`dashed/dotted/double` 等当前按无边框处理。
 - `WeftView` 依赖外部滚动，布局和绘制命令覆盖完整文档。
-- 没有浏览器对照黄金测试，因此“高度一致”仍是后续验收目标。
-- 图片和表格走回退；不要在阶段 1A 声称支持内容型页面的全部常见元素。
+- 固定字体下块级几何与 Chromium 误差小于 0.5px，但跨引擎像素差异仍高于 1% advisory 预算，主要来自字形抗锯齿。
+- CJK 尚无固定可分发的像素字体，中文只有结构测试，没有像素基线。
+- 图片和表格走回退；不要在阶段 1B 声称支持内容型页面的全部常见元素。
 
 ## Float 的 MVP 边界
 

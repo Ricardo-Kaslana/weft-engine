@@ -110,6 +110,10 @@ final class WeftComputedStyle {
       fontStyle: fontStyle,
       fontFamily: fontFamily,
       height: lineHeight,
+      // CSS distributes line-height leading evenly above and below the
+      // content area (half-leading). Flutter's default is proportional,
+      // which shifts glyphs ~1-2px downward at common sizes.
+      leadingDistribution: TextLeadingDistribution.even,
       decoration: textDecoration,
     );
   }
