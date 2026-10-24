@@ -1,0 +1,120 @@
+# 模块与接口契约
+
+本文区分“已建立代码契约”和“规划中接口”。公开 API 在稳定版前仍可通过 ADR 调整。
+
+## 已建立：文档模型
+
+```dart
+const WeftDocumentSnapshot({
+  required String id,
+  required int revision,
+  required String normalizedHtml,
+  SupportReport supportReport,
+  WeftElement? body,
+  WeftStyleSheet styleSheet,
+});
+```
+
+快照代表一次规范化结果。`revision` 是缓存和失效判断的一部分；节点树、内联样式和 CSS 规则都保持不可变。`body` 为受控元素根，文本节点使用独立 `NodeId` 和原始文本，布局不得修改该树。
+
+`WeftElement` 提供标签、白名单属性、解析后的内联声明和子节点；`WeftText` 提供原始文本。外部 HTML DOM 和 csslib AST 不进入该模型。
+
+`SupportReport` 提供：
+
+- `hasErrors`：是否存在错误级诊断。
+- `requiresWebView`：是否命中明确回退能力。
+- `canRender`：当前是否允许进入引擎。
+
+`TextAnchor(nodeId, offset)` 是逻辑文本锚点；`TextSelectionRange` 保存 anchor 和 extent，不假设视觉方向，也不直接持有 RenderObject。
+
+## 已建立：公开控制与回退
+
+`WeftController`：
+
+- `loadDocument(snapshot)`：替换快照并清空旧选区。
+- `updateSelection(range)`：只更新逻辑选择。
+- `clear()`：清除文档和选择。
+
+`WeftView` 监听控制器。支持内容进入垂直滚动容器和 `WeftSurface`；不支持内容必须调用 `fallbackBuilder`，未提供时抛出明确 Flutter 错误。
+
+当前 `WeftView` 使用外部 `SingleChildScrollView`。这是阶段 1A 的临时滚动方案，后续将被内部视口和可见区绘制替代。
+
+## 已建立：规范化与样式
+
+`WeftNormalizer.normalize(html, id, revision)` 输出 `WeftDocumentSnapshot`，并接受可配置的输入、样式、节点、深度和诊断数量限制。
+
+- 允许标签、类、ID、后代、子代和逗号选择器。
+- 支持的属性、简写和层叠规则见 `supported-subset.md`。
+- 脚本、Canvas、图片、表格等复杂内容生成 `requiresWebView` 诊断，当前不静默移除后继续宣称完整渲染。
+- 规范化器不是不可信内容安全清洗器。
+
+`WeftStyleSheetParser` 输出 `WeftStyleRule` 和 `WeftSelector`；选择器可针对不可变元素和祖先链执行匹配，并提供结构化特异性。`!important`、at-rule 和伪类当前被丢弃并产生警告。
+
+## 已建立：布局与绘制
+
+```dart
+final layout = const WeftLayoutEngine().layout(
+  snapshot,
+  width: availableWidth,
+  textScaler: MediaQuery.textScalerOf(context),
+);
+```
+
+`WeftLayoutResult` 包含内容尺寸、布局盒和有序绘制命令：
+
+- `WeftRectPaintCommand`：块背景和分隔线。
+- `WeftTextPaintCommand`：文本布局与绝对偏移。
+- `WeftLayoutBox`：当前以块级 `NodeId` 和边界矩形为主。
+
+布局结果拥有 `TextPainter`，调用方必须 `dispose()`。`RenderWeftSurface` 在重新布局和销毁时负责释放旧结果。
+
+当前布局是直接、全量的 Block/Inline 叠放，尚未提供 Fragment 行盒、Float、表格、链接命中或选择区域。
+
+## 已建立：Runtime
+
+```dart
+abstract interface class JsRuntimeBackend {
+  Future<JsSession> open(RuntimeConfig config, BridgeDispatcher bridge);
+}
+
+abstract interface class JsSession {
+  String get id;
+  Future<JsResult> execute(ScriptUnit script, ExecutionBudget budget);
+  Future<void> send(EventEnvelope event);
+  Future<void> dispose();
+}
+```
+
+`RuntimeConfig` 固定文档 ID、JS 堆、栈和已启用能力集合。`ExecutionBudget` 限制单次执行时间和微任务批次。所有桥接参数使用可序列化值，禁止传递任意 Dart 对象。
+
+`JsResult` 以 `RuntimeFailure` 表示超时、内存、栈、脚本、桥接和销毁错误，不允许把超限静默当成普通脚本返回值。
+
+## 已建立：能力扩展
+
+```dart
+abstract interface class CapabilityModule {
+  CapabilityDescriptor get descriptor;
+  Future<JsValue> invoke(BridgeCall call);
+}
+```
+
+`CapabilityDescriptor` 包含命名空间、API 版本和方法集合。`CapabilityPolicy` 是不可变装载策略，自定义命名空间与内置能力使用同一机制。
+
+内置命名空间预留为 `weft.state`、`weft.events` 和 `weft.net`；当前只有标识和策略，没有具体实现。
+
+## 已建立：QuickJS 边界
+
+`QuickJsRuntimeBackend` 将 `open` 委托给 `QuickJsNativeAdapter`。该适配器是 FFI 实现的接缝，使核心契约测试可以使用 FakeRuntime/NativeAdapter。
+
+这层委托不表示 QuickJS 已可用。原生库、线程约束、中断和内存限制必须另行实现并验收。
+
+## 规划中：扩展与资源接口
+
+以下接口只在对应里程碑进入代码：
+
+- `TagRenderer`：自定义标签的布局、绘制、命中和语义。
+- `LayoutAlgorithm`：按约束生成 Fragment，未来支持 Flexbox。
+- `TextShaper`：替换当前直接使用的 `TextPainter` 测量与整形。
+- `ResourceProvider`：受控资源加载、取消、缓存和释放。
+
+这些接口的草案和设计约束记录在架构文档，不以未经验证的占位类提前冻结。现有 `WeftLayoutResult` 只是阶段 1A 的绘制产物，不承诺作为最终扩展契约。

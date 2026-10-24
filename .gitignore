@@ -1,0 +1,13 @@
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec_overrides.yaml
+coverage/
+*.iml
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+.workbuddy/

@@ -1,0 +1,15 @@
+name: weft_document
+description: Immutable document, support reporting, and logical text contracts for Weft.
+version: 0.1.0-dev.1
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+
+dependencies:
+  csslib: ^1.0.2
+  html: ^0.15.6
+
+dev_dependencies:
+  test: ^1.25.0

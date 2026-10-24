@@ -1,0 +1,15 @@
+name: weft_quickjs
+description: QuickJS native adapter boundary for Weft; native execution is not yet included.
+version: 0.1.0-dev.1
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+
+dependencies:
+  weft_runtime_api:
+    path: ../weft_runtime_api
+
+dev_dependencies:
+  test: ^1.25.0

@@ -1,0 +1,16 @@
+analyzer:
+  exclude:
+    - build/**
+    - .dart_tool/**
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+
+linter:
+  rules:
+    - prefer_const_constructors
+    - prefer_const_declarations
+    - prefer_final_locals
+    - unnecessary_this
+    - use_super_parameters

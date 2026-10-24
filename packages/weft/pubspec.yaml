@@ -1,0 +1,25 @@
+name: weft
+description: Public Flutter API for the Weft controlled HTML rendering engine.
+version: 0.1.0-dev.1
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  weft_capabilities:
+    path: ../weft_capabilities
+  weft_document:
+    path: ../weft_document
+  weft_engine:
+    path: ../weft_engine
+  weft_runtime_api:
+    path: ../weft_runtime_api
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter

@@ -1,0 +1,19 @@
+name: weft_engine
+description: Flutter layout, rendering, and interaction contracts for Weft.
+version: 0.1.0-dev.1
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  weft_document:
+    path: ../weft_document
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
