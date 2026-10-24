@@ -123,6 +123,49 @@ void main() {
     );
   });
 
+  test('exposes multi-line link boxes and resolves hit testing', () {
+    final document = const WeftNormalizer().normalize(
+      '<p>Before <a href="https://example.com/guide">'
+      'a long link that wraps across multiple lines '
+      '<strong>with emphasis</strong></a> after.</p>',
+      id: 'links',
+    );
+    final layout = const WeftLayoutEngine().layout(document, width: 150);
+    addTearDown(layout.dispose);
+
+    expect(layout.links, hasLength(1));
+    final link = layout.links.single;
+    expect(link.href, 'https://example.com/guide');
+    expect(link.text, contains('a long link'));
+    expect(link.text, contains('with emphasis'));
+    expect(link.rects.length, greaterThan(1));
+    expect(layout.linkAt(link.rects.first.center)?.href, link.href);
+    expect(layout.linkAt(Offset(1, layout.size.height - 1)), isNull);
+  });
+
+  test('keeps adjacent links as separate hit targets', () {
+    final document = const WeftNormalizer().normalize(
+      '<p><a href="https://example.com/a">first</a> '
+      '<a href="https://example.com/b">second</a></p>',
+      id: 'adjacent-links',
+    );
+    final layout = const WeftLayoutEngine().layout(document, width: 320);
+    addTearDown(layout.dispose);
+
+    expect(layout.links.map((link) => link.href), [
+      'https://example.com/a',
+      'https://example.com/b',
+    ]);
+    expect(
+      layout.linkAt(layout.links.first.rects.first.center)?.href,
+      'https://example.com/a',
+    );
+    expect(
+      layout.linkAt(layout.links.last.rects.first.center)?.href,
+      'https://example.com/b',
+    );
+  });
+
   test('hidden content does not produce boxes or paint commands', () {
     final document = const WeftNormalizer().normalize(
       '<p style="display: none">Hidden</p><p>Visible</p>',

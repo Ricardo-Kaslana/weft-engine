@@ -37,6 +37,8 @@ const WeftDocumentSnapshot({
 
 `WeftView` 监听控制器。支持内容进入垂直滚动容器和 `WeftSurface`；不支持内容必须调用 `fallbackBuilder`，未提供时抛出明确 Flutter 错误。
 
+`WeftView.onLinkTap` 接收命中的 `WeftLinkRegion`，负责把经过清洗的链接交还宿主。引擎不自行打开 URL、启动外部应用或执行导航。当前仅启用点击手势；拖动滚动和未来选择手势由 Flutter 手势竞技场协调。
+
 当前 `WeftView` 使用外部 `SingleChildScrollView`。这是阶段 1A 的临时滚动方案，后续将被内部视口和可见区绘制替代。
 
 ## 已建立：规范化与样式
@@ -60,15 +62,17 @@ final layout = const WeftLayoutEngine().layout(
 );
 ```
 
-`WeftLayoutResult` 包含内容尺寸、布局盒和有序绘制命令：
+`WeftLayoutResult` 包含内容尺寸、布局盒、有序绘制命令和链接命中区域：
 
 - `WeftRectPaintCommand`：块背景和分隔线。
 - `WeftTextPaintCommand`：文本布局与绝对偏移。
 - `WeftLayoutBox`：当前以块级 `NodeId` 和边界矩形为主。
+- `WeftLinkRegion`：链接元素 ID、经过清洗的 `href`、显示文本和每行一个的矩形。
+- `WeftLayoutResult.linkAt(position)`：返回该位置最上层的链接命中，未命中返回 null。
 
-布局结果拥有 `TextPainter`，调用方必须 `dispose()`。`RenderWeftSurface` 在重新布局和销毁时负责释放旧结果。
+布局结果拥有 `TextPainter`，调用方必须 `dispose()`。`RenderWeftSurface` 在重新布局和销毁时负责释放旧结果，并缓存当前链接区域供点击测试使用。
 
-当前布局是直接、全量的 Block/Inline 叠放，尚未提供 Fragment 行盒、Float、表格、链接命中或选择区域。
+当前布局是直接、全量的 Block/Inline 叠放，尚未提供 Fragment 行盒、Float、表格或选择区域。链接命中只覆盖字形行盒，不包含行间空白。
 
 ## 已建立：Runtime
 

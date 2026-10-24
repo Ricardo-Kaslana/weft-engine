@@ -4,8 +4,54 @@ import 'package:weft_document/weft_document.dart';
 import 'layout_engine.dart';
 import 'layout_result.dart';
 
-class WeftSurface extends LeafRenderObjectWidget {
+class WeftSurface extends StatefulWidget {
   const WeftSurface({
+    super.key,
+    required this.document,
+    this.selection,
+    this.textScaler = TextScaler.noScaling,
+    this.onLinkTap,
+  });
+
+  final WeftDocumentSnapshot document;
+  final TextSelectionRange? selection;
+  final TextScaler textScaler;
+  final ValueChanged<WeftLinkRegion>? onLinkTap;
+
+  @override
+  State<WeftSurface> createState() => _WeftSurfaceState();
+}
+
+class _WeftSurfaceState extends State<WeftSurface> {
+  final _surfaceKey = GlobalKey();
+
+  void _handleTapUp(TapUpDetails details) {
+    final renderObject = _surfaceKey.currentContext?.findRenderObject();
+    if (renderObject is! RenderWeftSurface) return;
+    final link = renderObject.linkAt(details.localPosition);
+    if (link != null) widget.onLinkTap?.call(link);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final surface = _RawWeftSurface(
+      key: _surfaceKey,
+      document: widget.document,
+      selection: widget.selection,
+      textScaler: widget.textScaler,
+    );
+    if (widget.onLinkTap == null) return surface;
+    return GestureDetector(
+      behavior: HitTestBehavior.deferToChild,
+      excludeFromSemantics: true,
+      onTapUp: _handleTapUp,
+      child: surface,
+    );
+  }
+}
+
+class _RawWeftSurface extends LeafRenderObjectWidget {
+  const _RawWeftSurface({
     super.key,
     required this.document,
     this.selection,
@@ -100,6 +146,10 @@ class RenderWeftSurface extends RenderBox {
     _layout = current;
     previous?.dispose();
     size = constraints.constrain(Size(width, current.size.height));
+  }
+
+  WeftLinkRegion? linkAt(Offset position) {
+    return _layout?.linkAt(position);
   }
 
   @override

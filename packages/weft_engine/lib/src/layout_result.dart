@@ -9,6 +9,33 @@ final class WeftLayoutBox {
   final ui.Rect rect;
 }
 
+final class WeftLinkRegion {
+  WeftLinkRegion({
+    required this.nodeId,
+    required this.href,
+    required this.text,
+    required Iterable<ui.Rect> rects,
+  }) : rects = List<ui.Rect>.unmodifiable(rects);
+
+  final int nodeId;
+  final String href;
+  final String text;
+  final List<ui.Rect> rects;
+
+  bool contains(ui.Offset position) {
+    return rects.any((rect) => rect.contains(position));
+  }
+
+  WeftLinkRegion shift(ui.Offset offset) {
+    return WeftLinkRegion(
+      nodeId: nodeId,
+      href: href,
+      text: text,
+      rects: rects.map((rect) => rect.shift(offset)),
+    );
+  }
+}
+
 sealed class WeftPaintCommand {
   const WeftPaintCommand({required this.nodeId});
 
@@ -64,12 +91,22 @@ final class WeftLayoutResult {
     required this.size,
     required Iterable<WeftLayoutBox> boxes,
     required Iterable<WeftPaintCommand> commands,
+    required Iterable<WeftLinkRegion> links,
   })  : boxes = List<WeftLayoutBox>.unmodifiable(boxes),
-        commands = List<WeftPaintCommand>.unmodifiable(commands);
+        commands = List<WeftPaintCommand>.unmodifiable(commands),
+        links = List<WeftLinkRegion>.unmodifiable(links);
 
   final ui.Size size;
   final List<WeftLayoutBox> boxes;
   final List<WeftPaintCommand> commands;
+  final List<WeftLinkRegion> links;
+
+  WeftLinkRegion? linkAt(ui.Offset position) {
+    for (final link in links.reversed) {
+      if (link.contains(position)) return link;
+    }
+    return null;
+  }
 
   var _disposed = false;
 

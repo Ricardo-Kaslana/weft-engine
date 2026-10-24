@@ -24,6 +24,43 @@ void main() {
     controller.dispose();
   });
 
+  testWidgets('WeftView forwards link taps to the host', (tester) async {
+    final controller = WeftController()
+      ..loadDocument(
+        const WeftNormalizer().normalize(
+          '<p><a href="https://example.com/help">Help</a></p>',
+          id: 'public-link',
+        ),
+      );
+    final layout = const WeftLayoutEngine().layout(
+      controller.document!,
+      width: 320,
+    );
+    addTearDown(layout.dispose);
+    WeftLinkRegion? tapped;
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: SizedBox(
+          width: 320,
+          height: 320,
+          child: WeftView(
+            controller: controller,
+            onLinkTap: (link) => tapped = link,
+          ),
+        ),
+      ),
+    );
+
+    final origin = tester.getTopLeft(find.byType(WeftSurface));
+    await tester.tapAt(origin + layout.links.single.rects.first.center);
+    await tester.pump();
+
+    expect(tapped?.href, 'https://example.com/help');
+    controller.dispose();
+  });
+
   testWidgets('unsupported content invokes the explicit fallback',
       (tester) async {
     final controller = WeftController()

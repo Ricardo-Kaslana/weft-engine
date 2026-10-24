@@ -17,7 +17,11 @@ final class WeftLayoutEngine {
   }) {
     if (!width.isFinite || width <= 0) {
       return WeftLayoutResult(
-          size: Size.zero, boxes: const [], commands: const []);
+        size: Size.zero,
+        boxes: const [],
+        commands: const [],
+        links: const [],
+      );
     }
 
     final body = document.body;
@@ -26,6 +30,7 @@ final class WeftLayoutEngine {
         size: Size(width, 0),
         boxes: const [],
         commands: const [],
+        links: const [],
       );
     }
 
@@ -51,6 +56,7 @@ final class WeftLayoutEngine {
       size: Size(width, bodyLayout.height),
       boxes: context.boxes,
       commands: context.commands,
+      links: context.links,
     );
   }
 }
@@ -65,6 +71,7 @@ final class _LayoutContext {
   final TextScaler textScaler;
   final List<WeftLayoutBox> boxes = <WeftLayoutBox>[];
   final List<WeftPaintCommand> commands = <WeftPaintCommand>[];
+  final List<WeftLinkRegion> links = <WeftLinkRegion>[];
 
   _BlockLayout layoutBlock({
     required WeftElement element,
@@ -233,24 +240,29 @@ final class _LayoutContext {
     required double width,
   }) {
     if (width <= 0) return 0;
-    final painter = inline.buildPainter(
+    final inlineLayout = inline.buildLayout(
       parentStyle: parentStyle,
       width: width,
       textScaler: textScaler,
     );
-    if (painter == null) return 0;
+    if (inlineLayout == null) return 0;
+    final painter = inlineLayout.painter;
     final height = painter.height;
     if (height <= 0) {
       painter.dispose();
       return 0;
     }
+    final offset = Offset(x, y);
     commands.add(
       WeftTextPaintCommand(
         nodeId: parentNodeId,
         painter: painter,
-        offset: Offset(x, y),
+        offset: offset,
       ),
     );
+    for (final link in inlineLayout.links) {
+      links.add(link.shift(offset));
+    }
     return height;
   }
 
@@ -314,11 +326,47 @@ final class _BlockLayout {
 }
 
 final class _InlineRun {
-  _InlineRun(this.nodeId, this.style, this.text);
+  _InlineRun(
+    this.nodeId,
+    this.style,
+    this.text, {
+    this.href,
+    this.linkNodeId,
+  });
 
   final int nodeId;
   final WeftComputedStyle style;
+  final String? href;
+  final int? linkNodeId;
   String text;
+}
+
+final class _LinkTarget {
+  const _LinkTarget({required this.nodeId, required this.href});
+
+  final int nodeId;
+  final String href;
+}
+
+final class _LinkRunRange {
+  _LinkRunRange({
+    required this.nodeId,
+    required this.href,
+    required this.start,
+    required this.end,
+  });
+
+  final int nodeId;
+  final String href;
+  int start;
+  int end;
+}
+
+final class _InlineLayout {
+  const _InlineLayout({required this.painter, required this.links});
+
+  final TextPainter painter;
+  final List<WeftLinkRegion> links;
 }
 
 final class _InlineAccumulator {
@@ -335,7 +383,11 @@ final class _InlineAccumulator {
     _lastWasSpace = true;
   }
 
-  void addText(WeftText node, WeftComputedStyle style) {
+  void addText(
+    WeftText node,
+    WeftComputedStyle style, {
+    _LinkTarget? link,
+  }) {
     if (node.text.isEmpty) return;
     if (style.whiteSpace == WeftWhiteSpace.normal) {
       var text = node.text.replaceAll(RegExp(r'\s+'), ' ');
@@ -343,12 +395,28 @@ final class _InlineAccumulator {
         text = text.substring(1);
       }
       if (text.isEmpty) return;
-      _runs.add(_InlineRun(node.id, style, text));
+      _runs.add(
+        _InlineRun(
+          node.id,
+          style,
+          text,
+          href: link?.href,
+          linkNodeId: link?.nodeId,
+        ),
+      );
       _lastWasSpace = text.endsWith(' ');
       return;
     }
 
-    _runs.add(_InlineRun(node.id, style, node.text));
+    _runs.add(
+      _InlineRun(
+        node.id,
+        style,
+        node.text,
+        href: link?.href,
+        linkNodeId: link?.nodeId,
+      ),
+    );
     _lastWasSpace = _endsWithSpace(node.text);
   }
 
@@ -361,30 +429,40 @@ final class _InlineAccumulator {
   void collectElement(
     WeftElement element,
     WeftComputedStyle style,
-    List<WeftElement> ancestors,
-  ) {
+    List<WeftElement> ancestors, {
+    _LinkTarget? link,
+  }) {
     if (style.display == WeftDisplay.none) return;
     if (element.tag == 'br') {
       addBreak(element.id, style);
       return;
     }
 
+    final href = element.tag == 'a' ? element.attribute('href') : null;
+    final activeLink = href == null || href.isEmpty
+        ? link
+        : _LinkTarget(nodeId: element.id, href: href);
     final childAncestors = <WeftElement>[...ancestors, element];
     for (final child in element.children) {
       if (child is WeftText) {
-        addText(child, style);
+        addText(child, style, link: activeLink);
       } else if (child is WeftElement) {
         final childStyle = context.styleResolver.resolve(
           child,
           parent: style,
           ancestors: childAncestors,
         );
-        collectElement(child, childStyle, childAncestors);
+        collectElement(
+          child,
+          childStyle,
+          childAncestors,
+          link: activeLink,
+        );
       }
     }
   }
 
-  TextPainter? buildPainter({
+  _InlineLayout? buildLayout({
     required WeftComputedStyle parentStyle,
     required double width,
     required TextScaler textScaler,
@@ -415,7 +493,60 @@ final class _InlineAccumulator {
       locale: const Locale('zh'),
       textWidthBasis: TextWidthBasis.parent,
     )..layout(maxWidth: width);
-    return painter;
+
+    final plainText = painter.text?.toPlainText() ?? '';
+    final links = <WeftLinkRegion>[];
+    for (final range in _linkRanges()) {
+      final boxes = painter.getBoxesForSelection(
+        TextSelection(baseOffset: range.start, extentOffset: range.end),
+      );
+      final rects = boxes
+          .map((box) {
+            return Rect.fromLTRB(box.left, box.top, box.right, box.bottom);
+          })
+          .where((rect) => rect.width > 0 && rect.height > 0)
+          .toList();
+      if (rects.isEmpty) continue;
+      links.add(
+        WeftLinkRegion(
+          nodeId: range.nodeId,
+          href: range.href,
+          text: plainText.substring(range.start, range.end),
+          rects: rects,
+        ),
+      );
+    }
+    return _InlineLayout(painter: painter, links: links);
+  }
+
+  List<_LinkRunRange> _linkRanges() {
+    final result = <_LinkRunRange>[];
+    var offset = 0;
+    for (final run in _runs) {
+      if (run.text.isEmpty) continue;
+      final href = run.href;
+      final nodeId = run.linkNodeId;
+      if (href != null && nodeId != null) {
+        final end = offset + run.text.length;
+        if (result.isNotEmpty &&
+            result.last.nodeId == nodeId &&
+            result.last.href == href &&
+            result.last.end == offset) {
+          result.last.end = end;
+        } else {
+          result.add(
+            _LinkRunRange(
+              nodeId: nodeId,
+              href: href,
+              start: offset,
+              end: end,
+            ),
+          );
+        }
+      }
+      offset += run.text.length;
+    }
+    return result;
   }
 
   void _trimTrailingCollapsibleSpace() {

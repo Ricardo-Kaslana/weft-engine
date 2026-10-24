@@ -28,6 +28,46 @@ void main() {
     expect(tester.getSize(find.byType(WeftSurface)), const Size(320, 180));
   });
 
+  testWidgets('surface reports taps inside rendered link boxes',
+      (tester) async {
+    final document = const WeftNormalizer().normalize(
+      '<p>prefix <a href="https://example.com/target">target link</a> suffix</p>',
+      id: 'link-tap',
+    );
+    final layout = const WeftLayoutEngine().layout(document, width: 200);
+    addTearDown(layout.dispose);
+    final link = layout.links.single;
+    final localTarget = link.rects.first.center;
+    WeftLinkRegion? tapped;
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+          child: SizedBox(
+            width: 200,
+            height: 240,
+            child: WeftSurface(
+              document: document,
+              onLinkTap: (region) => tapped = region,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final origin = tester.getTopLeft(find.byType(WeftSurface));
+    await tester.tapAt(origin + localTarget);
+    await tester.pump();
+    expect(tapped?.href, 'https://example.com/target');
+    expect(tapped?.text, 'target link');
+
+    tapped = null;
+    await tester.tapAt(origin + const Offset(1, 1));
+    await tester.pump();
+    expect(tapped, isNull);
+  });
+
   testWidgets('surface accepts a replacement document without stale layout', (
     tester,
   ) async {

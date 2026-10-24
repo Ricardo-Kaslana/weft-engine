@@ -19,6 +19,7 @@ const _article = '''
 <blockquote>
   <p>内容正确性优先于新增能力，复杂内容必须显式回退。</p>
 </blockquote>
+<p>查看 <a href="https://example.com/weft">Weft 项目文档</a> 了解后续里程碑。</p>
 <h2>示例代码</h2>
 <pre><code>final snapshot = normalizer.normalize(html, id: 'demo');</code></pre>
 <p class="note">
@@ -93,7 +94,16 @@ class _WeftLabPageState extends State<WeftLabPage> {
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: WeftView(controller: _controller),
+              child: WeftView(
+                controller: _controller,
+                onLinkTap: (link) {
+                  ScaffoldMessenger.of(context)
+                    ..hideCurrentSnackBar()
+                    ..showSnackBar(
+                      SnackBar(content: Text('宿主收到链接：${link.href}')),
+                    );
+                },
+              ),
             ),
           ),
         ],

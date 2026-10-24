@@ -10,10 +10,16 @@ typedef WeftFallbackBuilder = Widget Function(
 );
 
 class WeftView extends StatelessWidget {
-  const WeftView({super.key, required this.controller, this.fallbackBuilder});
+  const WeftView({
+    super.key,
+    required this.controller,
+    this.fallbackBuilder,
+    this.onLinkTap,
+  });
 
   final WeftController controller;
   final WeftFallbackBuilder? fallbackBuilder;
+  final ValueChanged<WeftLinkRegion>? onLinkTap;
 
   @override
   Widget build(BuildContext context) {
@@ -42,6 +48,7 @@ class WeftView extends StatelessWidget {
             document: document,
             selection: controller.selection,
             textScaler: textScaler,
+            onLinkTap: onLinkTap,
           ),
         );
       },
