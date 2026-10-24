@@ -7,6 +7,7 @@
 - Added basic static layout and painting for headings, paragraphs, inline emphasis, links, lists, blockquotes, preformatted code, horizontal rules, and line breaks.
 - Added single-surface scrolling integration, text scaling, long-document smoke tests, CJK layout tests, and the Stage 1A Weft Lab article.
 - Added per-line link hit regions, hit testing across wrapped links, and the public `WeftView.onLinkTap` callback.
+- Added block-level width, min/max width, box-sizing, and solid border support with content-box/border-box layout tests.
 - Table and image elements currently trigger fallback rather than silent content removal.
 
 ## 0.1.0-dev.1

@@ -6,6 +6,19 @@ enum WeftWhiteSpace { normal, pre, preWrap }
 
 enum WeftListStyle { none, disc, decimal }
 
+enum WeftBoxSizing { contentBox, borderBox }
+
+final class WeftBorderSide {
+  const WeftBorderSide({required this.width, required this.color});
+
+  static const none = WeftBorderSide(width: 0, color: Color(0x00000000));
+
+  final double width;
+  final Color color;
+
+  bool get isVisible => width > 0 && color.a > 0;
+}
+
 final class WeftComputedStyle {
   const WeftComputedStyle({
     required this.display,
@@ -28,6 +41,14 @@ final class WeftComputedStyle {
     this.paddingRight = 0,
     this.paddingBottom = 0,
     this.paddingLeft = 0,
+    this.width,
+    this.minWidth,
+    this.maxWidth,
+    this.boxSizing = WeftBoxSizing.contentBox,
+    this.borderTop = WeftBorderSide.none,
+    this.borderRight = WeftBorderSide.none,
+    this.borderBottom = WeftBorderSide.none,
+    this.borderLeft = WeftBorderSide.none,
   });
 
   static const initial = WeftComputedStyle(
@@ -63,10 +84,22 @@ final class WeftComputedStyle {
   final double paddingRight;
   final double paddingBottom;
   final double paddingLeft;
+  final double? width;
+  final double? minWidth;
+  final double? maxWidth;
+  final WeftBoxSizing boxSizing;
+  final WeftBorderSide borderTop;
+  final WeftBorderSide borderRight;
+  final WeftBorderSide borderBottom;
+  final WeftBorderSide borderLeft;
 
   double get horizontalPadding => paddingLeft + paddingRight;
 
   double get verticalPadding => paddingTop + paddingBottom;
+
+  double get horizontalBorder => borderLeft.width + borderRight.width;
+
+  double get verticalBorder => borderTop.width + borderBottom.width;
 
   TextStyle toTextStyle({bool includeBackground = false}) {
     return TextStyle(

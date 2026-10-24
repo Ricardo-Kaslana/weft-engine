@@ -86,14 +86,20 @@ final class _LayoutContext {
       return const _BlockLayout(height: 0, marginTop: 0, marginBottom: 0);
     }
 
-    final borderX = left + style.marginLeft;
-    final borderWidth = math.max(
+    final boxX = left + style.marginLeft;
+    final availableBoxWidth = math.max(
       0.0,
       availableWidth - style.marginLeft - style.marginRight,
     );
-    final contentX = borderX + style.paddingLeft;
-    final contentY = top + style.paddingTop;
-    final contentWidth = math.max(0.0, borderWidth - style.horizontalPadding);
+    final horizontalChrome = style.horizontalPadding + style.horizontalBorder;
+    final boxWidth = _resolveBoxWidth(
+      style: style,
+      availableWidth: availableBoxWidth,
+      horizontalChrome: horizontalChrome,
+    );
+    final contentX = boxX + style.borderLeft.width + style.paddingLeft;
+    final contentY = top + style.borderTop.width + style.paddingTop;
+    final contentWidth = math.max(0.0, boxWidth - horizontalChrome);
     final commandStart = commands.length;
     final childAncestors = <WeftElement>[...ancestors, element];
 
@@ -107,7 +113,7 @@ final class _LayoutContext {
             contentWidth: contentWidth,
             childAncestors: childAncestors,
           );
-    final height = style.verticalPadding + contentHeight;
+    final height = style.verticalBorder + style.verticalPadding + contentHeight;
 
     var insertIndex = commandStart;
     final background = style.backgroundColor;
@@ -116,10 +122,22 @@ final class _LayoutContext {
         insertIndex,
         WeftRectPaintCommand(
           nodeId: element.id,
-          rect: Rect.fromLTWH(borderX, top, borderWidth, height),
+          rect: Rect.fromLTWH(boxX, top, boxWidth, height),
           color: background,
         ),
       );
+      insertIndex += 1;
+    }
+
+    for (final command in _borderCommands(
+      nodeId: element.id,
+      style: style,
+      boxX: boxX,
+      top: top,
+      boxWidth: boxWidth,
+      height: height,
+    )) {
+      commands.insert(insertIndex, command);
       insertIndex += 1;
     }
 
@@ -136,11 +154,11 @@ final class _LayoutContext {
       }
     }
 
-    if (borderWidth > 0 && height > 0) {
+    if (boxWidth > 0 && height > 0) {
       boxes.add(
         WeftLayoutBox(
           nodeId: element.id,
-          rect: Rect.fromLTWH(borderX, top, borderWidth, height),
+          rect: Rect.fromLTWH(boxX, top, boxWidth, height),
         ),
       );
     }
@@ -150,6 +168,89 @@ final class _LayoutContext {
       marginTop: style.marginTop,
       marginBottom: style.marginBottom,
     );
+  }
+
+  double _resolveBoxWidth({
+    required WeftComputedStyle style,
+    required double availableWidth,
+    required double horizontalChrome,
+  }) {
+    var boxWidth = style.width == null
+        ? availableWidth
+        : style.boxSizing == WeftBoxSizing.borderBox
+            ? style.width!
+            : style.width! + horizontalChrome;
+    boxWidth = math.min(boxWidth, availableWidth);
+
+    final maxWidth = style.maxWidth;
+    if (maxWidth != null) {
+      final maxBoxWidth = style.boxSizing == WeftBoxSizing.borderBox
+          ? maxWidth
+          : maxWidth + horizontalChrome;
+      boxWidth = math.min(boxWidth, maxBoxWidth);
+    }
+    final minWidth = style.minWidth;
+    if (minWidth != null) {
+      final minBoxWidth = style.boxSizing == WeftBoxSizing.borderBox
+          ? minWidth
+          : minWidth + horizontalChrome;
+      boxWidth = math.max(boxWidth, minBoxWidth);
+    }
+
+    boxWidth = boxWidth.clamp(0.0, availableWidth).toDouble();
+    return math.max(boxWidth, math.min(horizontalChrome, availableWidth));
+  }
+
+  Iterable<WeftRectPaintCommand> _borderCommands({
+    required int nodeId,
+    required WeftComputedStyle style,
+    required double boxX,
+    required double top,
+    required double boxWidth,
+    required double height,
+  }) sync* {
+    final topSide = style.borderTop;
+    final rightSide = style.borderRight;
+    final bottomSide = style.borderBottom;
+    final leftSide = style.borderLeft;
+    if (topSide.isVisible) {
+      yield WeftRectPaintCommand(
+        nodeId: nodeId,
+        rect: Rect.fromLTWH(boxX, top, boxWidth, topSide.width),
+        color: topSide.color,
+      );
+    }
+    if (rightSide.isVisible) {
+      yield WeftRectPaintCommand(
+        nodeId: nodeId,
+        rect: Rect.fromLTWH(
+          boxX + boxWidth - rightSide.width,
+          top,
+          rightSide.width,
+          height,
+        ),
+        color: rightSide.color,
+      );
+    }
+    if (bottomSide.isVisible) {
+      yield WeftRectPaintCommand(
+        nodeId: nodeId,
+        rect: Rect.fromLTWH(
+          boxX,
+          top + height - bottomSide.width,
+          boxWidth,
+          bottomSide.width,
+        ),
+        color: bottomSide.color,
+      );
+    }
+    if (leftSide.isVisible) {
+      yield WeftRectPaintCommand(
+        nodeId: nodeId,
+        rect: Rect.fromLTWH(boxX, top, leftSide.width, height),
+        color: leftSide.color,
+      );
+    }
   }
 
   double _layoutChildren({

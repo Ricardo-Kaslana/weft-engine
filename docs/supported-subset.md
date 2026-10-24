@@ -58,8 +58,9 @@
 | 盒模型 | `margin(-side)`、`padding(-side)` | 已实现非负 padding、可负 margin |
 | 显示 | `display: block/inline/list-item/none` | 已实现 |
 | 列表 | `list-style-type: disc/decimal/none` | 已实现 |
-| 尺寸 | `width/height/min/max/box-sizing` | 阶段 1 后续 |
-| 边框 | `border` | 阶段 1 后续 |
+| 宽度 | `width/min-width/max-width/box-sizing` | 部分实现：块级 px/em/rem，不含百分比和 auto margin |
+| 高度 | `height/min-height/max-height` | 阶段 1 后续 |
+| 边框 | `border`、`border-top/right/bottom/left` | 部分实现：块级 solid，无圆角/虚线/独立宽高与颜色属性 |
 | 缩进与字距 | `text-indent/letter-spacing` | 阶段 1 后续 |
 | 定位 | `position/float/clear` | 阶段 2 |
 | 表格 | table display、`vertical-align`、`border-collapse` | 阶段 2 |
@@ -86,6 +87,8 @@
 ## 当前明确限制
 
 - 链接点击交给 `WeftView.onLinkTap`，引擎不会自行打开浏览器或执行导航。
+- 宽度和边框只作用到块级盒；行内边框、百分比宽度、`auto` margin、CSS 高度和圆角尚未实现。
+- 边框只支持 `solid` 简写；`dashed/dotted/double` 等当前按无边框处理。
 - `WeftView` 依赖外部滚动，布局和绘制命令覆盖完整文档。
 - 没有浏览器对照黄金测试，因此“高度一致”仍是后续验收目标。
 - 图片和表格走回退；不要在阶段 1A 声称支持内容型页面的全部常见元素。

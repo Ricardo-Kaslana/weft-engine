@@ -1,6 +1,12 @@
 abstract final class WeftCssSpec {
   static const supportedProperties = <String>{
     'background-color',
+    'border',
+    'border-bottom',
+    'border-left',
+    'border-right',
+    'border-top',
+    'box-sizing',
     'color',
     'display',
     'font-family',
@@ -14,6 +20,8 @@ abstract final class WeftCssSpec {
     'margin-left',
     'margin-right',
     'margin-top',
+    'max-width',
+    'min-width',
     'padding',
     'padding-bottom',
     'padding-left',
@@ -22,6 +30,7 @@ abstract final class WeftCssSpec {
     'text-align',
     'text-decoration',
     'white-space',
+    'width',
   };
 
   static bool supportsProperty(String property) {

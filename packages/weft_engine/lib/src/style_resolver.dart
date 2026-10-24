@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/painting.dart';
 import 'package:weft_document/weft_document.dart';
 
@@ -53,7 +55,12 @@ final class WeftStyleResolver {
     for (final declaration in declarations.entries) {
       final property = declaration.key;
       final value = declaration.value;
-      if (property == 'margin' || property == 'padding') {
+      if (property == 'border') {
+        target['border-top'] = value;
+        target['border-right'] = value;
+        target['border-bottom'] = value;
+        target['border-left'] = value;
+      } else if (property == 'margin' || property == 'padding') {
         final parts = value
             .trim()
             .split(RegExp(r'\s+'))
@@ -118,6 +125,14 @@ final class _StyleBuilder {
   double paddingRight = 0;
   double paddingBottom = 0;
   double paddingLeft = 0;
+  double? width;
+  double? minWidth;
+  double? maxWidth;
+  WeftBoxSizing boxSizing = WeftBoxSizing.contentBox;
+  WeftBorderSide borderTop = WeftBorderSide.none;
+  WeftBorderSide borderRight = WeftBorderSide.none;
+  WeftBorderSide borderBottom = WeftBorderSide.none;
+  WeftBorderSide borderLeft = WeftBorderSide.none;
 
   void applyTagDefaults(String tag, WeftComputedStyle parent) {
     switch (tag) {
@@ -279,6 +294,33 @@ final class _StyleBuilder {
           normalized == 'transparent' ? null : _color(backgroundValue, color);
     }
 
+    final boxSizingValue = declarations['box-sizing'];
+    if (boxSizingValue != null) {
+      boxSizing = boxSizingValue.trim().toLowerCase() == 'border-box'
+          ? WeftBoxSizing.borderBox
+          : WeftBoxSizing.contentBox;
+    }
+
+    final widthValue = declarations['width'];
+    if (widthValue != null) {
+      final normalized = widthValue.trim().toLowerCase();
+      width = normalized == 'auto' ? null : _length(widthValue, fontSize);
+    }
+    final minWidthValue = declarations['min-width'];
+    if (minWidthValue != null) {
+      final normalized = minWidthValue.trim().toLowerCase();
+      minWidth = normalized == 'auto' || normalized == 'none'
+          ? null
+          : _length(minWidthValue, fontSize);
+    }
+    final maxWidthValue = declarations['max-width'];
+    if (maxWidthValue != null) {
+      final normalized = maxWidthValue.trim().toLowerCase();
+      maxWidth = normalized == 'none' || normalized == 'auto'
+          ? null
+          : _length(maxWidthValue, fontSize);
+    }
+
     final lineHeightValue = declarations['line-height'];
     if (lineHeightValue != null) {
       final parsed = _lineHeight(lineHeightValue, fontSize);
@@ -356,6 +398,16 @@ final class _StyleBuilder {
         _length(declarations['padding-bottom'], fontSize) ?? paddingBottom;
     paddingLeft =
         _length(declarations['padding-left'], fontSize) ?? paddingLeft;
+
+    borderTop =
+        _borderSide(declarations['border-top'], fontSize, color) ?? borderTop;
+    borderRight = _borderSide(declarations['border-right'], fontSize, color) ??
+        borderRight;
+    borderBottom =
+        _borderSide(declarations['border-bottom'], fontSize, color) ??
+            borderBottom;
+    borderLeft =
+        _borderSide(declarations['border-left'], fontSize, color) ?? borderLeft;
   }
 
   WeftComputedStyle build() {
@@ -380,7 +432,63 @@ final class _StyleBuilder {
       paddingRight: paddingRight,
       paddingBottom: paddingBottom,
       paddingLeft: paddingLeft,
+      width: width,
+      minWidth: minWidth,
+      maxWidth: maxWidth,
+      boxSizing: boxSizing,
+      borderTop: borderTop,
+      borderRight: borderRight,
+      borderBottom: borderBottom,
+      borderLeft: borderLeft,
     );
+  }
+
+  static WeftBorderSide? _borderSide(
+    String? raw,
+    double fontSize,
+    Color currentColor,
+  ) {
+    if (raw == null) return null;
+    final value = raw.trim().toLowerCase();
+    if (value.isEmpty) return null;
+    if (value == 'none' || value == '0') return WeftBorderSide.none;
+    if (!RegExp(r'(?:^|\s)solid(?:\s|$)').hasMatch(value)) {
+      return WeftBorderSide.none;
+    }
+
+    var width = 3.0;
+    if (RegExp(r'(?:^|\s)thin(?:\s|$)').hasMatch(value)) {
+      width = 1;
+    } else if (RegExp(r'(?:^|\s)medium(?:\s|$)').hasMatch(value)) {
+      width = 3;
+    } else if (RegExp(r'(?:^|\s)thick(?:\s|$)').hasMatch(value)) {
+      width = 5;
+    } else if (RegExp(r'(?:^|\s)0(?:\s|$)').hasMatch(value)) {
+      width = 0;
+    } else {
+      final match = RegExp(r'(\d+(?:\.\d+)?)(px|em|rem)').firstMatch(value);
+      if (match != null) {
+        final number = double.tryParse(match.group(1)!);
+        if (number != null) {
+          width = switch (match.group(2)) {
+            'em' => number * fontSize,
+            'rem' => number * 16,
+            _ => number,
+          };
+        }
+      }
+    }
+
+    final cleaned = value
+        .replaceAll(RegExp(r'(\d+(?:\.\d+)?)(px|em|rem)'), ' ')
+        .replaceAll(RegExp(r'(?:thin|medium|thick)'), ' ')
+        .replaceAll(RegExp(r'(?:solid|none)'), ' ')
+        .trim();
+    var color = currentColor;
+    if (cleaned.isNotEmpty) {
+      color = _color(cleaned, currentColor) ?? currentColor;
+    }
+    return WeftBorderSide(width: math.max(0, width), color: color);
   }
 
   static double? _length(

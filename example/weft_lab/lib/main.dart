@@ -4,7 +4,11 @@ import 'package:weft/weft.dart';
 const _article = '''
 <style>
   .lead { color: #57606a; font-size: 18px; }
-  .note { background-color: #fff8c5; padding: 12px; }
+  .note {
+    background-color: #fff8c5;
+    padding: 12px;
+    border: 1px solid #d4a72c;
+  }
 </style>
 <h1>Weft 内容引擎</h1>
 <p class="lead">

@@ -66,7 +66,7 @@ final layout = const WeftLayoutEngine().layout(
 
 - `WeftRectPaintCommand`：块背景和分隔线。
 - `WeftTextPaintCommand`：文本布局与绝对偏移。
-- `WeftLayoutBox`：当前以块级 `NodeId` 和边界矩形为主。
+- `WeftLayoutBox`：当前以块级 `NodeId` 和边框盒矩形为主，已包含内容宽度、padding、border 和 `box-sizing` 的结果。
 - `WeftLinkRegion`：链接元素 ID、经过清洗的 `href`、显示文本和每行一个的矩形。
 - `WeftLayoutResult.linkAt(position)`：返回该位置最上层的链接命中，未命中返回 null。
 
