@@ -16,9 +16,9 @@
 - 图片/Float 与表格的浏览器几何基线（Chrome 参考固化在 conformance/reference/）。
 
 请继续下一个切片，优先级如下：
-1. 选择手势：点击/拖拽定位 TextAnchor（命中测试走 run 映射与 getBoxesForSelection 反查），复制菜单与长按行为。
-2. CJK 禁则处理：行首/行尾标点约束与可配置标点表。
-3. 性能门禁：长文档布局耗时基线、分块 Picture 缓存与视口虚拟化评估。
+1. 分块渲染：按块缓存 ui.Picture、视口外裁剪与选择矩形按块索引（性能门禁已在 docs/testing-strategy.md，改前留底、改后对比中位数）。
+2. 选择把手/工具条与 caret：拖拽把手微调选区、宿主复制菜单（WeftView.selectionText() 已就绪）。
+3. 行内图片基线混排或 CSS 高度/百分比宽度。
 
 硬性约束：
 - 不做完整浏览器；不执行不可信脚本；不把 HTML 节点映射为独立 Widget。
@@ -26,7 +26,7 @@
 - 图片资源只能由宿主 WeftImageResolver 提供；引擎不得隐式发起网络请求。
 - 每次修改必须运行 `dart format --output=none --set-exit-if-changed .`、`dart analyze`、`dart run tool/verify.dart` 和 `packages/weft_engine/tool/golden_pixel_test.dart`。
 - 新增能力必须附带单元测试；影响布局时必须评估黄金基线与 conformance/reference/ 下的浏览器几何基线。
-- 重要技术取舍写入 docs/adr/（下一个编号为 0015）。
+- 重要技术取舍写入 docs/adr/（下一个编号为 0017）。
 
 先阅读 README.md、docs/architecture.md、docs/supported-subset.md 和 docs/handoff.md，再选择第一个任务并给出计划。
 
@@ -36,10 +36,12 @@
 ## 当前仓库状态
 
 - 分支：`main`
-- 最新提交：`c045245 feat: add logical text index and selection resolution`
+- 最新提交：见 `git log`（本节只保证指南有效，不追踪哈希）
 - Flutter：3.35.5 stable；Dart：3.9.2
-- 常规测试：91 项；固定字体像素基线：3 项（box_model/pixel_basic/float_image）+ 1 项表面选区高亮黄金；`dart analyze` 无问题。
+- 常规测试 104+ 项、像素黄金 3 项 + 选区高亮 1 项、性能门禁 4 场景；`dart analyze` 无问题。
 - GitHub Actions 使用 Windows 执行像素黄金门禁。
+
+已实现到 ADR 0016：选择手势（长按选词/拖拽扩展/点击清除/`WeftView.selectionText()`）、CJK 禁则（`WeftLineBreakRules`，逐行路径显式、整段路径 ICU 对照零违规）、性能门禁（四场景基准 + 10 倍宽 CI 上限，见 docs/testing-strategy.md）。
 
 ## 包结构
 
