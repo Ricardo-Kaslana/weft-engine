@@ -51,6 +51,8 @@ final class WeftComputedStyle {
     this.marginRight = 0,
     this.marginBottom = 0,
     this.marginLeft = 0,
+    this.marginLeftAuto = false,
+    this.marginRightAuto = false,
     this.paddingTop = 0,
     this.paddingRight = 0,
     this.paddingBottom = 0,
@@ -104,6 +106,16 @@ final class WeftComputedStyle {
   final double marginRight;
   final double marginBottom;
   final double marginLeft;
+
+  /// `margin-left/right: auto`. Block layout distributes the space left over
+  /// after the resolved box width and the non-auto horizontal margins to
+  /// these sides (negative slack keeps them at zero). The parsed numeric
+  /// margin stays 0 whenever the flag is set, so consumers that do not
+  /// implement auto distribution — replaced images, floats and table cells —
+  /// keep treating auto as zero. Vertical auto margins never carry a flag;
+  /// they resolve to zero at parse time.
+  final bool marginLeftAuto;
+  final bool marginRightAuto;
   final double paddingTop;
   final double paddingRight;
   final double paddingBottom;
@@ -112,12 +124,16 @@ final class WeftComputedStyle {
   final double? minWidth;
   final double? maxWidth;
 
-  /// Explicit CSS height in px. Only consumed by replaced content sizing;
-  /// block heights remain content-driven.
+  /// Explicit CSS height in px/em/rem. Block boxes size their border box to
+  /// it (box-sizing converted like width, ADR 0009) and let overflowing
+  /// content paint unclipped; percentage heights resolve as auto. Replaced
+  /// content (images) consumes it for intrinsic ratio sizing (ADR 0018).
   final double? height;
 
-  /// Percentage width (e.g. `50` for `width: 50%`). Resolved by replaced
-  /// content against the containing block; block widths still ignore it.
+  /// Percentage width (e.g. `50` for `width: 50%`). Block boxes and replaced
+  /// content resolve it against the containing block's content width before
+  /// the box's own margins. The resolver only ever fills this or [width], not
+  /// both; if both were present this value wins.
   final double? widthPercent;
 
   /// Percentage height. Stored for diagnostics but resolved as auto: the

@@ -105,6 +105,14 @@ final class _LayoutContext {
   final List<WeftPaintCommand> commands = <WeftPaintCommand>[];
   final List<WeftLinkRegion> links = <WeftLinkRegion>[];
 
+  /// Lays out one block-level box. [availableWidth] is the containing block's
+  /// content width before this box's own margins are subtracted: percentage
+  /// widths (ADR 0021) resolve against it, while the non-percentage width
+  /// clamp and the fill default use the space left after the margins.
+  ///
+  /// Block overflow is never clipped: an explicit `height` fixes the border
+  /// box while overflowing content keeps painting past its bottom edge, and
+  /// the same holds for content wider than a constrained box.
   _BlockLayout layoutBlock({
     required WeftElement element,
     required WeftComputedStyle style,
@@ -119,17 +127,35 @@ final class _LayoutContext {
       return const _BlockLayout(height: 0);
     }
 
-    final boxX = left + style.marginLeft;
+    final horizontalChrome = style.horizontalPadding + style.horizontalBorder;
     final availableBoxWidth = math.max(
       0.0,
       availableWidth - style.marginLeft - style.marginRight,
     );
-    final horizontalChrome = style.horizontalPadding + style.horizontalBorder;
     final boxWidth = _resolveBoxWidth(
       style: style,
       availableWidth: availableBoxWidth,
+      containingWidth: availableWidth,
       horizontalChrome: horizontalChrome,
     );
+    // Auto horizontal margins absorb the space left over after the resolved
+    // box width and the non-auto margins. Only the left offset affects block
+    // placement: both auto sides split the slack (centering), a lone left
+    // auto takes all of it, and a lone right auto leaves the box at its
+    // parsed left margin. Negative slack keeps the parsed (zero) margins,
+    // and an auto-width box fills the line so it never has slack to
+    // distribute.
+    var effectiveMarginLeft = style.marginLeft;
+    if (style.marginLeftAuto || style.marginRightAuto) {
+      final slack = math.max(
+        0.0,
+        availableWidth - boxWidth - style.marginLeft - style.marginRight,
+      );
+      if (style.marginLeftAuto) {
+        effectiveMarginLeft = style.marginRightAuto ? slack / 2 : slack;
+      }
+    }
+    final boxX = left + effectiveMarginLeft;
     final contentX = boxX + style.borderLeft.width + style.paddingLeft;
     final contentY = top + style.borderTop.width + style.paddingTop;
     final contentWidth = math.max(0.0, boxWidth - horizontalChrome);
@@ -147,7 +173,14 @@ final class _LayoutContext {
             childAncestors: childAncestors,
             floats: floats,
           );
-    final height = style.verticalBorder + style.verticalPadding + contentHeight;
+    // An explicit CSS height overrides the content-driven height after the
+    // same box-sizing conversion width uses (ADR 0009). Overflowing content
+    // keeps painting below the border box; nothing is clipped or grown.
+    final height = style.height == null
+        ? style.verticalBorder + style.verticalPadding + contentHeight
+        : style.boxSizing == WeftBoxSizing.borderBox
+            ? style.height!
+            : style.height! + style.verticalBorder + style.verticalPadding;
 
     var insertIndex = commandStart;
     final background = style.backgroundColor;
@@ -200,16 +233,38 @@ final class _LayoutContext {
     return _BlockLayout(height: height);
   }
 
+  /// Resolves the used border-box width following ADR 0009. [availableWidth]
+  /// is the space left after the box's own margins and caps every result;
+  /// [containingWidth] is the containing block's content width that
+  /// percentage widths resolve against (CSS percentages never subtract the
+  /// box's own margins first). Percentage `min-width`/`max-width` are not
+  /// supported and stay length-only. The table grid omits [containingWidth]
+  /// because it guards the call with an explicit `width`, so percentages
+  /// keep resolving as auto there.
   double _resolveBoxWidth({
     required WeftComputedStyle style,
     required double availableWidth,
+    double? containingWidth,
     required double horizontalChrome,
   }) {
-    var boxWidth = style.width == null
-        ? availableWidth
-        : style.boxSizing == WeftBoxSizing.borderBox
-            ? style.width!
-            : style.width! + horizontalChrome;
+    final percent = style.widthPercent;
+    double boxWidth;
+    if (percent != null &&
+        containingWidth != null &&
+        containingWidth.isFinite) {
+      // Cyclic cases (intrinsic measurement with an infinite width) treat a
+      // percentage as auto, matching ADR 0018's image sizing.
+      final resolved = containingWidth * percent / 100;
+      boxWidth = style.boxSizing == WeftBoxSizing.borderBox
+          ? resolved
+          : resolved + horizontalChrome;
+    } else if (style.width != null) {
+      boxWidth = style.boxSizing == WeftBoxSizing.borderBox
+          ? style.width!
+          : style.width! + horizontalChrome;
+    } else {
+      boxWidth = availableWidth;
+    }
     boxWidth = math.min(boxWidth, availableWidth);
 
     final maxWidth = style.maxWidth;
@@ -856,6 +911,9 @@ final class _LayoutContext {
         break;
       }
       if (current.tag == 'hr' || current.tag == 'table') break;
+      // CSS folds the last child's bottom margin through only when the box
+      // height is auto, so an explicit height ends the chain here.
+      if (currentStyle.height != null) break;
       final edge = _lastBlockChild(current, currentStyle, currentAncestors);
       if (edge == null) break;
       if (_isSelfCollapsing(edge.element, edge.style, edge.ancestors)) break;
@@ -938,6 +996,10 @@ final class _LayoutContext {
         style.paddingBottom > 0) {
       return false;
     }
+    // CSS only folds margins through a box with an auto height; an explicit
+    // height always produces a border box with extent. Percentage heights
+    // resolve as auto and keep collapsing.
+    if (style.height != null) return false;
     if (element.tag == 'hr') return false;
     // A table box never collapses through itself.
     if (element.tag == 'table') return false;

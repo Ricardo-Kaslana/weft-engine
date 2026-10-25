@@ -121,6 +121,8 @@ final class _StyleBuilder {
   double marginRight = 0;
   double marginBottom = 0;
   double marginLeft = 0;
+  bool marginLeftAuto = false;
+  bool marginRightAuto = false;
   double paddingTop = 0;
   double paddingRight = 0;
   double paddingBottom = 0;
@@ -474,30 +476,43 @@ final class _StyleBuilder {
           : WeftInlineVerticalAlign.baseline;
     }
 
-    marginTop = _length(
-          declarations['margin-top'],
-          fontSize,
-          allowNegative: true,
-        ) ??
-        marginTop;
-    marginRight = _length(
-          declarations['margin-right'],
-          fontSize,
-          allowNegative: true,
-        ) ??
-        marginRight;
-    marginBottom = _length(
-          declarations['margin-bottom'],
-          fontSize,
-          allowNegative: true,
-        ) ??
-        marginBottom;
-    marginLeft = _length(
-          declarations['margin-left'],
-          fontSize,
-          allowNegative: true,
-        ) ??
-        marginLeft;
+    // `auto` margins resolve to a zero used margin at parse time; only the
+    // horizontal pair additionally records an auto flag for block layout to
+    // distribute leftover width (ADR 0021). Vertical auto margins have no
+    // vertical slack to absorb in block flow, so they stay plain zeros.
+    final marginTopValue = declarations['margin-top'];
+    if (marginTopValue != null) {
+      final normalized = marginTopValue.trim().toLowerCase();
+      marginTop = normalized == 'auto'
+          ? 0
+          : _length(marginTopValue, fontSize, allowNegative: true) ?? marginTop;
+    }
+    final marginRightValue = declarations['margin-right'];
+    if (marginRightValue != null) {
+      final normalized = marginRightValue.trim().toLowerCase();
+      marginRightAuto = normalized == 'auto';
+      marginRight = marginRightAuto
+          ? 0
+          : _length(marginRightValue, fontSize, allowNegative: true) ??
+              marginRight;
+    }
+    final marginBottomValue = declarations['margin-bottom'];
+    if (marginBottomValue != null) {
+      final normalized = marginBottomValue.trim().toLowerCase();
+      marginBottom = normalized == 'auto'
+          ? 0
+          : _length(marginBottomValue, fontSize, allowNegative: true) ??
+              marginBottom;
+    }
+    final marginLeftValue = declarations['margin-left'];
+    if (marginLeftValue != null) {
+      final normalized = marginLeftValue.trim().toLowerCase();
+      marginLeftAuto = normalized == 'auto';
+      marginLeft = marginLeftAuto
+          ? 0
+          : _length(marginLeftValue, fontSize, allowNegative: true) ??
+              marginLeft;
+    }
     paddingTop = _length(declarations['padding-top'], fontSize) ?? paddingTop;
     paddingRight =
         _length(declarations['padding-right'], fontSize) ?? paddingRight;
@@ -535,6 +550,8 @@ final class _StyleBuilder {
       marginRight: marginRight,
       marginBottom: marginBottom,
       marginLeft: marginLeft,
+      marginLeftAuto: marginLeftAuto,
+      marginRightAuto: marginRightAuto,
       paddingTop: paddingTop,
       paddingRight: paddingRight,
       paddingBottom: paddingBottom,
