@@ -126,6 +126,7 @@ flutter run
 - [一致性语料与浏览器参考](conformance/README.md)
 - [安全与资源限制](docs/security.md)
 - [项目管理](docs/project-management.md)
+- [交接说明与提示词](docs/handoff.md)
 - [发布与回退](docs/release.md)
 - [架构决策记录](docs/adr/)
 - [贡献指南](CONTRIBUTING.md)
