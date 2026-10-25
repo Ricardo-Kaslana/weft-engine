@@ -24,7 +24,7 @@
 | 描述列表 | `dl/dt/dd` | 部分实现 | 块级显示，无专用样式 |
 | 链接 | `a` | 已实现 | URL 清洗、视觉样式、跨行命中矩形和宿主回调；导航由宿主决定 |
 | 图片 | `img` | 部分实现 | `src/alt/width/height`、块级替换盒、左右 Float、`clear` 和宿主资源解析；img 默认 `display: inline`，以原子参与基线混排，`display: block` 退回块级替换盒（ADR 0018） |
-| 表格 | `table/thead/tbody/tfoot/tr/th/td/caption` | 部分实现 | 槽位网格、`colspan/rowspan`、隐式行、caption、separate/collapse 边框与 `vertical-align`；嵌套表格触发回退，`colgroup/col` 不支持 |
+| 表格 | `table/thead/tbody/tfoot/tr/th/td/caption`、`colgroup/col` | 部分实现 | 槽位网格、`colspan/rowspan`、隐式行、caption、separate/collapse 边框与 `vertical-align`；`colgroup/col` 声明列轨道（px 固定列、百分比列、span，ADR 0022）；嵌套表格触发回退 |
 | 单元格跨距 | `colspan/rowspan` | 已实现 | 1..1000 清洗、跨列跨行、悬空 rowspan 生成隐式行 |
 | 脚本 | 可信 `ScriptUnit` | 阶段 4 | 当前任何 `script` 都要求回退 |
 | Canvas、WebGL、iframe、对象嵌入 | 不进入引擎 | 不支持 | 触发 `requiresWebView` |
@@ -55,11 +55,11 @@
 | 行高 | `line-height` | 已实现：普通数字、百分比和 px；按 CSS 半行距分配 |
 | 文本 | `color/text-align/text-decoration/white-space` | 已实现基础值 |
 | 背景 | `background-color` | 已实现块背景和行内文本背景 |
-| 盒模型 | `margin(-side)`、`padding(-side)` | 已实现非负 padding、可负 margin 和相邻/父子/空块折叠 |
+| 盒模型 | `margin(-side)`、`padding(-side)` | 已实现非负 padding、可负 margin 和相邻/父子/空块折叠；水平 `margin: auto` 在显式宽度块上分配剩余空间（垂直 auto 按 0，图片 auto margin 按 0，ADR 0021） |
 | 显示 | `display: block/inline/list-item/none` | 已实现 |
 | 列表 | `list-style-type: disc/decimal/none` | 已实现 |
-| 宽度 | `width/min-width/max-width/box-sizing` | 部分实现：块级 px/em/rem，图片另支持百分比（相对包含块，ADR 0018）；块级不含百分比和 auto margin |
-| 高度 | `height`（图片） | 部分实现：图片支持 CSS px 高度（宽度按比例推导）；height 百分比按 auto 处理；块级高度仍为内容驱动 |
+| 宽度 | `width/min-width/max-width/box-sizing` | 部分实现：块级与图片 px/em/rem，百分比宽相对包含块 content 宽（ADR 0018/0021）；min/max-width 百分比与 auto margin（图片）不支持 |
+| 高度 | `height`（图片/块级） | 部分实现：图片 CSS px 高度按比例推导宽；块级显式高度生效（overflow 不裁剪，ADR 0021）；height 百分比一律按 auto |
 | 边框 | `border`、`border-top/right/bottom/left` | 部分实现：块级 solid，无圆角/虚线/独立宽高与颜色属性 |
 | 缩进与字距 | `text-indent/letter-spacing` | 阶段 1 后续 |
 | 定位 | `position/float/clear` | 部分实现：仅图片 Float，支持左右、clear 和跨段落行框缩短 |

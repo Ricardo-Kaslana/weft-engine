@@ -13,21 +13,21 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - 标题、段落、强调、链接、列表、引用、代码块、分隔线和强制换行。
 - Block/Inline 布局、空白折叠、相邻与父子 margin 折叠、列表标记和可缩放文本绘制。
 - 与 CSS 半行距一致的文本行高分配，固定字体下块级几何与 Chromium 误差小于 0.5px。
-- 块级 `width`/`min-width`/`max-width`、`box-sizing` 和基础实线边框绘制。
+- 块级 `width`/`min-width`/`max-width`（含百分比宽）、CSS `height`、水平 `auto` margin、`box-sizing` 和基础实线边框绘制（ADR 0021）。
 - 链接按行生成命中矩形，跨行链接可点击，并通过 `WeftView.onLinkTap` 交给宿主处理。
 - 图片由宿主 `WeftImageResolver` 按需提供，支持宽高属性、固有比例、CSS px/百分比宽度与显式高度、最大宽度约束和异步解码失效。
 - 行内图片基线混排（ADR 0018）：img 默认 `display: inline`（与浏览器 UA 样式表一致），以原子占位符参与断行、`vertical-align: baseline/middle` 对齐与行高增长，`display: block` 退回块级替换盒；选区/复制跳过图片。
 - 图片 `float: left/right`、逐行文字环绕、`clear`、同侧堆叠和对侧并排；浮动内容计入文档滚动高度。
 - 图片资源不可用时回退为 `alt` 文本，不发起隐式网络请求。
-- 表格：`table/thead/tbody/tfoot/tr/th/td/caption`、`colspan/rowspan`（含隐式行）、caption、separate/collapse 边框、`border-spacing` 与单元格 `vertical-align`；单元格复用块级布局，链接可点。
+- 表格：`table/thead/tbody/tfoot/tr/th/td/caption`、`colspan/rowspan`（含隐式行）、caption、separate/collapse 边框、`border-spacing` 与单元格 `vertical-align`；`colgroup/col` 列宽（px 固定列、百分比列、span，ADR 0022）；单元格复用块级布局，链接可点。
 - 逻辑文本索引与选区解析（ADR 0013）：跨段锚点→视觉矩形和复制文本，`WeftSurface` 绘制选择高亮。
 - 选择手势（ADR 0015/0019）：长按选词、拖拽扩展、点击文本放置 caret、点击空白清除，`WeftView.selectionText()` 导出选区文本；链接点击与选择共存。
 - 选择 chrome（ADR 0019）：折叠选区绘制 caret；选择把手可拖拽移动选区端点；复制按钮写入剪贴板并保留选区（`copyButtonLabel` 可配）；`WeftView.onSelectionChanged` 向宿主上报选区文本；把手/复制按钮可用 `showSelectionHandles`/`showCopyButton` 关闭。
 - CJK 禁则（ADR 0016）：可配置行首/行尾禁则表（默认覆盖常用中日标点），逐行分行路径显式执行禁则；整段路径经 ICU 对照零违规。
 - 分块渲染（ADR 0017）：绘制命令按 body 顶层子节点分块缓存为 `ui.Picture`，绘制时按可见窗口裁剪、只重绘相交块；选区矩形独立缓存，选区变化不重建 Picture。
-- 性能门禁：300 段文章/48 行表格/浮动环绕/跨段选区四场景基准工具与 10 倍宽上限的 CI 稳定门禁（见 docs/testing-strategy.md）。
+- 性能门禁：布局/绘制/命中 11 场景基准工具与 10 倍宽上限的 CI 稳定门禁（见 docs/testing-strategy.md）；命中解析经分块索引裁剪（ADR 0020），`WeftView.scrollController` 可注入。
 - `float_image` 一致性案例：Chrome 生成的浏览器几何基线（块、图片、逐行词盒误差 ≤ 0.5px）与 Flutter 像素黄金双重门禁；图片按 1:1 对齐整像素绘制。
-- `table_basic` 一致性案例：表格浏览器几何基线（单元格 ≤ 1.5px、行/列结构精确断言），覆盖 collapse/separate、跨列跨行与 caption。
+- `table_basic`/`table_cols` 一致性案例：表格浏览器几何基线（单元格 ≤ 1.5px、行/列结构精确断言），覆盖 collapse/separate、跨列跨行、caption 与 colgroup/col 列宽。
 - 单一 `RenderObject` 渲染表面、可滚动公开视图和真实文本/背景/图片绘制指令。
 - 中英文内容、窄宽度换行及 300 段长文档的布局烟测。
 - 六类代表性内容语料，以及 Chrome/Edge 诊断参考截图生成器。
@@ -36,10 +36,11 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 
 尚未实现：
 
+
 - CJK 像素字体与跨引擎像素预算达标。
-- 表格的嵌套表格、`colgroup/col` 列宽与浏览器级列宽分配精度。
+- 表格的嵌套表格（触发回退）与浏览器级 auto 列宽分配精度。
 - 选择工具条（完整菜单）、chrome 动画打磨和可访问性语义。
-- 视口虚拟化和引擎内部滚动容器。
+- 布局级视口虚拟化（命中与绘制已按视口裁剪）与引擎内部滚动容器。
 - QuickJS 原生库、FFI 绑定和真实脚本执行。
 - 状态、事件、网络能力包的具体实现。
 
