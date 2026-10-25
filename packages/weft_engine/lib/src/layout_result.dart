@@ -53,6 +53,11 @@ sealed class WeftPaintCommand {
   /// layout, which lays cells out at the origin before row heights are known
   /// and shifts them into place afterwards.
   WeftPaintCommand shift(ui.Offset offset);
+
+  /// The layout-space rectangle this command paints into. Must fully contain
+  /// every pixel the command can produce: chunked rendering culls chunks
+  /// against the visible window through these bounds.
+  ui.Rect get bounds;
 }
 
 final class WeftRectPaintCommand extends WeftPaintCommand {
@@ -64,6 +69,9 @@ final class WeftRectPaintCommand extends WeftPaintCommand {
 
   final ui.Rect rect;
   final ui.Color color;
+
+  @override
+  ui.Rect get bounds => rect;
 
   @override
   void paint(ui.Canvas canvas, ui.Offset origin) {
@@ -97,6 +105,10 @@ final class WeftTextPaintCommand extends WeftPaintCommand {
   /// Mapping from painter text ranges back to their source document text
   /// nodes. Selection geometry resolves node-anchored ranges through these.
   final List<WeftTextPainterRun> runs;
+
+  @override
+  ui.Rect get bounds =>
+      ui.Rect.fromLTWH(offset.dx, offset.dy, painter.width, painter.height);
 
   @override
   void paint(ui.Canvas canvas, ui.Offset origin) {
@@ -152,6 +164,9 @@ final class WeftImagePaintCommand extends WeftPaintCommand {
   final ui.Rect destination;
 
   @override
+  ui.Rect get bounds => destination;
+
+  @override
   void paint(ui.Canvas canvas, ui.Offset origin) {
     final source = ui.Rect.fromLTWH(
       0,
@@ -189,6 +204,131 @@ final class WeftImagePaintCommand extends WeftPaintCommand {
       image: image,
       destination: destination.shift(offset),
     );
+  }
+}
+
+/// A paint group covering one top-level body child, or the body chrome.
+///
+/// Chunking lives at the rendering layer: the layout engine keeps emitting one
+/// flat command list, and [WeftChunk.partition] only reads the document tree to
+/// map each command's node back to its top-level body child.
+final class WeftChunk {
+  WeftChunk({required this.key, required Iterable<WeftPaintCommand> commands})
+      : commands = List<WeftPaintCommand>.unmodifiable(commands),
+        bounds = _unionBounds(commands);
+
+  /// Key of the chrome chunk: body background/border commands and any command
+  /// whose node does not map to a top-level body child. Chrome is always
+  /// painted, so renderers must never cull it. Top-level body children use
+  /// their zero-based ordinal as the key, which cannot collide with this.
+  static const int chromeKey = -1;
+
+  final int key;
+
+  /// Paints in document order, exactly as the flat command list would paint
+  /// this group's slice.
+  final List<WeftPaintCommand> commands;
+
+  /// Union of the commands' [WeftPaintCommand.bounds]; fully contains every
+  /// pixel the chunk can paint.
+  final ui.Rect bounds;
+
+  bool get isChrome => key == chromeKey;
+
+  static ui.Rect _unionBounds(Iterable<WeftPaintCommand> commands) {
+    var bounds = ui.Rect.zero;
+    var first = true;
+    for (final command in commands) {
+      bounds = first ? command.bounds : bounds.expandToInclude(command.bounds);
+      first = false;
+    }
+    return bounds;
+  }
+
+  /// Groups [commands] by the top-level body child that owns each command's
+  /// node. Grouping never assumes the per-chunk commands are contiguous in
+  /// [commands]; an assertion verifies they are, because the renderer paints
+  /// chunks in ordinal order after the chrome chunk and relies on that order
+  /// matching the flat list.
+  static List<WeftChunk> partition({
+    required WeftDocumentSnapshot document,
+    required List<WeftPaintCommand> commands,
+  }) {
+    final body = document.body;
+    final chrome = _ChunkAccumulator();
+    final byOrdinal = <int, _ChunkAccumulator>{};
+    if (body == null) {
+      for (var i = 0; i < commands.length; i++) {
+        chrome.add(commands[i], i);
+      }
+    } else {
+      final ordinalByNode = <int, int>{};
+      var ordinal = 0;
+      for (final child in body.children) {
+        void visit(WeftNode node) {
+          ordinalByNode[node.id] = ordinal;
+          if (node is WeftElement) {
+            for (final grandchild in node.children) {
+              visit(grandchild);
+            }
+          }
+        }
+
+        visit(child);
+        ordinal++;
+      }
+      for (var i = 0; i < commands.length; i++) {
+        final command = commands[i];
+        final groupOrdinal = ordinalByNode[command.nodeId];
+        if (groupOrdinal == null) {
+          // Body chrome (nodeId == body.id) and unmapped commands always
+          // paint, so they share the chrome chunk.
+          chrome.add(command, i);
+        } else {
+          byOrdinal.putIfAbsent(groupOrdinal, _ChunkAccumulator.new).add(
+                command,
+                i,
+              );
+        }
+      }
+    }
+
+    final chunks = <WeftChunk>[];
+    if (chrome.isNotEmpty) {
+      // Chrome paints first: it is a prefix of the command list in practice.
+      chunks.add(chrome.build(chromeKey));
+    }
+    final ordinals = byOrdinal.keys.toList()..sort();
+    for (final ordinal in ordinals) {
+      chunks.add(byOrdinal[ordinal]!.build(ordinal));
+    }
+    return chunks;
+  }
+}
+
+/// Accumulates one chunk's commands plus their first and last index in the
+/// flat command list for the contiguity assertion.
+final class _ChunkAccumulator {
+  final List<WeftPaintCommand> _commands = <WeftPaintCommand>[];
+  int _firstIndex = -1;
+  int _lastIndex = -1;
+
+  bool get isNotEmpty => _commands.isNotEmpty;
+
+  void add(WeftPaintCommand command, int index) {
+    _commands.add(command);
+    _firstIndex = _firstIndex < 0 ? index : _firstIndex;
+    _lastIndex = index;
+  }
+
+  WeftChunk build(int key) {
+    assert(
+      key == WeftChunk.chromeKey ||
+          _lastIndex - _firstIndex + 1 == _commands.length,
+      'Commands of chunk $key are not contiguous in the command list: '
+      'indices $_firstIndex..$_lastIndex hold ${_commands.length} commands.',
+    );
+    return WeftChunk(key: key, commands: _commands);
   }
 }
 

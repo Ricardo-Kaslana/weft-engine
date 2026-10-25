@@ -8,15 +8,18 @@
 // prints the median and the nearest-rank P95 (over five samples that is
 // the worst run). These are local, human-reference numbers: the CI gate
 // lives in test/perf_gate_test.dart and documents its caps separately.
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/painting.dart';
+import 'package:flutter/rendering.dart' show BoxConstraints;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weft_document/weft_document.dart';
 import 'package:weft_engine/weft_engine.dart';
 
 const double _viewportWidth = 360;
 const int _sampleCount = 5;
+const double _paintWindowHeight = 800;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -41,6 +44,30 @@ void main() {
     addTearDown(selectionLayout.dispose);
     final selection = _crossParagraphSelection(selectionLayout);
 
+    // paintArticle300Direct records every command onto a fresh canvas per
+    // run: that is the pre-chunking full-paint path and stays as the baseline
+    // reference for the chunked scenarios below.
+    final paintLayout = engine.layout(article, width: _viewportWidth);
+    addTearDown(paintLayout.dispose);
+
+    // The chunked scenarios drive a detached RenderWeftSurface through the
+    // production paint path (partition, picture cache, culling). The warm-up
+    // run builds the picture cache, so the timed runs measure steady-state
+    // painting.
+    final paintSurface = RenderWeftSurface(
+      document: article,
+      textScaler: TextScaler.noScaling,
+    );
+    paintSurface.layout(const BoxConstraints.tightFor(width: _viewportWidth));
+    addTearDown(paintSurface.dispose);
+    final fullWindow = Offset.zero & paintSurface.size;
+    final scrolledWindow = Rect.fromLTWH(
+      0,
+      math.max(0, (paintSurface.size.height - _paintWindowHeight) / 2),
+      _viewportWidth,
+      math.min(_paintWindowHeight, paintSurface.size.height),
+    );
+
     final scenarios = <String, void Function()>{
       'article300': () {
         engine.layout(article, width: _viewportWidth).dispose();
@@ -59,6 +86,27 @@ void main() {
       },
       'selection300': () {
         selectionLayout.selectionRects(selection);
+      },
+      'paintArticle300Direct': () {
+        _recordCanvas((canvas) {
+          for (final command in paintLayout.commands) {
+            command.paint(canvas, Offset.zero);
+          }
+        });
+      },
+      'paintArticle300Full': () {
+        _recordCanvas((canvas) {
+          // This file only runs through `flutter test`, so reaching the
+          // testing-only paint entry point is intended.
+          // ignore: invalid_use_of_visible_for_testing_member
+          paintSurface.debugPaintChunks(canvas, visible: fullWindow);
+        });
+      },
+      'paintArticle300Window': () {
+        _recordCanvas((canvas) {
+          // ignore: invalid_use_of_visible_for_testing_member
+          paintSurface.debugPaintChunks(canvas, visible: scrolledWindow);
+        });
       },
     };
 
@@ -85,6 +133,15 @@ void main() {
     // ignore: avoid_print
     print(report);
   });
+}
+
+/// Records painting commands onto a throwaway canvas and releases the
+/// picture, matching the recording work a real frame performs for the paint.
+void _recordCanvas(void Function(ui.Canvas canvas) paint) {
+  final recorder = ui.PictureRecorder();
+  final canvas = ui.Canvas(recorder);
+  paint(canvas);
+  recorder.endRecording().dispose();
 }
 
 WeftDocumentSnapshot _normalize(String html, String id) {

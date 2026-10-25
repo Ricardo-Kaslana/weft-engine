@@ -1,4 +1,5 @@
-// Loose CI performance gate against order-of-magnitude layout regressions.
+// Loose CI performance gate against order-of-magnitude layout and paint
+// regressions.
 //
 // The caps are NOT precise budgets: each cap is 10x the median measured on
 // the reference machine (Windows, see docs/testing-strategy.md), rounded up
@@ -8,9 +9,11 @@
 // tool/layout_benchmark_test.dart when touching the layout engine, and keep
 // the scenario builders here in sync with that tool so the caps stay
 // meaningful.
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/painting.dart';
+import 'package:flutter/rendering.dart' show BoxConstraints;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weft_document/weft_document.dart';
 import 'package:weft_engine/weft_engine.dart';
@@ -22,8 +25,12 @@ const int _article300CapMs = 600; // 10x ~55 ms, rounded up to a hundred.
 const int _table48CapMs = 500; // Median < 50 ms: floor cap.
 const int _floatWrapCapMs = 500; // Median < 50 ms: floor cap.
 const int _selection300CapMs = 500; // Median < 50 ms: floor cap.
+const int _paintDirectCapMs = 500; // Median < 50 ms: floor cap.
+const int _paintFullCapMs = 500; // Median < 50 ms: floor cap.
+const int _paintWindowCapMs = 500; // Median < 50 ms: floor cap.
 
 const double _viewportWidth = 360;
+const double _paintWindowHeight = 800;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -73,6 +80,68 @@ void main() {
       layout.selectionRects(selection);
     });
   });
+
+  test('perf gate: paintArticle300Direct under $_paintDirectCapMs ms', () {
+    final document = _normalize(_articleHtml(), 'gate-paint-direct');
+    final layout = const WeftLayoutEngine().layout(
+      document,
+      width: _viewportWidth,
+    );
+    addTearDown(layout.dispose);
+    _runUnderCap(_paintDirectCapMs, 'paintArticle300Direct', () {
+      _recordPaintCanvas((canvas) {
+        for (final command in layout.commands) {
+          command.paint(canvas, Offset.zero);
+        }
+      });
+    });
+  });
+
+  test('perf gate: paintArticle300Full under $_paintFullCapMs ms', () {
+    final document = _normalize(_articleHtml(), 'gate-paint-full');
+    final surface = RenderWeftSurface(
+      document: document,
+      textScaler: TextScaler.noScaling,
+    );
+    surface.layout(const BoxConstraints.tightFor(width: _viewportWidth));
+    addTearDown(surface.dispose);
+    final fullWindow = Offset.zero & surface.size;
+    _runUnderCap(_paintFullCapMs, 'paintArticle300Full', () {
+      _recordPaintCanvas((canvas) {
+        surface.debugPaintChunks(canvas, visible: fullWindow);
+      });
+    });
+  });
+
+  test('perf gate: paintArticle300Window under $_paintWindowCapMs ms', () {
+    final document = _normalize(_articleHtml(), 'gate-paint-window');
+    final surface = RenderWeftSurface(
+      document: document,
+      textScaler: TextScaler.noScaling,
+    );
+    surface.layout(const BoxConstraints.tightFor(width: _viewportWidth));
+    addTearDown(surface.dispose);
+    final scrolledWindow = Rect.fromLTWH(
+      0,
+      math.max(0, (surface.size.height - _paintWindowHeight) / 2),
+      _viewportWidth,
+      math.min(_paintWindowHeight, surface.size.height),
+    );
+    _runUnderCap(_paintWindowCapMs, 'paintArticle300Window', () {
+      _recordPaintCanvas((canvas) {
+        surface.debugPaintChunks(canvas, visible: scrolledWindow);
+      });
+    });
+  });
+}
+
+/// Records painting commands onto a throwaway canvas and releases the
+/// picture, matching the recording work a real frame performs for the paint.
+void _recordPaintCanvas(void Function(ui.Canvas canvas) paint) {
+  final recorder = ui.PictureRecorder();
+  final canvas = ui.Canvas(recorder);
+  paint(canvas);
+  recorder.endRecording().dispose();
 }
 
 /// Runs [body] once as a warm-up, then times a single run and asserts it

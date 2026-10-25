@@ -1,5 +1,6 @@
 import 'dart:ui' as ui;
 
+import 'package:flutter/rendering.dart' show RenderAbstractViewport;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:weft_document/weft_document.dart';
@@ -119,6 +120,25 @@ class RenderWeftSurface extends RenderBox {
   WeftLayoutResult? _layout;
   final Map<int, _ResolvedImage> _images = <int, _ResolvedImage>{};
 
+  /// Chunks of [_layout] and their recorded pictures, built lazily on paint.
+  ///
+  /// [WeftChunk.chromeKey] and the top-level child ordinals key the map.
+  /// Pictures never depend on the selection, so selection changes must not
+  /// drop them; anything that replaces the layout does.
+  List<WeftChunk>? _chunks;
+  WeftLayoutResult? _chunksLayout;
+  final Map<int, ui.Picture> _chunkPictures = <int, ui.Picture>{};
+
+  /// Memo for [WeftLayoutResult.selectionRects], keyed by the layout instance
+  /// and the selection value; either changing recomputes it once.
+  WeftLayoutResult? _selectionRectsLayout;
+  TextSelectionRange? _selectionRectsKey;
+  List<ui.Rect> _selectionRects = const <ui.Rect>[];
+
+  int _debugRebuiltChunkCount = 0;
+  int _debugPaintedChunkCount = 0;
+  int _debugSelectionRectBuildCount = 0;
+
   WeftDocumentSnapshot get document => _document;
 
   set document(WeftDocumentSnapshot value) {
@@ -170,10 +190,44 @@ class RenderWeftSurface extends RenderBox {
     return _images.values.where((entry) => entry.info != null).length;
   }
 
+  /// Total number of chunk pictures recorded since construction. A stable
+  /// value across paints proves cached pictures were reused, not rebuilt.
+  @visibleForTesting
+  int get debugRebuiltChunkCount => _debugRebuiltChunkCount;
+
+  /// Total number of chunk pictures drawn since construction, including
+  /// repeat draws of the same picture on later paints.
+  @visibleForTesting
+  int get debugPaintedChunkCount => _debugPaintedChunkCount;
+
+  /// Total number of times selection rectangles were recomputed.
+  @visibleForTesting
+  int get debugSelectionRectBuildCount => _debugSelectionRectBuildCount;
+
+  /// Number of chunk pictures currently held in the cache.
+  @visibleForTesting
+  int get debugCachedChunkPictureCount => _chunkPictures.length;
+
+  @visibleForTesting
+  List<WeftChunk>? get debugChunks => _chunks;
+
   void _invalidateLayout() {
+    _discardPaintCache();
     _layout?.dispose();
     _layout = null;
     markNeedsLayout();
+  }
+
+  void _discardPaintCache() {
+    _chunks = null;
+    _chunksLayout = null;
+    for (final picture in _chunkPictures.values) {
+      picture.dispose();
+    }
+    _chunkPictures.clear();
+    _selectionRectsLayout = null;
+    _selectionRectsKey = null;
+    _selectionRects = const <ui.Rect>[];
   }
 
   @override
@@ -330,24 +384,147 @@ class RenderWeftSurface extends RenderBox {
   void paint(PaintingContext context, Offset offset) {
     final layout = _layout;
     if (layout == null) return;
-    context.canvas.save();
-    context.canvas.clipRect(offset & size);
-    for (final command in layout.commands) {
-      command.paint(context.canvas, offset);
+    final canvas = context.canvas;
+    canvas.save();
+    canvas.clipRect(offset & size);
+    // The canvas is still in the parent's coordinate space here, so the
+    // visible window must be resolved before translating to local space.
+    final visible = _visibleLocalRect(canvas, offset);
+    canvas.translate(offset.dx, offset.dy);
+    debugPaintChunks(canvas, visible: visible);
+    _paintSelection(canvas, visible);
+    canvas.restore();
+  }
+
+  /// The visible portion of this surface in surface-local coordinates.
+  ///
+  /// Conservative layers, most precise first:
+  ///
+  /// 1. The canvas clip bounds. Whenever an ancestor clips on this recording
+  ///    canvas (a non-composited scrollable, the common host), these bounds
+  ///    are exact.
+  /// 2. The enclosing viewport's own bounds mapped through its paint
+  ///    transform, which covers composited clips whose layer clip never
+  ///    reaches this canvas. It is inflated by the viewport cache extent so
+  ///    viewports without their own clip still over-approximate.
+  /// 3. The full surface bounds: draw everything.
+  ///
+  /// Culling with a too-large rect only repaints extra chunks; a too-small
+  /// rect would drop visible content, so every layer must over-approximate
+  /// the clip and this method must never fail.
+  ui.Rect _visibleLocalRect(ui.Canvas canvas, Offset offset) {
+    final own = offset & size;
+    final clip = canvas.getLocalClipBounds();
+    // An unclipped canvas reports unbounded bounds, and a clip containing the
+    // whole surface carries no culling information either.
+    if (!_coversRect(clip, own)) {
+      return clip.intersect(own).shift(-offset);
     }
-    final selection = _selection;
-    if (selection != null) {
-      final rects = layout.selectionRects(selection);
-      final paint = Paint()..color = const Color(0x339E9E9E);
-      for (final rect in rects) {
-        context.canvas.drawRect(rect.shift(offset), paint);
+    final Object? viewport = RenderAbstractViewport.maybeOf(this);
+    final RenderBox? viewportBox = viewport is RenderBox ? viewport : null;
+    if (viewportBox != null && viewportBox.hasSize && attached) {
+      // getOffsetToReveal cannot provide this window: its results describe
+      // where content would sit at a computed scroll offset and are
+      // independent of the current position. The paint transform, in contrast,
+      // has the current scroll offset baked in.
+      final transform = viewportBox.getTransformTo(this);
+      if (transform.determinant() != 0) {
+        final window = MatrixUtils.transformRect(
+          transform,
+          Offset.zero & viewportBox.size,
+        ).inflate(RenderAbstractViewport.defaultCacheExtent);
+        return window.intersect(Offset.zero & size);
       }
     }
-    context.canvas.restore();
+    return Offset.zero & size;
+  }
+
+  /// Whether [outer] fully covers [inner]; [ui.Rect.contains] only accepts
+  /// points, so coverage of a whole rect needs the four edge comparisons.
+  static bool _coversRect(ui.Rect outer, ui.Rect inner) {
+    return outer.left <= inner.left &&
+        outer.top <= inner.top &&
+        outer.right >= inner.right &&
+        outer.bottom >= inner.bottom;
+  }
+
+  /// Records and draws the visible chunk pictures onto [canvas], which must
+  /// already be in surface-local coordinates.
+  ///
+  /// [visible] is the visible window in local coordinates; chunks outside it
+  /// are skipped and the chrome chunk is always drawn. Passing null draws
+  /// every chunk. Production [paint] and the paint benchmarks share this
+  /// entry point.
+  @visibleForTesting
+  void debugPaintChunks(ui.Canvas canvas, {ui.Rect? visible}) {
+    final layout = _layout;
+    if (layout == null) return;
+    if (!identical(_chunksLayout, layout)) {
+      // performLayout can replace the layout without _invalidateLayout when a
+      // parent relays this surface, so key the cache to the layout instance.
+      _discardPaintCache();
+      _chunksLayout = layout;
+    }
+    final chunks = _chunks ??= WeftChunk.partition(
+      document: _document,
+      commands: layout.commands,
+    );
+    for (final chunk in chunks) {
+      if (!chunk.isChrome &&
+          visible != null &&
+          !chunk.bounds.overlaps(visible)) {
+        continue;
+      }
+      canvas.drawPicture(_pictureFor(chunk));
+      _debugPaintedChunkCount++;
+    }
+  }
+
+  ui.Picture _pictureFor(WeftChunk chunk) {
+    final cached = _chunkPictures[chunk.key];
+    if (cached != null) return cached;
+    final recorder = ui.PictureRecorder();
+    final canvas = ui.Canvas(recorder);
+    for (final command in chunk.commands) {
+      command.paint(canvas, Offset.zero);
+    }
+    final picture = recorder.endRecording();
+    _chunkPictures[chunk.key] = picture;
+    _debugRebuiltChunkCount++;
+    return picture;
+  }
+
+  void _paintSelection(ui.Canvas canvas, ui.Rect visible) {
+    final layout = _layout;
+    final selection = _selection;
+    if (layout == null || selection == null) return;
+    final rects = _selectionRectsFor(layout, selection);
+    final paint = Paint()..color = const Color(0x339E9E9E);
+    for (final rect in rects) {
+      final clipped = rect.intersect(visible);
+      if (!clipped.isEmpty) {
+        canvas.drawRect(clipped, paint);
+      }
+    }
+  }
+
+  List<ui.Rect> _selectionRectsFor(
+    WeftLayoutResult layout,
+    TextSelectionRange selection,
+  ) {
+    if (!identical(_selectionRectsLayout, layout) ||
+        _selectionRectsKey != selection) {
+      _selectionRectsLayout = layout;
+      _selectionRectsKey = selection;
+      _selectionRects = layout.selectionRects(selection);
+      _debugSelectionRectBuildCount++;
+    }
+    return _selectionRects;
   }
 
   @override
   void dispose() {
+    _discardPaintCache();
     _layout?.dispose();
     _layout = null;
     _clearImages();

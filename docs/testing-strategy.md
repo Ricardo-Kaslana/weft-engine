@@ -84,6 +84,9 @@ flutter test test/perf_gate_test.dart --no-pub --timeout 120s     # CI 门禁
 | table48 | 48 行 × 6 列表格,collapse 边框、padding,每 7 行一个 rowspan=2、每 5 行一个 colspan=2 | ~26–28 ms | 500 ms |
 | floatWrap | 10 组左浮动 120×96 假图(`ui.PictureRecorder` 生成)+ 长 CJK 段落逐行环绕 | ~6–9 ms | 500 ms |
 | selection300 | 在 article300 布局结果上取跨 10 段(第 100–110 段)的选区,调用 `selectionRects` | ~0.7–0.9 ms | 500 ms |
+| paintArticle300Direct | 直绘 article300 全部命令到新画布(ADR 0017 分块前的全量重绘路径,作为基线保留) | ~1.7–2.1 ms | 500 ms |
+| paintArticle300Full | `RenderWeftSurface` 分块绘制,可见区域 = 整篇文档(全部块命中) | ~0.9–1.1 ms | 500 ms |
+| paintArticle300Window | `RenderWeftSurface` 分块绘制,800px 高窗口置于文档纵向中部 | <0.1 ms | 500 ms |
 
 上限 = 实测中位数的 10 倍,向上取整到整百 ms,下限 500 ms(中位数低于 50 ms 的场景直接取 500 ms)。上限刻意放宽,原因:
 
@@ -92,6 +95,8 @@ flutter test test/perf_gate_test.dart --no-pub --timeout 120s     # CI 门禁
 - 目标是拦截"数量级变慢"的回归(如缓存失效、重复文本测量、浮动语境下的整段重排),不追精度;真实画像仍按"性能测量"一节的方法离线采集 P50/P95/P99。
 
 分块渲染等后续优化的对比方法:动手前先跑基准工具留底,改完后在同一场景上复测并比较中位数(以中位数为准,不看单次最快值),同时确认门禁仍绿;若中位数改善明显,可按同一规则(10 倍、取整到整百、下限 500 ms)收紧上限并更新本表。场景构造代码在基准工具与门禁测试中保持逐字一致,改动任一侧必须同步另一侧,否则上限与场景失去对应关系。
+
+分块渲染(ADR 0017)按此方法落地:paintArticle300Direct 直绘全部命令,是分块前 paint 的基线场景,永久保留;paintArticle300Full/Window 走 `RenderWeftSurface.debugPaintChunks` 生产路径(基准与门禁均以预热建好 Picture 缓存后的稳态绘制为测量对象)。分块只允许改变执行方式,不允许改变输出:块绘制与直绘的逐字节像素等价由 `test/chunked_rendering_test.dart` 固化,黄金基线不因分块调整。
 
 ## Runtime 安全测试
 
