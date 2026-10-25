@@ -2,6 +2,7 @@
 
 import { execFileSync, spawn } from 'node:child_process';
 import {
+  copyFileSync,
   cpSync,
   existsSync,
   mkdirSync,
@@ -43,6 +44,7 @@ const { values } = parseArgs({
     browser: { type: 'string' },
     output: { type: 'string' },
     case: { type: 'string', multiple: true },
+    'emit-reference': { type: 'boolean' },
   },
   strict: true,
 });
@@ -124,6 +126,25 @@ async function main() {
       'utf8',
     );
     console.log(`wrote ${join(output, 'metadata.json')}`);
+
+    if (values['emit-reference']) {
+      for (const item of cases) {
+        if (item.geometry !== true) continue;
+        const source = join(geometryDir, `${item.id}.json`);
+        const target = join(
+          ROOT,
+          'conformance',
+          'reference',
+          `${item.id}.geometry.json`,
+        );
+        copyFileSync(source, target);
+        console.log(`reference ${item.id} -> ${relative(ROOT, target)}`);
+      }
+      console.log(
+        'Review the diff of conformance/reference/ before committing: ' +
+          'geometry changes must be explained, never blindly accepted.',
+      );
+    }
   } finally {
     await cdp?.close();
     if (chrome && chrome.exitCode === null) {

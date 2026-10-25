@@ -74,23 +74,24 @@ node tool/browser_references.mjs --case pixel_basic --case box_model
 
 浏览器参考图仍是诊断输入，不是 CI 阻断门禁。
 
-`float_image` 案例把 Chrome 几何固化为提交基线 `reference/float_image.geometry.json`，由 `packages/weft_engine/test/float_image_geometry_test.dart` 在 CI 中比对：
+`float_image` 案例把 Chrome 几何固化为提交基线 `reference/float_image.geometry.json`。manifest 中所有 `geometry: true` 的案例由通用门禁 `packages/weft_engine/test/conformance_geometry_test.dart` 在 CI 中比对（按文档顺序与标记一一配对，文本块容差 0.5px、表格/替换元素 1.5px）：
 
 - 块与图片边框盒矩形误差 ≤ 0.5px。
 - 浮动 margin 排除区与 Chrome 一致。
-- 每条文字行（逐行左/右/顶）与 Chrome 词盒聚合结果对齐。
 - 行框避让：任何行不得与浮动排除区水平相交。
 - 图片晚加载：未解析时行回到全宽，解析后收敛到与立即解析完全一致的几何。
 
-重新生成几何基线：
+新增几何案例只需写案例 HTML 并重新生成参考，零测试代码：
 
 ```bash
-node tool/browser_references.mjs --case float_image
-cp build/conformance/browser/geometry/float_image.json \
-   conformance/reference/float_image.geometry.json
+node tool/browser_references.mjs --case <id> --emit-reference
 ```
 
-`table_basic` 案例同样固化了 Chrome 几何基线 `reference/table_basic.geometry.json`，由 `packages/weft_engine/test/table_basic_geometry_test.dart` 在 CI 中比对：
+`--emit-reference` 直接写入 `conformance/reference/`；提交前必须人工审查 diff，几何变化必须给出理由。
+
+`float_image` 专属测试（行框避让、晚加载收敛）与 `table_basic` 专属测试（跨距结构关系）保留在各自的测试文件中；调试时用 `tool/dump_layout.sh <case.html> --diff` 直接查看逐元素偏差表。
+
+`table_basic` 案例同样固化了 Chrome 几何基线 `reference/table_basic.geometry.json`，由同一通用门禁比对；`table_basic_geometry_test.dart` 额外断言跨距结构关系：
 
 - 块级段落与表格盒误差 ≤ 1.5px（表宽含列测量约 1px 的字形舍入）。
 - 单元格盒误差 ≤ 1.5px；separate 模式（固定列宽）下与 Chromium 完全一致。

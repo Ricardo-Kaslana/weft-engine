@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -17,113 +16,8 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   final root = _workspaceRoot();
-  final reference = jsonDecode(
-    File(
-      '${root.path}/conformance/reference/table_basic.geometry.json',
-    ).readAsStringSync(),
-  ) as Map<String, dynamic>;
 
   setUpAll(() => _loadFonts(root));
-
-  test('table block geometry matches the Chrome reference', () {
-    final source = File(
-      '${root.path}/conformance/cases/table_basic.html',
-    ).readAsStringSync();
-    final document = const WeftNormalizer().normalize(
-      source,
-      id: 'table-basic-geometry',
-    );
-    expect(document.supportReport.canRender, isTrue);
-    final layout = const WeftLayoutEngine().layout(document, width: 360);
-    addTearDown(layout.dispose);
-
-    final elements = (reference['elements'] as Map<String, dynamic>)
-        .cast<String, Map<String, dynamic>>();
-    // The sanitizer strips data-geo markers, so elements are mapped by
-    // structural position in document order.
-    const cellOrder = [
-      'h1',
-      'h2',
-      'h3',
-      'r1',
-      'u1',
-      'v1',
-      'r2',
-      'v2',
-      'r3',
-      'u3',
-      'v3',
-      'r4',
-      'v4',
-      's1',
-      's2',
-    ];
-    final boxesByGeo = <String, Rect>{};
-    var cellIndex = 0;
-    var tableIndex = 0;
-    var paragraphIndex = 0;
-    void visit(WeftNode node) {
-      if (node is! WeftElement) return;
-      switch (node.tag) {
-        case 'h2':
-          boxesByGeo['title'] = _box(layout, node);
-        case 'table':
-          boxesByGeo['t${++tableIndex}'] = _box(layout, node);
-        case 'caption':
-          boxesByGeo['cap'] = _box(layout, node);
-        case 'td' || 'th':
-          boxesByGeo[cellOrder[cellIndex++]] = _box(layout, node);
-        case 'p':
-          boxesByGeo[paragraphIndex++ == 0 ? 'after' : 'tail'] = _box(
-            layout,
-            node,
-          );
-      }
-      for (final child in node.children) {
-        visit(child);
-      }
-    }
-
-    visit(document.body!);
-
-    for (final key in ['title', 'after', 'tail']) {
-      expectRectClose(boxesByGeo[key]!, _elementRect(elements, key), 0.5,
-          label: key);
-    }
-    // The caption and table boxes inherit the ~1px text-intrinsic rounding
-    // of shrink-to-fit column measurement.
-    for (final key in ['cap', 't1', 't2']) {
-      expectRectClose(boxesByGeo[key]!, _elementRect(elements, key), 1.5,
-          label: key);
-    }
-    for (final key in [
-      'h1',
-      'h2',
-      'h3',
-      'r1',
-      'u1',
-      'v1',
-      'r2',
-      'v2',
-      'r3',
-      'u3',
-      'v3',
-      'r4',
-      'v4',
-      's1',
-      's2',
-    ]) {
-      expectRectClose(boxesByGeo[key]!, _elementRect(elements, key), 1.5,
-          label: key);
-    }
-
-    expect(
-      layout.size.height,
-      moreOrLessEquals((reference['documentHeight'] as num).toDouble(),
-          epsilon: 2),
-      reason: 'Document height diverged from Chrome.',
-    );
-  });
 
   test('table structure obeys spans, rows and adjacency', () {
     final source = File(
@@ -205,17 +99,6 @@ void main() {
 
 Rect _box(WeftLayoutResult layout, WeftElement element) {
   return layout.boxes.singleWhere((box) => box.nodeId == element.id).rect;
-}
-
-Rect _elementRect(Map<String, Map<String, dynamic>> elements, String key) {
-  final element = elements[key];
-  expect(element, isNotNull, reason: 'Reference is missing "$key".');
-  return Rect.fromLTWH(
-    (element!['left'] as num).toDouble(),
-    (element['top'] as num).toDouble(),
-    (element['width'] as num).toDouble(),
-    (element['height'] as num).toDouble(),
-  );
 }
 
 void expectRectClose(Rect actual, Rect expected, double epsilon,

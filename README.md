@@ -79,6 +79,18 @@ dart analyze
 dart run tool/verify.dart
 ```
 
+一键本地门禁（等价于 CI 的全部步骤，`--fast` 跳过像素门禁）：
+
+```bash
+tool/check.sh
+```
+
+布局诊断（打印盒子/行/逻辑文本，`--diff` 对比 Chrome 几何参考）：
+
+```bash
+tool/dump_layout.sh conformance/cases/table_basic.html --diff
+```
+
 `tool/verify.dart` 分别使用 `dart test` 和 `flutter test` 执行纯 Dart 包与 Flutter 包测试。
 
 固定字体的 Flutter 像素基线需要在 Windows 环境单独验证：

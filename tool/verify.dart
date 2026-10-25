@@ -57,8 +57,10 @@ Future<void> main() async {
     }
   }
 
+  // The workspace pub get has already resolved dependencies; --no-pub keeps
+  // repetitive runs from re-hitting the package mirror.
   for (final package in flutterPackages) {
-    final result = await run('flutter', const ['test'], package);
+    final result = await run('flutter', const ['test', '--no-pub'], package);
     if (result != 0) {
       exitCode = result;
       return;

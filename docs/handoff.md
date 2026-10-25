@@ -26,9 +26,11 @@
 - 图片资源只能由宿主 WeftImageResolver 提供；引擎不得隐式发起网络请求。
 - 每次修改必须运行 `dart format --output=none --set-exit-if-changed .`、`dart analyze`、`dart run tool/verify.dart` 和 `packages/weft_engine/tool/golden_pixel_test.dart`。
 - 新增能力必须附带单元测试；影响布局时必须评估黄金基线与 conformance/reference/ 下的浏览器几何基线。
-- 重要技术取舍写入 docs/adr/（下一个编号为 0014）。
+- 重要技术取舍写入 docs/adr/（下一个编号为 0015）。
 
 先阅读 README.md、docs/architecture.md、docs/supported-subset.md 和 docs/handoff.md，再选择第一个任务并给出计划。
+
+开发工作流提示（ADR 0014）：用 `tool/check.sh` 做本地门禁；新增几何案例走 `--emit-reference` 接入通用门禁，零测试代码；调布局用 `tool/dump_layout.sh --diff` 直接看偏差表；表格改动落在 `table_layout.part.dart`、行内/Float 改动落在 `inline_flow.part.dart`，两边可并行。
 ```
 
 ## 当前仓库状态
@@ -46,12 +48,15 @@ packages/
   weft/                 公开 API：WeftController、WeftView
   weft_document/        纯 Dart 文档模型、规范化、样式表、支持度报告
   weft_engine/          布局、绘制、图片、Float、表格、命中测试、选择、渲染表面
+    lib/src/layout_engine.dart     引擎骨架、块流、图片（公共入口 layout()）
+    lib/src/table_layout.part.dart 表格：槽位网格、列宽、折叠边框（extension）
+    lib/src/inline_flow.part.dart  Float 排除区、行内累积器、数据类
   weft_runtime_api/     JS Runtime 与能力桥抽象
   weft_quickjs/         QuickJS 原生适配边界（尚无原生执行）
   weft_capabilities/    能力策略与内置命名空间
 example/weft_lab/       开发实验室与浮动图片示例
 conformance/            语料、固定字体、图片资产、Flutter 基线、浏览器几何参考
-tool/                   全量测试、资产生成、浏览器参考、跨引擎差异报告
+tool/                   check 门禁、dump 诊断、资产生成、浏览器参考、跨引擎报告
 docs/adr/               架构决策记录
 ```
 
@@ -88,17 +93,25 @@ docs/adr/               架构决策记录
 ## 验证命令
 
 ```bash
+# 一键门禁 = format + analyze + verify + golden；--fast 跳过像素门禁
+tool/check.sh
+
+# 逐项运行
 flutter pub get
 dart format --output=none --set-exit-if-changed .
 dart analyze
 dart run tool/verify.dart
-
-# 固定字体像素门禁
-cd packages/weft_engine
-flutter test tool/golden_pixel_test.dart --timeout 60s
+cd packages/weft_engine && flutter test tool/golden_pixel_test.dart --timeout 60s
 
 # 浏览器诊断参考（本机 Chrome/Edge + Node 22）
 node tool/browser_references.mjs
+
+# 布局诊断：打印盒子/行/逻辑文本；--diff 输出逐元素 Weft-vs-Chrome 偏差表
+tool/dump_layout.sh conformance/cases/table_basic.html --diff
+tool/dump_layout.sh conformance/cases/float_image.html --runs
+
+# 重新生成几何参考并直写 conformance/reference/（提交前人工审查 diff）
+node tool/browser_references.mjs --case <id> --emit-reference
 
 # 跨引擎像素报告（需要 Pillow）
 python tool/compare_goldens.py --report-only
