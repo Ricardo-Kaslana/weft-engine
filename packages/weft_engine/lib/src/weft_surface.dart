@@ -304,6 +304,25 @@ class RenderWeftSurface extends RenderBox {
     return _layout?.linkAt(position);
   }
 
+  /// Resolves the selection anchor at [position] in surface-local
+  /// coordinates, or null when the point hits no painted text.
+  TextAnchor? anchorAt(Offset position) => _layout?.anchorAt(position);
+
+  /// Resolves the whole-word selection at [position] in surface-local
+  /// coordinates, or null when the point hits no painted text.
+  TextSelectionRange? wordSelectionAt(Offset position) =>
+      _layout?.wordSelectionAt(position);
+
+  /// The logical text covered by [selection], with block boundaries rendered
+  /// as newlines, or null when the selection is collapsed or no longer
+  /// resolves against the current layout. Hosts own clipboard policies; the
+  /// surface only reads the resolved text.
+  String? selectionText(TextSelectionRange? selection) {
+    final layout = _layout;
+    if (layout == null || selection == null) return null;
+    return layout.selectionText(selection);
+  }
+
   @override
   bool hitTestSelf(Offset position) => true;
 

@@ -277,6 +277,95 @@ final class WeftLayoutResult {
     return index.textBetween(ordered.$1, ordered.$2);
   }
 
+  /// Resolves the selection anchor under [position] in document coordinates,
+  /// or null when the point hits no painted text.
+  ///
+  /// Text commands are scanned back-to-front so later content (float-wrapped
+  /// lines, later table cells) wins. A point only anchors when it falls
+  /// inside a command's painted bounds and maps into a run whose node still
+  /// resolves in the logical text index; points in the gaps between blocks
+  /// hit nothing.
+  TextAnchor? anchorAt(ui.Offset position) {
+    final hit = _textHitAt(position);
+    if (hit == null) return null;
+    return _anchorForPainterOffset(hit.$1, hit.$2);
+  }
+
+  /// Resolves the whole-word selection under [position] in document
+  /// coordinates — anchor at the word start, extent at the word end — or
+  /// null when the point hits no painted text.
+  TextSelectionRange? wordSelectionAt(ui.Offset position) {
+    final hit = _textHitAt(position);
+    if (hit == null) return null;
+    final command = hit.$1;
+    final boundary = command.painter.getWordBoundary(
+      TextPosition(offset: hit.$2),
+    );
+    if (boundary.end <= boundary.start) return null;
+    final start = _anchorForPainterOffset(command, boundary.start);
+    final end = _anchorForPainterOffset(command, boundary.end);
+    if (start == null || end == null) return null;
+    return TextSelectionRange(anchor: start, extent: end);
+  }
+
+  /// Locates the text command and painter offset under [position], or null.
+  (WeftTextPaintCommand, int)? _textHitAt(ui.Offset position) {
+    if (textIndex == null) return null;
+    for (final command in commands.reversed) {
+      if (command is! WeftTextPaintCommand) continue;
+      final local = position - command.offset;
+      // getPositionForOffset clamps distant points onto the text, so only
+      // points inside the painter's laid-out bounds count as hits.
+      if (local.dx < 0 ||
+          local.dy < 0 ||
+          local.dx > command.painter.width ||
+          local.dy > command.painter.height) {
+        continue;
+      }
+      final painterOffset = command.painter.getPositionForOffset(local).offset;
+      if (_runForPainterOffset(command, painterOffset) == null) continue;
+      return (command, painterOffset);
+    }
+    return null;
+  }
+
+  /// The run that owns [painterOffset], preferring runs whose node still
+  /// resolves in the logical text index.
+  ///
+  /// Runs tile the command's painter text contiguously, so an offset on a
+  /// run seam belongs to two runs. Hard-break runs own no logical text
+  /// entry, so their seams fall back to the neighboring text run instead of
+  /// producing an anchor the index cannot resolve.
+  WeftTextPainterRun? _runForPainterOffset(
+    WeftTextPaintCommand command,
+    int painterOffset,
+  ) {
+    final index = textIndex;
+    if (index == null) return null;
+    WeftTextPainterRun? seamFallback;
+    for (final run in command.runs) {
+      if (painterOffset < run.painterStart || painterOffset > run.painterEnd) {
+        continue;
+      }
+      if (!index.entryByNode.containsKey(run.nodeId)) continue;
+      if (painterOffset < run.painterEnd) return run;
+      seamFallback ??= run;
+    }
+    return seamFallback;
+  }
+
+  TextAnchor? _anchorForPainterOffset(
+    WeftTextPaintCommand command,
+    int painterOffset,
+  ) {
+    final run = _runForPainterOffset(command, painterOffset);
+    if (run == null) return null;
+    return TextAnchor(
+      run.nodeId,
+      run.nodeStart + painterOffset - run.painterStart,
+    );
+  }
+
   var _disposed = false;
 
   void dispose() {
