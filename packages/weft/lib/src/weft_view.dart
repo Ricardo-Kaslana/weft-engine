@@ -15,11 +15,13 @@ class WeftView extends StatelessWidget {
     required this.controller,
     this.fallbackBuilder,
     this.onLinkTap,
+    this.imageResolver,
   });
 
   final WeftController controller;
   final WeftFallbackBuilder? fallbackBuilder;
   final ValueChanged<WeftLinkRegion>? onLinkTap;
+  final WeftImageResolver? imageResolver;
 
   @override
   Widget build(BuildContext context) {
@@ -48,6 +50,7 @@ class WeftView extends StatelessWidget {
             document: document,
             selection: controller.selection,
             textScaler: textScaler,
+            imageResolver: imageResolver,
             onLinkTap: onLinkTap,
           ),
         );

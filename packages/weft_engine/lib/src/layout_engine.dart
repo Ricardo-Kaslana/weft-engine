@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/painting.dart';
 import 'package:weft_document/weft_document.dart';
@@ -14,6 +15,7 @@ final class WeftLayoutEngine {
     WeftDocumentSnapshot document, {
     required double width,
     TextScaler textScaler = TextScaler.noScaling,
+    Map<int, ui.Image> images = const {},
   }) {
     if (!width.isFinite || width <= 0) {
       return WeftLayoutResult(
@@ -37,6 +39,7 @@ final class WeftLayoutEngine {
     final context = _LayoutContext(
       styleResolver: WeftStyleResolver(document.styleSheet),
       textScaler: textScaler,
+      images: images,
     );
     final bodyStyle = context.styleResolver.resolve(
       body,
@@ -48,6 +51,7 @@ final class WeftLayoutEngine {
     // measured before the box is placed and added to the document extent.
     final outerTop = context.outerMarginTop(body, bodyStyle, const []);
     final outerBottom = context.outerMarginBottom(body, bodyStyle, const []);
+    final floats = _FloatContext();
     final bodyLayout = context.layoutBlock(
       element: body,
       style: bodyStyle,
@@ -55,10 +59,15 @@ final class WeftLayoutEngine {
       left: 0,
       top: outerTop,
       ancestors: const [],
+      floats: floats,
     );
+    final normalBottom = outerTop + bodyLayout.height + outerBottom;
 
     return WeftLayoutResult(
-      size: Size(width, outerTop + bodyLayout.height + outerBottom),
+      size: Size(
+        width,
+        math.max(normalBottom, floats.maxBottom),
+      ),
       boxes: context.boxes,
       commands: context.commands,
       links: context.links,
@@ -70,10 +79,12 @@ final class _LayoutContext {
   _LayoutContext({
     required this.styleResolver,
     required this.textScaler,
+    required this.images,
   });
 
   final WeftStyleResolver styleResolver;
   final TextScaler textScaler;
+  final Map<int, ui.Image> images;
   final List<WeftLayoutBox> boxes = <WeftLayoutBox>[];
   final List<WeftPaintCommand> commands = <WeftPaintCommand>[];
   final List<WeftLinkRegion> links = <WeftLinkRegion>[];
@@ -85,6 +96,7 @@ final class _LayoutContext {
     required double left,
     required double top,
     required List<WeftElement> ancestors,
+    required _FloatContext floats,
     String? marker,
   }) {
     if (style.display == WeftDisplay.none) {
@@ -117,6 +129,7 @@ final class _LayoutContext {
             contentY: contentY,
             contentWidth: contentWidth,
             childAncestors: childAncestors,
+            floats: floats,
           );
     final height = style.verticalBorder + style.verticalPadding + contentHeight;
 
@@ -261,6 +274,7 @@ final class _LayoutContext {
     required double contentY,
     required double contentWidth,
     required List<WeftElement> childAncestors,
+    required _FloatContext floats,
   }) {
     var cursor = contentY;
     var pendingMargin = 0.0;
@@ -290,6 +304,7 @@ final class _LayoutContext {
         x: contentX,
         y: cursor,
         width: contentWidth,
+        floats: floats,
       );
       cursor += height;
       inline.reset();
@@ -311,6 +326,69 @@ final class _LayoutContext {
         ancestors: childAncestors,
       );
       if (childStyle.display == WeftDisplay.none) continue;
+
+      if (child.tag == 'img') {
+        final image = images[child.id];
+        if (image != null) {
+          if (childStyle.float != WeftFloat.none) {
+            flushInline();
+            _placeFloatImage(
+              element: child,
+              style: childStyle,
+              image: image,
+              contentX: contentX,
+              contentWidth: contentWidth,
+              top: cursor,
+              floats: floats,
+            );
+            continue;
+          }
+
+          flushInline();
+          final outerTop = childStyle.marginTop;
+          final outerBottom = childStyle.marginBottom;
+          final gap = leadingCollapses
+              ? 0.0
+              : hasPendingMargin
+                  ? _collapseMargins(pendingMargin, outerTop)
+                  : outerTop;
+          cursor += gap;
+          if (childStyle.clear != WeftClear.none) {
+            cursor = math.max(cursor, floats.clearBottom(childStyle.clear));
+          }
+          pendingMargin = 0;
+          hasPendingMargin = false;
+          leadingCollapses = false;
+          trailingCollapses =
+              style.borderBottom.width == 0 && style.paddingBottom == 0;
+
+          final metrics = _layoutImageBlock(
+            element: child,
+            style: childStyle,
+            image: image,
+            availableWidth: contentWidth,
+            left: contentX,
+            top: cursor,
+          );
+          if (metrics != null) {
+            cursor += metrics.boxHeight;
+          }
+          pendingMargin = outerBottom;
+          hasPendingMargin = true;
+          continue;
+        }
+
+        // Unresolved images participate as alternative text, matching how a
+        // browser keeps content meaningful when a resource is unavailable.
+        final alt = child.attribute('alt')?.trim() ?? '';
+        if (alt.isNotEmpty) {
+          inline.addText(
+            WeftText(id: child.id, text: alt),
+            childStyle,
+          );
+        }
+        continue;
+      }
 
       if (childStyle.display == WeftDisplay.inline) {
         inline.collectElement(child, childStyle, childAncestors);
@@ -351,6 +429,9 @@ final class _LayoutContext {
               ? _collapseMargins(pendingMargin, outerTop)
               : outerTop;
       cursor += gap;
+      if (childStyle.clear != WeftClear.none) {
+        cursor = math.max(cursor, floats.clearBottom(childStyle.clear));
+      }
       pendingMargin = 0;
       hasPendingMargin = false;
       leadingCollapses = false;
@@ -369,6 +450,7 @@ final class _LayoutContext {
         left: contentX,
         top: cursor,
         ancestors: childAncestors,
+        floats: floats,
         marker: marker,
       );
       cursor += result.height;
@@ -381,6 +463,258 @@ final class _LayoutContext {
       cursor += pendingMargin;
     }
     return math.max(0, cursor - contentY);
+  }
+
+  _ImageBoxMetrics? _imageMetrics({
+    required WeftElement element,
+    required WeftComputedStyle style,
+    required ui.Image image,
+    required double availableWidth,
+  }) {
+    final available = availableWidth - style.marginLeft - style.marginRight;
+    if (available <= 0) return null;
+
+    final naturalWidth = image.width.toDouble();
+    final naturalHeight = image.height.toDouble();
+    if (naturalWidth <= 0 || naturalHeight <= 0) return null;
+
+    final attributeWidth = _attributeLength(element, 'width');
+    final attributeHeight = _attributeLength(element, 'height');
+    final ratio = attributeWidth != null && attributeHeight != null
+        ? attributeWidth / attributeHeight
+        : naturalWidth / naturalHeight;
+
+    final chromeWidth = style.horizontalPadding + style.horizontalBorder;
+    final chromeHeight = style.verticalPadding + style.verticalBorder;
+    final cssWidth = style.width;
+
+    double contentWidth;
+    double? explicitHeight;
+    if (cssWidth != null) {
+      contentWidth = style.boxSizing == WeftBoxSizing.borderBox
+          ? cssWidth - chromeWidth
+          : cssWidth;
+      explicitHeight = attributeHeight;
+    } else if (attributeWidth != null && attributeHeight != null) {
+      contentWidth = attributeWidth;
+      explicitHeight = attributeHeight;
+    } else if (attributeWidth != null) {
+      contentWidth = attributeWidth;
+    } else if (attributeHeight != null) {
+      contentWidth = attributeHeight * ratio;
+      explicitHeight = attributeHeight;
+    } else {
+      contentWidth = naturalWidth;
+    }
+    contentWidth = math.max(0, contentWidth);
+
+    var boxWidth = contentWidth + chromeWidth;
+    final maxWidth = style.maxWidth;
+    if (maxWidth != null) {
+      final limit = style.boxSizing == WeftBoxSizing.borderBox
+          ? maxWidth
+          : maxWidth + chromeWidth;
+      boxWidth = math.min(boxWidth, limit);
+    }
+    final minWidth = style.minWidth;
+    if (minWidth != null) {
+      final floor = style.boxSizing == WeftBoxSizing.borderBox
+          ? minWidth
+          : minWidth + chromeWidth;
+      boxWidth = math.max(boxWidth, floor);
+    }
+    boxWidth = boxWidth
+        .clamp(
+          math.min(chromeWidth, available),
+          available,
+        )
+        .toDouble();
+
+    contentWidth = math.max(0, boxWidth - chromeWidth);
+    final contentHeight = explicitHeight ?? contentWidth / ratio;
+    return _ImageBoxMetrics(
+      boxWidth: boxWidth,
+      boxHeight: contentHeight + chromeHeight,
+      contentWidth: contentWidth,
+      contentHeight: contentHeight,
+    );
+  }
+
+  _ImageBoxMetrics? _layoutImageBlock({
+    required WeftElement element,
+    required WeftComputedStyle style,
+    required ui.Image image,
+    required double availableWidth,
+    required double left,
+    required double top,
+  }) {
+    final metrics = _imageMetrics(
+      element: element,
+      style: style,
+      image: image,
+      availableWidth: availableWidth,
+    );
+    if (metrics == null || metrics.boxWidth <= 0 || metrics.boxHeight <= 0) {
+      return null;
+    }
+    final boxX = left + style.marginLeft;
+    _paintImageBox(
+      element: element,
+      style: style,
+      image: image,
+      boxX: boxX,
+      top: top,
+      metrics: metrics,
+    );
+    return metrics;
+  }
+
+  void _placeFloatImage({
+    required WeftElement element,
+    required WeftComputedStyle style,
+    required ui.Image image,
+    required double contentX,
+    required double contentWidth,
+    required double top,
+    required _FloatContext floats,
+  }) {
+    final metrics = _imageMetrics(
+      element: element,
+      style: style,
+      image: image,
+      availableWidth: contentWidth,
+    );
+    if (metrics == null || metrics.boxWidth <= 0 || metrics.boxHeight <= 0) {
+      return;
+    }
+    final side = style.float;
+    final outerWidth = style.marginLeft + metrics.boxWidth + style.marginRight;
+    if (outerWidth > contentWidth) return;
+    final outerHeight =
+        style.marginTop + metrics.boxHeight + style.marginBottom;
+
+    var outerTop = math.max(top, floats.clearBottom(style.clear));
+    for (var guard = 0; guard < 64; guard++) {
+      var shifted = false;
+      for (final exclusion in floats.exclusions) {
+        final overlapsVertically =
+            exclusion.rect.top < outerTop + outerHeight &&
+                exclusion.rect.bottom > outerTop;
+        if (!overlapsVertically) continue;
+        final mustStack = exclusion.side == side ||
+            outerWidth + exclusion.rect.width > contentWidth;
+        if (mustStack) {
+          outerTop = exclusion.rect.bottom;
+          shifted = true;
+          break;
+        }
+      }
+      if (!shifted) break;
+    }
+
+    final boxX = side == WeftFloat.left
+        ? contentX + style.marginLeft
+        : contentX + contentWidth - style.marginRight - metrics.boxWidth;
+    final boxTop = outerTop + style.marginTop;
+    _paintImageBox(
+      element: element,
+      style: style,
+      image: image,
+      boxX: boxX,
+      top: boxTop,
+      metrics: metrics,
+    );
+
+    final outerLeft =
+        side == WeftFloat.left ? contentX : boxX - style.marginLeft;
+    final outerRight = side == WeftFloat.left
+        ? boxX + metrics.boxWidth + style.marginRight
+        : contentX + contentWidth;
+    floats.add(
+      _FloatExclusion(
+        side: side,
+        rect: Rect.fromLTRB(
+          outerLeft,
+          outerTop,
+          outerRight,
+          outerTop + outerHeight,
+        ),
+      ),
+    );
+  }
+
+  void _paintImageBox({
+    required WeftElement element,
+    required WeftComputedStyle style,
+    required ui.Image image,
+    required double boxX,
+    required double top,
+    required _ImageBoxMetrics metrics,
+  }) {
+    final commandStart = commands.length;
+    var insertIndex = commandStart;
+    final background = style.backgroundColor;
+    if (background != null && background.a > 0) {
+      commands.insert(
+        insertIndex,
+        WeftRectPaintCommand(
+          nodeId: element.id,
+          rect: Rect.fromLTWH(
+            boxX,
+            top,
+            metrics.boxWidth,
+            metrics.boxHeight,
+          ),
+          color: background,
+        ),
+      );
+      insertIndex += 1;
+    }
+    for (final command in _borderCommands(
+      nodeId: element.id,
+      style: style,
+      boxX: boxX,
+      top: top,
+      boxWidth: metrics.boxWidth,
+      height: metrics.boxHeight,
+    )) {
+      commands.insert(insertIndex, command);
+      insertIndex += 1;
+    }
+
+    final contentX = boxX + style.borderLeft.width + style.paddingLeft;
+    final contentY = top + style.borderTop.width + style.paddingTop;
+    commands.add(
+      WeftImagePaintCommand(
+        nodeId: element.id,
+        image: image,
+        destination: Rect.fromLTWH(
+          contentX,
+          contentY,
+          metrics.contentWidth,
+          metrics.contentHeight,
+        ),
+      ),
+    );
+    boxes.add(
+      WeftLayoutBox(
+        nodeId: element.id,
+        rect: Rect.fromLTWH(
+          boxX,
+          top,
+          metrics.boxWidth,
+          metrics.boxHeight,
+        ),
+      ),
+    );
+  }
+
+  static double? _attributeLength(WeftElement element, String name) {
+    final value = element.attribute(name);
+    if (value == null) return null;
+    final parsed = double.tryParse(value);
+    if (parsed == null || !parsed.isFinite || parsed <= 0) return null;
+    return parsed;
   }
 
   /// Collapses margins following CSS 2.1: the largest positive margin plus the
@@ -473,6 +807,7 @@ final class _LayoutContext {
       );
       if (style.display == WeftDisplay.none) continue;
       if (style.display == WeftDisplay.inline) {
+        if (style.float != WeftFloat.none) continue;
         if (_isInlineEmpty(child, style, childAncestors)) continue;
         return null;
       }
@@ -500,6 +835,7 @@ final class _LayoutContext {
       );
       if (style.display == WeftDisplay.none) continue;
       if (style.display == WeftDisplay.inline) {
+        if (style.float != WeftFloat.none) continue;
         if (_isInlineEmpty(child, style, childAncestors)) continue;
         return null;
       }
@@ -539,6 +875,10 @@ final class _LayoutContext {
         ancestors: childAncestors,
       );
       if (childStyle.display == WeftDisplay.none) continue;
+      if (childStyle.float != WeftFloat.none) {
+        // Out-of-flow content still paints even when it adds no block height.
+        return false;
+      }
       if (childStyle.display == WeftDisplay.inline) {
         if (!_isInlineEmpty(child, childStyle, childAncestors)) return false;
         continue;
@@ -574,6 +914,10 @@ final class _LayoutContext {
         ancestors: childAncestors,
       );
       if (childStyle.display == WeftDisplay.none) continue;
+      if (child.tag == 'img') {
+        if (childStyle.float != WeftFloat.none) continue;
+        return false;
+      }
       if (!_isInlineEmpty(child, childStyle, childAncestors)) return false;
     }
     return true;
@@ -592,8 +936,32 @@ final class _LayoutContext {
     required double x,
     required double y,
     required double width,
+    required _FloatContext floats,
   }) {
     if (width <= 0) return 0;
+    if (floats.hasExclusions) {
+      final lines = inline.buildLines(
+        parentStyle: parentStyle,
+        left: x,
+        right: x + width,
+        top: y,
+        textScaler: textScaler,
+        floats: floats,
+      );
+      if (lines == null) return 0;
+      for (final line in lines.lines) {
+        commands.add(
+          WeftTextPaintCommand(
+            nodeId: parentNodeId,
+            painter: line.painter,
+            offset: Offset(line.x, line.y),
+          ),
+        );
+      }
+      links.addAll(lines.links);
+      return math.max(0, lines.bottom - y);
+    }
+
     final inlineLayout = inline.buildLayout(
       parentStyle: parentStyle,
       width: width,
@@ -665,6 +1033,142 @@ final class _LayoutContext {
       offset: Offset(x, y),
     );
   }
+}
+
+final class _ImageBoxMetrics {
+  const _ImageBoxMetrics({
+    required this.boxWidth,
+    required this.boxHeight,
+    required this.contentWidth,
+    required this.contentHeight,
+  });
+
+  final double boxWidth;
+  final double boxHeight;
+  final double contentWidth;
+  final double contentHeight;
+}
+
+final class _FloatExclusion {
+  const _FloatExclusion({required this.side, required this.rect});
+
+  final WeftFloat side;
+  final Rect rect;
+}
+
+final class _LineSlot {
+  const _LineSlot({
+    required this.top,
+    required this.left,
+    required this.right,
+  });
+
+  final double top;
+  final double left;
+  final double right;
+}
+
+final class _FloatContext {
+  final List<_FloatExclusion> exclusions = <_FloatExclusion>[];
+
+  bool get hasExclusions => exclusions.isNotEmpty;
+
+  double get maxBottom {
+    var bottom = 0.0;
+    for (final exclusion in exclusions) {
+      bottom = math.max(bottom, exclusion.rect.bottom);
+    }
+    return bottom;
+  }
+
+  void add(_FloatExclusion exclusion) {
+    exclusions.add(exclusion);
+  }
+
+  double clearBottom(WeftClear clear) {
+    if (clear == WeftClear.none) return double.negativeInfinity;
+    var bottom = double.negativeInfinity;
+    for (final exclusion in exclusions) {
+      final matches = switch (clear) {
+        WeftClear.left => exclusion.side == WeftFloat.left,
+        WeftClear.right => exclusion.side == WeftFloat.right,
+        WeftClear.both => true,
+        WeftClear.none => false,
+      };
+      if (matches) bottom = math.max(bottom, exclusion.rect.bottom);
+    }
+    return bottom;
+  }
+
+  double? nextBottomAfter(double y, {double lineHeight = 0}) {
+    double? next;
+    for (final exclusion in exclusions) {
+      if (exclusion.rect.bottom <= y) continue;
+      if (lineHeight > 0 && exclusion.rect.top >= y + lineHeight) continue;
+      next = next == null
+          ? exclusion.rect.bottom
+          : math.min(next, exclusion.rect.bottom);
+    }
+    return next;
+  }
+
+  _LineSlot lineSlot({
+    required double left,
+    required double right,
+    required double top,
+    required double lineHeight,
+  }) {
+    var current = top;
+    for (var guard = 0; guard < 64; guard++) {
+      var availableLeft = left;
+      var availableRight = right;
+      for (final exclusion in exclusions) {
+        final overlaps = exclusion.rect.top < current + lineHeight &&
+            exclusion.rect.bottom > current;
+        if (!overlaps) continue;
+        if (exclusion.side == WeftFloat.left) {
+          availableLeft = math.max(availableLeft, exclusion.rect.right);
+        } else {
+          availableRight = math.min(availableRight, exclusion.rect.left);
+        }
+      }
+      if (availableRight - availableLeft > 1) {
+        return _LineSlot(
+          top: current,
+          left: availableLeft,
+          right: availableRight,
+        );
+      }
+      final next = nextBottomAfter(current, lineHeight: lineHeight);
+      if (next == null || next <= current) break;
+      current = next;
+    }
+    return _LineSlot(top: current, left: left, right: right);
+  }
+}
+
+final class _InlineLine {
+  const _InlineLine({
+    required this.x,
+    required this.y,
+    required this.painter,
+  });
+
+  final double x;
+  final double y;
+  final TextPainter painter;
+}
+
+final class _InlineLines {
+  const _InlineLines({
+    required this.lines,
+    required this.links,
+    required this.bottom,
+  });
+
+  final List<_InlineLine> lines;
+  final List<WeftLinkRegion> links;
+  final double bottom;
 }
 
 final class _BlockLayout {
@@ -793,6 +1297,17 @@ final class _InlineAccumulator {
       addBreak(element.id, style);
       return;
     }
+    if (element.tag == 'img') {
+      final alt = element.attribute('alt')?.trim() ?? '';
+      if (context.images[element.id] == null && alt.isNotEmpty) {
+        addText(
+          WeftText(id: element.id, text: alt),
+          style,
+          link: link,
+        );
+      }
+      return;
+    }
 
     final href = element.tag == 'a' ? element.attribute('href') : null;
     final activeLink = href == null || href.isEmpty
@@ -873,6 +1388,233 @@ final class _InlineAccumulator {
       );
     }
     return _InlineLayout(painter: painter, links: links);
+  }
+
+  _InlineLines? buildLines({
+    required WeftComputedStyle parentStyle,
+    required double left,
+    required double right,
+    required double top,
+    required TextScaler textScaler,
+    required _FloatContext floats,
+  }) {
+    _trimTrailingCollapsibleSpace();
+    if (!hasContent || right <= left) return null;
+
+    final plainText = _runs.map((run) => run.text).join();
+    if (plainText.isEmpty) return null;
+    final linkRanges = _linkRanges();
+    final linkHrefs = <int, String>{};
+    final linkTexts = <int, String>{};
+    final linkRects = <int, List<Rect>>{};
+    for (final range in linkRanges) {
+      linkHrefs[range.nodeId] = range.href;
+      linkTexts[range.nodeId] = plainText.substring(range.start, range.end);
+    }
+
+    final lines = <_InlineLine>[];
+    var offset = 0;
+    var y = top;
+    for (var guard = 0; guard < 10000 && offset < plainText.length; guard++) {
+      if (parentStyle.whiteSpace == WeftWhiteSpace.normal) {
+        while (offset < plainText.length &&
+            _isCollapsibleSpace(plainText.codeUnitAt(offset))) {
+          offset++;
+        }
+        if (offset >= plainText.length) break;
+      }
+
+      final estimate = parentStyle.fontSize * parentStyle.lineHeight;
+      final slot = floats.lineSlot(
+        left: left,
+        right: right,
+        top: y,
+        lineHeight: estimate,
+      );
+      y = slot.top;
+      final lineWidth = slot.right - slot.left;
+      if (lineWidth <= 1) {
+        final next = floats.nextBottomAfter(y, lineHeight: estimate);
+        if (next == null) break;
+        y = next;
+        continue;
+      }
+
+      final probe = TextPainter(
+        text: _spanForRange(offset, plainText.length, parentStyle),
+        textDirection: TextDirection.ltr,
+        textScaler: textScaler,
+        locale: const Locale('zh'),
+        maxLines: 1,
+        textWidthBasis: TextWidthBasis.parent,
+      )..layout(maxWidth: lineWidth);
+      final metrics = probe.computeLineMetrics();
+      if (metrics.isEmpty) {
+        probe.dispose();
+        break;
+      }
+      final lineMetrics = metrics.first;
+      var consumed =
+          _lineBreakEnd(probe, offset, plainText.length, lineMetrics);
+      probe.dispose();
+      if (consumed <= offset) {
+        consumed = offset + _nextCodeUnitLength(plainText, offset);
+      }
+      if (consumed < plainText.length &&
+          plainText.codeUnitAt(consumed) == 0x0A &&
+          consumed > offset) {
+        consumed += 1;
+      }
+
+      final paintEnd = _paintableEnd(
+        plainText,
+        offset,
+        math.min(consumed, plainText.length),
+        parentStyle.whiteSpace,
+      );
+      if (paintEnd > offset) {
+        final painter = _buildLinePainter(
+          offset,
+          paintEnd,
+          parentStyle,
+          lineWidth,
+          textScaler,
+        );
+        lines.add(_InlineLine(x: slot.left, y: y, painter: painter));
+        for (final range in linkRanges) {
+          final start = math.max(offset, range.start);
+          final end = math.min(paintEnd, range.end);
+          if (end <= start) continue;
+          final boxes = painter.getBoxesForSelection(
+            TextSelection(
+              baseOffset: start - offset,
+              extentOffset: end - offset,
+            ),
+          );
+          final target = linkRects.putIfAbsent(range.nodeId, () => <Rect>[]);
+          for (final box in boxes) {
+            final rect = Rect.fromLTRB(
+              box.left + slot.left,
+              box.top + y,
+              box.right + slot.left,
+              box.bottom + y,
+            );
+            if (rect.width > 0 && rect.height > 0) target.add(rect);
+          }
+        }
+        y += painter.height;
+      } else {
+        // A hard line break still occupies one line box.
+        y += lineMetrics.height;
+      }
+      offset = consumed;
+    }
+
+    if (lines.isEmpty) return null;
+    final links = <WeftLinkRegion>[];
+    for (final entry in linkRects.entries) {
+      final href = linkHrefs[entry.key];
+      final text = linkTexts[entry.key];
+      if (href == null || text == null || entry.value.isEmpty) continue;
+      links.add(
+        WeftLinkRegion(
+          nodeId: entry.key,
+          href: href,
+          text: text,
+          rects: entry.value,
+        ),
+      );
+    }
+    return _InlineLines(lines: lines, links: links, bottom: y);
+  }
+
+  TextSpan _spanForRange(
+    int start,
+    int end,
+    WeftComputedStyle parentStyle,
+  ) {
+    final children = <TextSpan>[];
+    var cursor = 0;
+    for (final run in _runs) {
+      final runStart = cursor;
+      final runEnd = cursor + run.text.length;
+      cursor = runEnd;
+      if (runEnd <= start || runStart >= end) continue;
+      final localStart = math.max(start, runStart) - runStart;
+      final localEnd = math.min(end, runEnd) - runStart;
+      if (localEnd <= localStart) continue;
+      children.add(
+        TextSpan(
+          text: run.text.substring(localStart, localEnd),
+          style: run.style.toTextStyle(includeBackground: true),
+        ),
+      );
+    }
+    return TextSpan(
+      style: parentStyle.toTextStyle(),
+      children: children,
+    );
+  }
+
+  TextPainter _buildLinePainter(
+    int start,
+    int end,
+    WeftComputedStyle parentStyle,
+    double width,
+    TextScaler textScaler,
+  ) {
+    final painter = TextPainter(
+      text: _spanForRange(start, end, parentStyle),
+      textAlign: parentStyle.textAlign,
+      textDirection: TextDirection.ltr,
+      textScaler: textScaler,
+      locale: const Locale('zh'),
+      maxLines: 1,
+      textWidthBasis: TextWidthBasis.parent,
+    )..layout(minWidth: width, maxWidth: width);
+    return painter;
+  }
+
+  static int _lineBreakEnd(
+    TextPainter probe,
+    int offset,
+    int total,
+    ui.LineMetrics metrics,
+  ) {
+    final caretX = metrics.width <= 0 ? 0.0 : metrics.width;
+    final caretY = metrics.baseline - metrics.ascent + metrics.height / 2;
+    final position = probe.getPositionForOffset(Offset(caretX, caretY));
+    final boundary = probe.getLineBoundary(position);
+    if (boundary.end > boundary.start) return offset + boundary.end;
+    return offset + position.offset;
+  }
+
+  static int _paintableEnd(
+    String text,
+    int start,
+    int end,
+    WeftWhiteSpace whiteSpace,
+  ) {
+    var result = end;
+    if (result > start && text.codeUnitAt(result - 1) == 0x0A) result--;
+    if (whiteSpace == WeftWhiteSpace.normal) {
+      while (
+          result > start && _isCollapsibleSpace(text.codeUnitAt(result - 1))) {
+        result--;
+      }
+    }
+    return result;
+  }
+
+  static int _nextCodeUnitLength(String text, int offset) {
+    if (offset >= text.length) return 1;
+    final code = text.codeUnitAt(offset);
+    final isHighSurrogate = code >= 0xD800 && code <= 0xDBFF;
+    return isHighSurrogate && offset + 1 < text.length ? 2 : 1;
+  }
+
+  static bool _isCollapsibleSpace(int code) {
+    return code == 0x20 || code == 0x09 || code == 0x0A || code == 0x0D;
   }
 
   List<_LinkRunRange> _linkRanges() {

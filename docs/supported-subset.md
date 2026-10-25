@@ -23,7 +23,7 @@
 | 列表 | `ul/ol/li` | 部分实现 | disc、decimal、none 和无障碍外的独立标记 |
 | 描述列表 | `dl/dt/dd` | 部分实现 | 块级显示，无专用样式 |
 | 链接 | `a` | 已实现 | URL 清洗、视觉样式、跨行命中矩形和宿主回调；导航由宿主决定 |
-| 图片 | `img` | 阶段 2 | 当前触发显式回退 |
+| 图片 | `img` | 部分实现 | `src/alt/width/height`、块级替换盒、左右 Float、`clear` 和宿主资源解析；尚无行内基线混排 |
 | 表格 | `table/thead/tbody/tfoot/tr/th/td/caption` | 阶段 2 | 当前触发显式回退 |
 | 单元格跨距 | `colspan/rowspan` | 阶段 2 | 随表格实现 |
 | 脚本 | 可信 `ScriptUnit` | 阶段 4 | 当前任何 `script` 都要求回退 |
@@ -62,7 +62,7 @@
 | 高度 | `height/min-height/max-height` | 阶段 1 后续 |
 | 边框 | `border`、`border-top/right/bottom/left` | 部分实现：块级 solid，无圆角/虚线/独立宽高与颜色属性 |
 | 缩进与字距 | `text-indent/letter-spacing` | 阶段 1 后续 |
-| 定位 | `position/float/clear` | 阶段 2 |
+| 定位 | `position/float/clear` | 部分实现：仅图片 Float，支持左右、clear 和跨段落行框缩短 |
 | 表格 | table display、`vertical-align`、`border-collapse` | 阶段 2 |
 | Flexbox | 不进入当前布局 | 后续候选 |
 | transform、filter、动画 | 不进入引擎 | 不支持 |
@@ -87,17 +87,23 @@
 ## 当前明确限制
 
 - 链接点击交给 `WeftView.onLinkTap`，引擎不会自行打开浏览器或执行导航。
+- 图片必须由宿主 `WeftImageResolver` 提供 `ImageProvider`；引擎不进行隐式网络请求。未解析或加载失败时显示 `alt` 文本。
+- 图片支持块级替换盒和左右 Float；非浮动图片位于段落中时会成为块级项，行内图片基线混排尚未实现。
+- Float 仅支持作为块级容器直接子元素的 `img`；行内元素内部的嵌套浮动图片当前不参与布局。
+- 浮动图片自身的 `margin`、`padding` 和边框参与排除区；`clear` 作用于后续块级元素。
 - 宽度和边框只作用到块级盒；行内边框、百分比宽度、`auto` margin、CSS 高度和圆角尚未实现。
 - 边框只支持 `solid` 简写；`dashed/dotted/double` 等当前按无边框处理。
 - `WeftView` 依赖外部滚动，布局和绘制命令覆盖完整文档。
 - 固定字体下块级几何与 Chromium 误差小于 0.5px，但跨引擎像素差异仍高于 1% advisory 预算，主要来自字形抗锯齿。
 - CJK 尚无固定可分发的像素字体，中文只有结构测试，没有像素基线。
-- 图片和表格走回退；不要在阶段 1B 声称支持内容型页面的全部常见元素。
+- 表格仍走回退；图片支持块级替换盒与左右 Float，但不支持行内基线混排。
 
 ## Float 的 MVP 边界
 
-后续必须支持图片导致的跨段落文字环绕。首版重点支持 `img` 和受限 inline-block 的左右浮动、Clear、父级高度和后续行框缩短。任意元素、复杂嵌套浮动不与完整 CSS 2.1 兼容承诺绑定。
+当前已支持图片的左右浮动、逐行可用行框、`clear`、同侧堆叠、对侧并排、跨段落环绕和文档滚动高度。
+
+尚未支持任意元素的 Float、浮动与表格/行内格式化上下文的交互、`clear` 的 margin 合并细节，以及行内图片基线混排。Float 的定位与排除区在 `layout_engine.dart` 的 `_FloatContext` 中维护，后续表格和 Flexbox 必须复用同一套行框可用区查询，不得另建绕过机制。
 
 ## 不支持输入处理
 
-未知标签按策略选择 drop、unwrap 或 error。非关键 CSS 可丢弃并警告；Canvas、WebGL、需要完整 DOM 的交互、图片和表格必须在有能力渲染前设置 `requiresWebView`。任何策略都不得无诊断地静默改变内容语义。
+未知标签按策略选择 drop、unwrap 或 error。非关键 CSS 可丢弃并警告；Canvas、WebGL、需要完整 DOM 的交互、表格和未接入资源策略的图片必须在有能力渲染前设置 `requiresWebView`。任何策略都不得无诊断地静默改变内容语义。

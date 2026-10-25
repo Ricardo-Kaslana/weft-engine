@@ -4,7 +4,7 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 
 ## 当前状态
 
-当前为 **阶段 1B（进行中）：基础静态渲染、链接交互与像素基线**，可用于受控内容子集的实验和内部验证，尚不是稳定版本。
+当前为 **阶段 2（进行中）：图片资源与 Float 文字环绕**，可用于受控内容子集的实验和内部验证，尚不是稳定版本。
 
 已实现：
 
@@ -15,15 +15,18 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - 与 CSS 半行距一致的文本行高分配，固定字体下块级几何与 Chromium 误差小于 0.5px。
 - 块级 `width`/`min-width`/`max-width`、`box-sizing` 和基础实线边框绘制。
 - 链接按行生成命中矩形，跨行链接可点击，并通过 `WeftView.onLinkTap` 交给宿主处理。
-- 单一 `RenderObject` 渲染表面、可滚动公开视图和真实文本/背景绘制指令。
+- 图片由宿主 `WeftImageResolver` 按需提供，支持宽高属性、固有比例、最大宽度约束和异步解码失效。
+- 图片 `float: left/right`、逐行文字环绕、`clear`、同侧堆叠和对侧并排；浮动内容计入文档滚动高度。
+- 图片资源不可用时回退为 `alt` 文本，不发起隐式网络请求。
+- 单一 `RenderObject` 渲染表面、可滚动公开视图和真实文本/背景/图片绘制指令。
 - 中英文内容、窄宽度换行及 300 段长文档的布局烟测。
 - 六类代表性内容语料，以及 Chrome/Edge 诊断参考截图生成器。
 - Apache 2.0 Roboto/Roboto Mono 固定字体、两个 Flutter 像素黄金基线和 Windows CI 门禁。
-- Dart Pub workspace、56 项常规自动测试、2 项像素测试和 GitHub Actions CI。
+- Dart Pub workspace、73 项常规自动测试、2 项像素测试和 GitHub Actions CI。
 
 尚未实现：
 
-- Float、图片、表格和 CJK 禁则。
+- 表格、行内图片基线混排和 CJK 禁则。
 - CJK 像素字体与跨引擎像素预算达标。
 - 跨段落选择、复制菜单和可访问性语义。
 - 分块 Picture 缓存、视口虚拟化和内部滚动容器。
@@ -42,7 +45,7 @@ packages/
   weft_runtime_api/     Runtime、桥接和能力扩展抽象
   weft_quickjs/         QuickJS 原生适配边界
   weft_capabilities/    内置能力标识与装载策略
-example/weft_lab/       开发、示例和未来一致性实验室
+example/weft_lab/       开发、示例和图片资源实验室
 conformance/            语料、固定字体、Flutter 基线和浏览器参考输入
 docs/                   架构、规范、计划和管理文档
 tool/verify.dart        全包测试入口
@@ -82,6 +85,24 @@ flutter test tool/golden_pixel_test.dart --timeout 120s
 ```
 
 CI 使用 Windows + Flutter 3.35.5 执行同一命令。
+
+## 图片资源
+
+图片不会由引擎隐式加载。宿主通过 `WeftView.imageResolver` 提供 `ImageProvider`：
+
+```dart
+WeftView(
+  controller: controller,
+  imageResolver: (request) {
+    if (request.src == 'asset:assets/cover.png') {
+      return const AssetImage('assets/cover.png');
+    }
+    return null; // 显示 alt 文本
+  },
+)
+```
+
+解析器应执行 URL 白名单、认证、缓存和解码大小策略。`float: left/right` 与 `clear` 当前只对 `img` 生效。
 
 ## 运行实验室
 

@@ -129,6 +129,8 @@ final class _StyleBuilder {
   double? minWidth;
   double? maxWidth;
   WeftBoxSizing boxSizing = WeftBoxSizing.contentBox;
+  WeftFloat float = WeftFloat.none;
+  WeftClear clear = WeftClear.none;
   WeftBorderSide borderTop = WeftBorderSide.none;
   WeftBorderSide borderRight = WeftBorderSide.none;
   WeftBorderSide borderBottom = WeftBorderSide.none;
@@ -367,6 +369,27 @@ final class _StyleBuilder {
       };
     }
 
+    final floatValue = declarations['float'];
+    if (floatValue != null) {
+      float = switch (floatValue.trim().toLowerCase()) {
+        'left' => WeftFloat.left,
+        'right' => WeftFloat.right,
+        'none' => WeftFloat.none,
+        _ => float,
+      };
+    }
+
+    final clearValue = declarations['clear'];
+    if (clearValue != null) {
+      clear = switch (clearValue.trim().toLowerCase()) {
+        'left' => WeftClear.left,
+        'right' => WeftClear.right,
+        'both' => WeftClear.both,
+        'none' => WeftClear.none,
+        _ => clear,
+      };
+    }
+
     marginTop = _length(
           declarations['margin-top'],
           fontSize,
@@ -436,6 +459,8 @@ final class _StyleBuilder {
       minWidth: minWidth,
       maxWidth: maxWidth,
       boxSizing: boxSizing,
+      float: float,
+      clear: clear,
       borderTop: borderTop,
       borderRight: borderRight,
       borderBottom: borderBottom,

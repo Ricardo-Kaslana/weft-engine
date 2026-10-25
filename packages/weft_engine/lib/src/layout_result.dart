@@ -86,6 +86,36 @@ final class WeftTextPaintCommand extends WeftPaintCommand {
   }
 }
 
+final class WeftImagePaintCommand extends WeftPaintCommand {
+  const WeftImagePaintCommand({
+    required super.nodeId,
+    required this.image,
+    required this.destination,
+  });
+
+  final ui.Image image;
+  final ui.Rect destination;
+
+  @override
+  void paint(ui.Canvas canvas, ui.Offset origin) {
+    final source = ui.Rect.fromLTWH(
+      0,
+      0,
+      image.width.toDouble(),
+      image.height.toDouble(),
+    );
+    canvas.drawImageRect(
+      image,
+      source,
+      destination.shift(origin),
+      Paint()..filterQuality = FilterQuality.medium,
+    );
+  }
+
+  @override
+  void dispose() {}
+}
+
 final class WeftLayoutResult {
   WeftLayoutResult({
     required this.size,

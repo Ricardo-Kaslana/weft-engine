@@ -18,6 +18,7 @@ abstract final class WeftHtmlSpec {
     'h6',
     'hr',
     'i',
+    'img',
     'li',
     'ol',
     'p',
@@ -32,7 +33,7 @@ abstract final class WeftHtmlSpec {
     'ul',
   };
 
-  static const voidTags = <String>{'br', 'hr'};
+  static const voidTags = <String>{'br', 'hr', 'img'};
 
   static const fallbackTags = <String>{
     'audio',
@@ -41,7 +42,6 @@ abstract final class WeftHtmlSpec {
     'embed',
     'form',
     'iframe',
-    'img',
     'input',
     'object',
     'select',
@@ -66,5 +66,6 @@ abstract final class WeftHtmlSpec {
 
   static const tagAttributes = <String, Set<String>>{
     'a': {'href'},
+    'img': {'src', 'alt', 'width', 'height'},
   };
 }

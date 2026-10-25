@@ -12,9 +12,17 @@ const _article = '''
 </style>
 <h1>Weft 内容引擎</h1>
 <p class="lead">
-  阶段 1A 已支持受控 HTML 子集、基础 CSS 层叠和 Block/Inline 静态渲染。
+  阶段 2 已支持受控图片资源、块级替换元素和左右浮动文字环绕。
 </p>
-<h2>当前能力</h2>
+<img src="asset:assets/weft_flow.png" alt="Weft 排版示意图"
+     width="200" style="float: right; margin: 0 0 14px 18px;">
+<p>
+  Weft 把 HTML 规范化为不可变文档，再由自己的盒模型完成布局和绘制。
+  图片由宿主提供资源解析器，引擎不直接访问网络，也不会在脚本层暴露
+  可猜测的宿主能力。浮动图片会为后续行框让出空间，文字在图片下方
+  自动恢复整行宽度。
+</p>
+<h2 style="clear: both">当前能力</h2>
 <ul>
   <li>标题、段落、强调、链接、列表、引用和预格式化文本</li>
   <li>类型、类、ID、后代与子代选择器</li>
@@ -27,7 +35,7 @@ const _article = '''
 <h2>示例代码</h2>
 <pre><code>final snapshot = normalizer.normalize(html, id: 'demo');</code></pre>
 <p class="note">
-  Float、表格、跨段选择与真实 JavaScript 执行仍属于后续里程碑。
+  表格、跨段选择与真实 JavaScript 执行仍属于后续里程碑。
 </p>
 ''';
 
@@ -90,7 +98,7 @@ class _WeftLabPageState extends State<WeftLabPage> {
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 18, 24, 14),
             child: Text(
-              '阶段 1A · 基础静态渲染',
+              '阶段 2 · 图片与文字环绕',
               style: Theme.of(context).textTheme.titleMedium,
             ),
           ),
@@ -100,6 +108,12 @@ class _WeftLabPageState extends State<WeftLabPage> {
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: WeftView(
                 controller: _controller,
+                imageResolver: (request) {
+                  if (request.src == 'asset:assets/weft_flow.png') {
+                    return const AssetImage('assets/weft_flow.png');
+                  }
+                  return null;
+                },
                 onLinkTap: (link) {
                   ScaffoldMessenger.of(context)
                     ..hideCurrentSnackBar()

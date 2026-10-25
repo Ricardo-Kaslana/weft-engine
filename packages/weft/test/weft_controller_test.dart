@@ -1,6 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weft/weft.dart';
+
+const _testPngBase64 =
+    'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEklEQVR4nGM0TjvDwMDAxAAG'
+    'ABBNAWl85fWfAAAAAElFTkSuQmCC';
 
 void main() {
   test('loading a document resets the previous selection', () {
@@ -58,6 +64,47 @@ void main() {
     await tester.pump();
 
     expect(tapped?.href, 'https://example.com/help');
+    controller.dispose();
+  });
+
+  testWidgets('WeftView forwards the image resolver', (tester) async {
+    final controller = WeftController()
+      ..loadDocument(
+        const WeftNormalizer().normalize(
+          '<img src="memory://cover" width="40" height="20">',
+          id: 'public-image',
+        ),
+      );
+    final provider = MemoryImage(base64Decode(_testPngBase64));
+    final requests = <WeftImageRequest>[];
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: SizedBox(
+          width: 240,
+          height: 180,
+          child: WeftView(
+            controller: controller,
+            imageResolver: (request) {
+              requests.add(request);
+              return provider;
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.runAsync(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    });
+    await tester.pump();
+
+    expect(requests.single.documentId, 'public-image');
+    final render = tester.renderObject<RenderWeftSurface>(
+      find.byType(WeftSurface),
+    );
+    expect(render.debugResolvedImageCount, 1);
     controller.dispose();
   });
 

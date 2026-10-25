@@ -315,6 +315,23 @@ final class _TreeBuilder {
       } else if (name == 'href') {
         value = _sanitizeHref(value);
         if (value.isEmpty) continue;
+      } else if (name == 'src') {
+        value = _sanitizeImageSource(value);
+        if (value.isEmpty) continue;
+      } else if (name == 'alt' && value.length > 1024) {
+        value = value.substring(0, 1024);
+      } else if ((name == 'width' || name == 'height') && tag == 'img') {
+        final dimension = int.tryParse(value);
+        if (dimension == null || dimension <= 0 || dimension > 100000) {
+          _addIssue(
+            SupportIssue(
+              code: 'img.dimension.invalid',
+              message: 'Invalid image $name attribute was removed.',
+            ),
+          );
+          continue;
+        }
+        value = '$dimension';
       } else if (name == 'title' && value.length > 1024) {
         value = value.substring(0, 1024);
       }
@@ -365,6 +382,39 @@ final class _TreeBuilder {
         SupportIssue(
           code: 'href.scheme.blocked',
           message: 'The link scheme "$scheme" was removed.',
+        ),
+      );
+      return '';
+    }
+    return value;
+  }
+
+  String _sanitizeImageSource(String value) {
+    if (value.length > 4096) {
+      _addIssue(
+        const SupportIssue(
+          code: 'img.src.tooLong',
+          message: 'An image URL exceeding 4096 characters was removed.',
+        ),
+      );
+      return '';
+    }
+    final uri = Uri.tryParse(value);
+    if (uri == null) {
+      _addIssue(
+        const SupportIssue(
+          code: 'img.src.invalid',
+          message: 'An invalid image URL was removed.',
+        ),
+      );
+      return '';
+    }
+    final scheme = uri.scheme.toLowerCase();
+    if (scheme == 'javascript' || scheme == 'vbscript' || scheme == 'data') {
+      _addIssue(
+        SupportIssue(
+          code: 'img.src.blocked',
+          message: 'The image scheme "$scheme" was removed.',
         ),
       );
       return '';

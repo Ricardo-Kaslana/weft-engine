@@ -82,6 +82,36 @@ void main() {
     );
   });
 
+  test('normalizes image sources and dimensions', () {
+    const html = '''
+      <img src="asset:assets/cover.png" alt="Cover" width="240" height="160"
+           onerror="bad()">
+      <img src="javascript:alert(1)" alt="Unsafe">
+      <img src="cover.png" width="-4" height="12.5">
+    ''';
+
+    final snapshot = const WeftNormalizer().normalize(html, id: 'images');
+    final images = snapshot.body!.children.whereType<WeftElement>().toList();
+
+    expect(snapshot.supportReport.canRender, isTrue);
+    expect(images.map((element) => element.tag), ['img', 'img', 'img']);
+    expect(images.first.attributes, {
+      'src': 'asset:assets/cover.png',
+      'alt': 'Cover',
+      'width': '240',
+      'height': '160',
+    });
+    expect(images[1].attributes.containsKey('src'), isFalse);
+    expect(images[1].attributes['alt'], 'Unsafe');
+    expect(images[2].attributes['src'], 'cover.png');
+    expect(images[2].attributes.containsKey('width'), isFalse);
+    expect(images[2].attributes.containsKey('height'), isFalse);
+    expect(
+      snapshot.supportReport.issues.map((issue) => issue.code),
+      containsAll(<String>['img.src.blocked', 'img.dimension.invalid']),
+    );
+  });
+
   test('node limit fails safely instead of returning partial content', () {
     const normalizer = WeftNormalizer(
       limits: WeftNormalizationLimits(maxNodes: 4),

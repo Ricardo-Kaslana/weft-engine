@@ -1,7 +1,13 @@
+import 'dart:convert';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weft_document/weft_document.dart';
 import 'package:weft_engine/weft_engine.dart';
+
+const _testPngBase64 =
+    'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEklEQVR4nGM0TjvDwMDAxAAG'
+    'ABBNAWl85fWfAAAAAElFTkSuQmCC';
 
 void main() {
   testWidgets('surface lays out normalized content in bounded constraints', (
@@ -66,6 +72,89 @@ void main() {
     await tester.tapAt(origin + const Offset(1, 1));
     await tester.pump();
     expect(tapped, isNull);
+  });
+
+  testWidgets('surface resolves images and relayouts after they decode', (
+    tester,
+  ) async {
+    final document = const WeftNormalizer().normalize(
+      '<img id="pic" src="memory://pic" width="40" height="20">',
+      id: 'image-surface',
+    );
+    final provider = MemoryImage(base64Decode(_testPngBase64));
+    final requests = <WeftImageRequest>[];
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+          child: SizedBox(
+            width: 240,
+            height: 160,
+            child: WeftSurface(
+              document: document,
+              imageResolver: (request) {
+                requests.add(request);
+                return request.src == 'memory://pic' ? provider : null;
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.runAsync(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    });
+    await tester.pump();
+
+    expect(requests.single.src, 'memory://pic');
+    final render = tester.renderObject<RenderWeftSurface>(
+      find.byType(WeftSurface),
+    );
+    expect(render.debugResolvedImageCount, 1);
+    final image =
+        render.debugLayout!.commands.whereType<WeftImagePaintCommand>().single;
+    expect(image.destination.size, const Size(40, 20));
+  });
+
+  testWidgets('a failing image resolver keeps alternative text', (
+    tester,
+  ) async {
+    final document = const WeftNormalizer().normalize(
+      '<p>Before <img src="https://example.com/broken.png" '
+      'alt="Fallback image description"> after</p>',
+      id: 'image-error',
+    );
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: SizedBox(
+          width: 320,
+          height: 160,
+          child: WeftSurface(
+            document: document,
+            imageResolver: (request) => throw StateError('blocked source'),
+          ),
+        ),
+      ),
+    );
+
+    final render = tester.renderObject<RenderWeftSurface>(
+      find.byType(WeftSurface),
+    );
+    expect(render.debugResolvedImageCount, 0);
+    expect(
+      render.debugLayout!.commands
+          .whereType<WeftTextPaintCommand>()
+          .single
+          .painter
+          .text
+          ?.toPlainText(),
+      'Before Fallback image description after',
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('surface accepts a replacement document without stale layout', (

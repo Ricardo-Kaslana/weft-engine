@@ -39,6 +39,22 @@ const WeftDocumentSnapshot({
 
 `WeftView.onLinkTap` 接收命中的 `WeftLinkRegion`，负责把经过清洗的链接交还宿主。引擎不自行打开 URL、启动外部应用或执行导航。当前仅启用点击手势；拖动滚动和未来选择手势由 Flutter 手势竞技场协调。
 
+`WeftView.imageResolver` / `WeftSurface.imageResolver` 接收受控图片请求：
+
+```dart
+final class WeftImageRequest {
+  final String documentId;
+  final int nodeId;
+  final String src;
+  final String alt;
+}
+
+typedef WeftImageResolver =
+    ImageProvider<Object>? Function(WeftImageRequest request);
+```
+
+解析器返回 `null` 时布局显示 `alt`；返回的 `ImageProvider` 由渲染表面监听解码并触发失效。宿主必须在解析器中执行自己的 URL 白名单、认证、缓存和大小策略，引擎不自动请求网络。
+
 当前 `WeftView` 使用外部 `SingleChildScrollView`。这是阶段 1A 的临时滚动方案，后续将被内部视口和可见区绘制替代。
 
 ## 已建立：规范化与样式
@@ -47,7 +63,8 @@ const WeftDocumentSnapshot({
 
 - 允许标签、类、ID、后代、子代和逗号选择器。
 - 支持的属性、简写和层叠规则见 `supported-subset.md`。
-- 脚本、Canvas、图片、表格等复杂内容生成 `requiresWebView` 诊断，当前不静默移除后继续宣称完整渲染。
+- `img` 的 `src` 过滤 `javascript:`、`vbscript:` 和 `data:`；`width/height` 必须是正整数，否则丢弃并诊断。
+- 脚本、Canvas、表格等复杂内容生成 `requiresWebView` 诊断，当前不静默移除后继续宣称完整渲染。
 - 规范化器不是不可信内容安全清洗器。
 
 `WeftStyleSheetParser` 输出 `WeftStyleRule` 和 `WeftSelector`；选择器可针对不可变元素和祖先链执行匹配，并提供结构化特异性。`!important`、at-rule 和伪类当前被丢弃并产生警告。
@@ -59,20 +76,24 @@ final layout = const WeftLayoutEngine().layout(
   snapshot,
   width: availableWidth,
   textScaler: MediaQuery.textScalerOf(context),
+  images: decodedImagesByNodeId,
 );
 ```
+
+`images` 只接受已解码的 `ui.Image`，布局不执行 I/O。解码、监听和释放由 `RenderWeftSurface` 管理；公开调用方也可直接使用布局引擎做无图或注入图测试。
 
 `WeftLayoutResult` 包含内容尺寸、布局盒、有序绘制命令和链接命中区域：
 
 - `WeftRectPaintCommand`：块背景和分隔线。
 - `WeftTextPaintCommand`：文本布局与绝对偏移。
-- `WeftLayoutBox`：当前以块级 `NodeId` 和边框盒矩形为主，已包含内容宽度、padding、border 和 `box-sizing` 的结果。
+- `WeftImagePaintCommand`：已解码图片与目标矩形。
+- `WeftLayoutBox`：块级与图片替换盒的 `NodeId` 和边框盒矩形，已包含内容宽度、padding、border 和 `box-sizing` 的结果。
 - `WeftLinkRegion`：链接元素 ID、经过清洗的 `href`、显示文本和每行一个的矩形。
 - `WeftLayoutResult.linkAt(position)`：返回该位置最上层的链接命中，未命中返回 null。
 
-布局结果拥有 `TextPainter`，调用方必须 `dispose()`。`RenderWeftSurface` 在重新布局和销毁时负责释放旧结果，并缓存当前链接区域供点击测试使用。
+布局结果拥有 `TextPainter`，调用方必须 `dispose()`。`RenderWeftSurface` 在重新布局和销毁时负责释放旧结果，缓存当前链接区域供点击测试使用，并管理图片 `ImageInfo` 的监听与释放。
 
-当前布局是直接、全量的 Block/Inline 叠放，尚未提供 Fragment 行盒、Float、表格或选择区域。链接命中只覆盖字形行盒，不包含行间空白。
+当前布局仍是直接、全量的 Block/Inline 叠放，尚未提供 Fragment 行盒、表格或选择区域。Float 只覆盖图片，使用共享排除区和逐行文本布局；链接命中覆盖字形行盒，不包含行间空白。
 
 ## 已建立：Runtime
 
@@ -119,6 +140,6 @@ abstract interface class CapabilityModule {
 - `TagRenderer`：自定义标签的布局、绘制、命中和语义。
 - `LayoutAlgorithm`：按约束生成 Fragment，未来支持 Flexbox。
 - `TextShaper`：替换当前直接使用的 `TextPainter` 测量与整形。
-- `ResourceProvider`：受控资源加载、取消、缓存和释放。
+- `ResourceProvider`：统一的受控资源加载、取消、缓存和释放；当前只有图片的 `WeftImageResolver`。
 
 这些接口的草案和设计约束记录在架构文档，不以未经验证的占位类提前冻结。现有 `WeftLayoutResult` 只是阶段 1A 的绘制产物，不承诺作为最终扩展契约。

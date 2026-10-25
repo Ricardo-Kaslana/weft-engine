@@ -8,6 +8,10 @@ enum WeftListStyle { none, disc, decimal }
 
 enum WeftBoxSizing { contentBox, borderBox }
 
+enum WeftFloat { none, left, right }
+
+enum WeftClear { none, left, right, both }
+
 final class WeftBorderSide {
   const WeftBorderSide({required this.width, required this.color});
 
@@ -45,6 +49,8 @@ final class WeftComputedStyle {
     this.minWidth,
     this.maxWidth,
     this.boxSizing = WeftBoxSizing.contentBox,
+    this.float = WeftFloat.none,
+    this.clear = WeftClear.none,
     this.borderTop = WeftBorderSide.none,
     this.borderRight = WeftBorderSide.none,
     this.borderBottom = WeftBorderSide.none,
@@ -88,6 +94,8 @@ final class WeftComputedStyle {
   final double? minWidth;
   final double? maxWidth;
   final WeftBoxSizing boxSizing;
+  final WeftFloat float;
+  final WeftClear clear;
   final WeftBorderSide borderTop;
   final WeftBorderSide borderRight;
   final WeftBorderSide borderBottom;

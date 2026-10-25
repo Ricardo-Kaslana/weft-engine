@@ -12,7 +12,11 @@
 - Added bundled Roboto/Roboto Mono fixtures, two Flutter pixel baselines, a Windows CI golden job, and a Pillow-based cross-engine difference report.
 - Added CSS 2.1 adjacent, parent-child, and collapse-through block margin collapsing, including negative margins and padding/border blockers.
 - Matched CSS half-leading with `TextLeadingDistribution.even`; block geometry now aligns with Chromium within 0.5px for the pixel fixtures.
-- Table and image elements currently trigger fallback rather than silent content removal.
+- Added controlled `<img>` normalization with `src/alt/width/height`, protocol filtering, dimension diagnostics, and `alt` fallback.
+- Added host-provided image resolution, async decode invalidation, `ImageInfo` lifecycle management, and `WeftImagePaintCommand`.
+- Added block image layout with intrinsic ratio, width constraints, borders, and padding.
+- Added left/right image floats, per-line text wrapping across paragraphs, `clear`, same-side stacking, opposite-side pairing, and float-aware link regions.
+- Table elements currently trigger fallback rather than silent content removal.
 
 ## 0.1.0-dev.1
 
