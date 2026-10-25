@@ -428,6 +428,13 @@ final class _InlineAccumulator {
       if (consumed <= offset) {
         consumed = offset + _nextCodeUnitLength(plainText, offset);
       }
+      consumed = _adjustForLineBreakRules(
+        plainText,
+        offset,
+        consumed,
+        parentStyle.whiteSpace,
+        context.lineBreakRules,
+      );
       if (consumed < plainText.length &&
           plainText.codeUnitAt(consumed) == 0x0A &&
           consumed > offset) {
@@ -614,6 +621,63 @@ final class _InlineAccumulator {
     final code = text.codeUnitAt(offset);
     final isHighSurrogate = code >= 0xD800 && code <= 0xDBFF;
     return isHighSurrogate && offset + 1 < text.length ? 2 : 1;
+  }
+
+  /// Applies kinsoku adjustments to a proposed break at [consumed].
+  ///
+  /// A break may not leave a prohibited character at the start of the next
+  /// line or at the end of the current one; the neighbouring character is
+  /// pulled to the other line instead. [floor] keeps at least one character
+  /// on the current line, so input made entirely of prohibited characters
+  /// still advances instead of looping, and the bounded guard caps how far
+  /// the break may retreat.
+  static int _adjustForLineBreakRules(
+    String text,
+    int start,
+    int consumed,
+    WeftWhiteSpace whiteSpace,
+    WeftLineBreakRules rules,
+  ) {
+    if (rules.lineStartProhibited.isEmpty && rules.lineEndProhibited.isEmpty) {
+      return consumed;
+    }
+    final floor = start + _nextCodeUnitLength(text, start);
+    var adjusted = consumed;
+    for (var guard = 0; guard < 64 && adjusted > floor; guard++) {
+      var scan = adjusted;
+      if (whiteSpace == WeftWhiteSpace.normal) {
+        // Leading collapsible spaces are skipped before a line paints, so a
+        // prohibited character sitting behind a space run at the break is
+        // just as illegal as one directly at [adjusted]. Only spaces and
+        // tabs are crossed here; a hard newline ends the scan.
+        while (scan < text.length &&
+            (text.codeUnitAt(scan) == 0x20 || text.codeUnitAt(scan) == 0x09)) {
+          scan++;
+        }
+      }
+      final opensWithProhibited = scan < text.length &&
+          rules.lineStartProhibited.contains(text.codeUnitAt(scan));
+      final endsWithProhibited =
+          rules.lineEndProhibited.contains(text.codeUnitAt(adjusted - 1));
+      if (!opensWithProhibited && !endsWithProhibited) break;
+      final target = _previousCodePointStart(text, adjusted);
+      if (target < floor) break;
+      adjusted = target;
+    }
+    return adjusted;
+  }
+
+  /// Start index of the code point immediately before [index], keeping
+  /// surrogate pairs intact when the break would otherwise split one.
+  static int _previousCodePointStart(String text, int index) {
+    if (index >= 2) {
+      final previous = text.codeUnitAt(index - 1);
+      if (previous >= 0xDC00 && previous <= 0xDFFF) {
+        final before = text.codeUnitAt(index - 2);
+        if (before >= 0xD800 && before <= 0xDBFF) return index - 2;
+      }
+    }
+    return index - 1;
   }
 
   static bool _isCollapsibleSpace(int code) {

@@ -6,6 +6,7 @@ import 'package:weft_document/weft_document.dart';
 
 import 'computed_style.dart';
 import 'layout_result.dart';
+import 'line_break_rules.dart';
 import 'style_resolver.dart';
 import 'text_index.dart';
 
@@ -20,6 +21,7 @@ final class WeftLayoutEngine {
     required double width,
     TextScaler textScaler = TextScaler.noScaling,
     Map<int, ui.Image> images = const {},
+    WeftLineBreakRules lineBreakRules = const WeftLineBreakRules(),
   }) {
     if (!width.isFinite || width <= 0) {
       return WeftLayoutResult(
@@ -44,6 +46,7 @@ final class WeftLayoutEngine {
       styleResolver: WeftStyleResolver(document.styleSheet),
       textScaler: textScaler,
       images: images,
+      lineBreakRules: lineBreakRules,
     );
     final textIndex = WeftTextIndex.build(
       document: document,
@@ -89,11 +92,15 @@ final class _LayoutContext {
     required this.styleResolver,
     required this.textScaler,
     required this.images,
+    this.lineBreakRules = const WeftLineBreakRules(),
   });
 
   final WeftStyleResolver styleResolver;
   final TextScaler textScaler;
   final Map<int, ui.Image> images;
+
+  /// Kinsoku tables applied by the line-by-line inline layout path.
+  final WeftLineBreakRules lineBreakRules;
   final List<WeftLayoutBox> boxes = <WeftLayoutBox>[];
   final List<WeftPaintCommand> commands = <WeftPaintCommand>[];
   final List<WeftLinkRegion> links = <WeftLinkRegion>[];
