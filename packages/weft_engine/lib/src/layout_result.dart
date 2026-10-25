@@ -1,6 +1,10 @@
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/painting.dart';
+import 'package:weft_document/weft_document.dart';
+
+import 'text_index.dart';
 
 final class WeftLayoutBox {
   const WeftLayoutBox({required this.nodeId, required this.rect});
@@ -84,10 +88,15 @@ final class WeftTextPaintCommand extends WeftPaintCommand {
     required super.nodeId,
     required this.painter,
     required this.offset,
+    this.runs = const [],
   });
 
   final TextPainter painter;
   final ui.Offset offset;
+
+  /// Mapping from painter text ranges back to their source document text
+  /// nodes. Selection geometry resolves node-anchored ranges through these.
+  final List<WeftTextPainterRun> runs;
 
   @override
   void paint(ui.Canvas canvas, ui.Offset origin) {
@@ -105,8 +114,31 @@ final class WeftTextPaintCommand extends WeftPaintCommand {
       nodeId: nodeId,
       painter: painter,
       offset: offset + shift,
+      runs: runs,
     );
   }
+}
+
+/// A contiguous text range inside one [WeftTextPaintCommand].
+///
+/// [painterStart]/[painterEnd] index the command's painter text;
+/// [nodeStart]/[nodeEnd] index the source node's painted text (the node's
+/// text after whitespace collapsing), so the same node keeps stable
+/// coordinates across line-split painters.
+final class WeftTextPainterRun {
+  const WeftTextPainterRun({
+    required this.nodeId,
+    required this.painterStart,
+    required this.painterEnd,
+    required this.nodeStart,
+    required this.nodeEnd,
+  });
+
+  final NodeId nodeId;
+  final int painterStart;
+  final int painterEnd;
+  final int nodeStart;
+  final int nodeEnd;
 }
 
 final class WeftImagePaintCommand extends WeftPaintCommand {
@@ -166,6 +198,7 @@ final class WeftLayoutResult {
     required Iterable<WeftLayoutBox> boxes,
     required Iterable<WeftPaintCommand> commands,
     required Iterable<WeftLinkRegion> links,
+    this.textIndex,
   })  : boxes = List<WeftLayoutBox>.unmodifiable(boxes),
         commands = List<WeftPaintCommand>.unmodifiable(commands),
         links = List<WeftLinkRegion>.unmodifiable(links);
@@ -175,11 +208,73 @@ final class WeftLayoutResult {
   final List<WeftPaintCommand> commands;
   final List<WeftLinkRegion> links;
 
+  /// The logical text model for this layout, used to resolve selection
+  /// anchors across node boundaries.
+  final WeftTextIndex? textIndex;
+
   WeftLinkRegion? linkAt(ui.Offset position) {
     for (final link in links.reversed) {
       if (link.contains(position)) return link;
     }
     return null;
+  }
+
+  /// Visual rectangles covering the painted text of [nodeId] between
+  /// node-local [start] and [end] offsets.
+  List<ui.Rect> textRectsForNode(NodeId nodeId, int start, int end) {
+    if (end <= start) return const [];
+    final rects = <ui.Rect>[];
+    for (final command in commands) {
+      if (command is! WeftTextPaintCommand) continue;
+      for (final run in command.runs) {
+        if (run.nodeId != nodeId) continue;
+        final overlapStart = math.max(start, run.nodeStart);
+        final overlapEnd = math.min(end, run.nodeEnd);
+        if (overlapEnd <= overlapStart) continue;
+        final painterStart = run.painterStart + overlapStart - run.nodeStart;
+        final painterEnd = run.painterStart + overlapEnd - run.nodeStart;
+        final boxes = command.painter.getBoxesForSelection(
+          TextSelection(baseOffset: painterStart, extentOffset: painterEnd),
+        );
+        for (final box in boxes) {
+          final rect = ui.Rect.fromLTRB(
+            box.left + command.offset.dx,
+            box.top + command.offset.dy,
+            box.right + command.offset.dx,
+            box.bottom + command.offset.dy,
+          );
+          if (rect.width > 0 && rect.height > 0) rects.add(rect);
+        }
+      }
+    }
+    return rects;
+  }
+
+  /// Visual rectangles for a selection between two anchors, resolved through
+  /// the logical text index. Anchors may sit in different nodes.
+  List<ui.Rect> selectionRects(TextSelectionRange selection) {
+    final index = textIndex;
+    if (index == null || selection.isCollapsed) return const [];
+    final ordered = index.order(selection);
+    if (ordered == null) return const [];
+    final rects = <ui.Rect>[];
+    for (final (entry, nodeStart, nodeEnd) in index.between(
+      ordered.$1,
+      ordered.$2,
+    )) {
+      rects.addAll(textRectsForNode(entry.nodeId, nodeStart, nodeEnd));
+    }
+    return rects;
+  }
+
+  /// The logical text between two anchors, with block boundaries rendered as
+  /// newlines. Suitable for clipboard copy.
+  String? selectionText(TextSelectionRange selection) {
+    final index = textIndex;
+    if (index == null || selection.isCollapsed) return null;
+    final ordered = index.order(selection);
+    if (ordered == null) return null;
+    return index.textBetween(ordered.$1, ordered.$2);
   }
 
   var _disposed = false;

@@ -188,4 +188,41 @@ void main() {
     expect(tester.getSize(find.byType(WeftSurface)), const Size(280, 200));
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('surface paints selection highlights across paragraphs', (
+    tester,
+  ) async {
+    final document = const WeftNormalizer().normalize(
+      '<p>Alpha block</p><p>Beta block</p>',
+      id: 'selectable',
+    );
+    // Resolve the logical anchors through a throwaway layout.
+    final probe = const WeftLayoutEngine().layout(document, width: 280);
+    final index = probe.textIndex!;
+    final selection = TextSelectionRange(
+      anchor: TextAnchor(index.entries[0].nodeId, 2),
+      extent: TextAnchor(index.entries[1].nodeId, 4),
+    );
+    final rects = probe.selectionRects(selection);
+    probe.dispose();
+    expect(rects, isNotEmpty);
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+          child: SizedBox(
+            width: 280,
+            height: 120,
+            child: WeftSurface(document: document, selection: selection),
+          ),
+        ),
+      ),
+    );
+
+    await expectLater(
+      find.byType(WeftSurface),
+      matchesGoldenFile('goldens/selection_highlight.png'),
+    );
+  });
 }

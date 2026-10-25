@@ -7,6 +7,7 @@ import 'package:weft_document/weft_document.dart';
 import 'computed_style.dart';
 import 'layout_result.dart';
 import 'style_resolver.dart';
+import 'text_index.dart';
 
 final class WeftLayoutEngine {
   const WeftLayoutEngine();
@@ -41,6 +42,10 @@ final class WeftLayoutEngine {
       textScaler: textScaler,
       images: images,
     );
+    final textIndex = WeftTextIndex.build(
+      document: document,
+      styleResolver: context.styleResolver,
+    );
     final bodyStyle = context.styleResolver.resolve(
       body,
       parent: WeftComputedStyle.initial,
@@ -71,6 +76,7 @@ final class WeftLayoutEngine {
       boxes: context.boxes,
       commands: context.commands,
       links: context.links,
+      textIndex: textIndex,
     );
   }
 }
@@ -1857,6 +1863,7 @@ final class _LayoutContext {
             nodeId: parentNodeId,
             painter: line.painter,
             offset: Offset(line.x, line.y),
+            runs: inline.runSpecs(line.textStart, line.textEnd),
           ),
         );
       }
@@ -1882,6 +1889,7 @@ final class _LayoutContext {
         nodeId: parentNodeId,
         painter: painter,
         offset: offset,
+        runs: inline.runSpecs(0, inlineLayout.textEnd),
       ),
     );
     for (final link in inlineLayout.links) {
@@ -2087,11 +2095,17 @@ final class _InlineLine {
     required this.x,
     required this.y,
     required this.painter,
+    required this.textStart,
+    required this.textEnd,
   });
 
   final double x;
   final double y;
   final TextPainter painter;
+
+  /// Range of this line inside the accumulator's flushed plain text.
+  final int textStart;
+  final int textEnd;
 }
 
 final class _InlineLines {
@@ -2158,10 +2172,17 @@ final class _LinkRunRange {
 }
 
 final class _InlineLayout {
-  const _InlineLayout({required this.painter, required this.links});
+  const _InlineLayout({
+    required this.painter,
+    required this.links,
+    required this.textEnd,
+  });
 
   final TextPainter painter;
   final List<WeftLinkRegion> links;
+
+  /// End of the painted text inside the accumulator's flushed plain text.
+  final int textEnd;
 }
 
 final class _InlineAccumulator {
@@ -2322,7 +2343,11 @@ final class _InlineAccumulator {
         ),
       );
     }
-    return _InlineLayout(painter: painter, links: links);
+    return _InlineLayout(
+      painter: painter,
+      links: links,
+      textEnd: plainText.length,
+    );
   }
 
   _InlineLines? buildLines({
@@ -2415,7 +2440,15 @@ final class _InlineAccumulator {
           lineWidth,
           textScaler,
         );
-        lines.add(_InlineLine(x: slot.left, y: y, painter: painter));
+        lines.add(
+          _InlineLine(
+            x: slot.left,
+            y: y,
+            painter: painter,
+            textStart: offset,
+            textEnd: paintEnd,
+          ),
+        );
         for (final range in linkRanges) {
           final start = math.max(offset, range.start);
           final end = math.min(paintEnd, range.end);
@@ -2461,6 +2494,33 @@ final class _InlineAccumulator {
       );
     }
     return _InlineLines(lines: lines, links: links, bottom: y);
+  }
+
+  /// Maps the flushed plain-text range [start, end) onto painter-relative
+  /// and node-relative coordinates. Each text node contributes one run per
+  /// flush, so node offsets stay stable across line-split painters.
+  List<WeftTextPainterRun> runSpecs(int start, int end) {
+    final specs = <WeftTextPainterRun>[];
+    var cursor = 0;
+    for (final run in _runs) {
+      final runStart = cursor;
+      final runEnd = cursor + run.text.length;
+      cursor = runEnd;
+      if (runEnd <= start || runStart >= end) continue;
+      final sliceStart = math.max(runStart, start);
+      final sliceEnd = math.min(runEnd, end);
+      if (sliceEnd <= sliceStart) continue;
+      specs.add(
+        WeftTextPainterRun(
+          nodeId: run.nodeId,
+          painterStart: sliceStart - start,
+          painterEnd: sliceEnd - start,
+          nodeStart: sliceStart - runStart,
+          nodeEnd: sliceEnd - runStart,
+        ),
+      );
+    }
+    return specs;
   }
 
   TextSpan _spanForRange(

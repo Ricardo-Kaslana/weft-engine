@@ -19,6 +19,7 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - 图片 `float: left/right`、逐行文字环绕、`clear`、同侧堆叠和对侧并排；浮动内容计入文档滚动高度。
 - 图片资源不可用时回退为 `alt` 文本，不发起隐式网络请求。
 - 表格：`table/thead/tbody/tfoot/tr/th/td/caption`、`colspan/rowspan`（含隐式行）、caption、separate/collapse 边框、`border-spacing` 与单元格 `vertical-align`；单元格复用块级布局，链接可点。
+- 逻辑文本索引与选区解析（ADR 0013）：跨段锚点→视觉矩形和复制文本，`WeftSurface` 绘制选择高亮；手势定位留待后续。
 - `float_image` 一致性案例：Chrome 生成的浏览器几何基线（块、图片、逐行词盒误差 ≤ 0.5px）与 Flutter 像素黄金双重门禁；图片按 1:1 对齐整像素绘制。
 - `table_basic` 一致性案例：表格浏览器几何基线（单元格 ≤ 1.5px、行/列结构精确断言），覆盖 collapse/separate、跨列跨行与 caption。
 - 单一 `RenderObject` 渲染表面、可滚动公开视图和真实文本/背景/图片绘制指令。
@@ -31,7 +32,7 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 
 - 行内图片基线混排、CJK 禁则和 CJK 像素字体与跨引擎像素预算达标。
 - 表格的嵌套表格、`colgroup/col` 列宽与浏览器级列宽分配精度。
-- 跨段落选择、复制菜单和可访问性语义。
+- 选择的手势定位、复制菜单和可访问性语义。
 - 分块 Picture 缓存、视口虚拟化和内部滚动容器。
 - QuickJS 原生库、FFI 绑定和真实脚本执行。
 - 状态、事件、网络能力包的具体实现。

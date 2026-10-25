@@ -316,6 +316,14 @@ class RenderWeftSurface extends RenderBox {
     for (final command in layout.commands) {
       command.paint(context.canvas, offset);
     }
+    final selection = _selection;
+    if (selection != null) {
+      final rects = layout.selectionRects(selection);
+      final paint = Paint()..color = const Color(0x339E9E9E);
+      for (final rect in rects) {
+        context.canvas.drawRect(rect.shift(offset), paint);
+      }
+    }
     context.canvas.restore();
   }
 
