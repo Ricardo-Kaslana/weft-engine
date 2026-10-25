@@ -1,0 +1,26 @@
+<style>
+  body { font-family: "WeftRoboto"; }
+  table { border-collapse: collapse; }
+  td, th { border: 1px solid #d0d7de; padding: 6px 10px; vertical-align: top; }
+  th { font-weight: 700; text-align: left; }
+  table.separate { border-collapse: separate; border-spacing: 4px; }
+  td.mid { vertical-align: middle; }
+</style>
+<h2 data-geo="title">Table geometry baseline</h2>
+<table data-geo="t1">
+  <caption data-geo="cap">Quarterly summary</caption>
+  <thead>
+    <tr><th data-geo="h1">Region</th><th data-geo="h2">Units</th><th data-geo="h3">Revenue</th></tr>
+  </thead>
+  <tbody>
+    <tr><td data-geo="r1">North</td><td data-geo="u1">1,240</td><td data-geo="v1">48,200</td></tr>
+    <tr><td data-geo="r2" colspan="2">South and East merged</td><td data-geo="v2">31,900</td></tr>
+    <tr><td data-geo="r3">West</td><td data-geo="u3" rowspan="2">2,410</td><td data-geo="v3">52,750</td></tr>
+    <tr><td data-geo="r4">Coastal</td><td data-geo="v4">19,300</td></tr>
+  </tbody>
+</table>
+<p data-geo="after">Paragraph after the collapsed table.</p>
+<table class="separate" data-geo="t2">
+  <tr><td data-geo="s1" class="mid" style="width: 260px">alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima mike november oscar</td><td data-geo="s2">Short</td></tr>
+</table>
+<p data-geo="tail">Tail paragraph closing the case.</p>

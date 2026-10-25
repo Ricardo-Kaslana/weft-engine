@@ -200,6 +200,7 @@ final class _TreeBuilder {
   var _nextId = 0;
   var _nodeCount = 0;
   var _stopped = false;
+  var _tableDepth = 0;
 
   WeftElement? build(html_dom.Element body) {
     final rootId = _allocateNode(force: true);
@@ -248,6 +249,19 @@ final class _TreeBuilder {
         _reportFallback(tag);
         continue;
       }
+      if (tag == 'table' && _tableDepth > 0) {
+        // Nested tables are outside the supported subset and must not render
+        // as silently flattened content.
+        _addIssue(
+          const SupportIssue(
+            code: 'html.table.nested',
+            message: 'Nested tables are not supported and require a fallback '
+                'renderer.',
+            requiresWebView: true,
+          ),
+        );
+        continue;
+      }
       if (!WeftHtmlSpec.allowedTags.contains(tag)) {
         _addIssue(
           SupportIssue(
@@ -275,9 +289,20 @@ final class _TreeBuilder {
       if (id == null) break;
       final attributes = _sanitizeAttributes(node, tag);
       final inlineStyle = _parseInlineStyle(node);
-      final children = WeftHtmlSpec.voidTags.contains(tag)
+      final isTableRoot = tag == 'table';
+      if (isTableRoot) _tableDepth += 1;
+      var children = WeftHtmlSpec.voidTags.contains(tag)
           ? const <WeftNode>[]
           : _visitNodes(node.nodes, depth: depth + 1);
+      if (isTableRoot) _tableDepth -= 1;
+      if (tag == 'table' ||
+          tag == 'thead' ||
+          tag == 'tbody' ||
+          tag == 'tfoot') {
+        children = _diagnoseTableChildren(node, children);
+      } else if (tag == 'tr') {
+        children = _diagnoseTableRowChildren(node, children);
+      }
       result.add(
         WeftElement(
           id: id,
@@ -289,6 +314,70 @@ final class _TreeBuilder {
       );
     }
     return result;
+  }
+
+  /// Content that a table section cannot place (stray text, unknown blocks)
+  /// must be diagnosed: the engine skips it during layout, and dropping it
+  /// silently would change the document meaning without a report.
+  List<WeftNode> _diagnoseTableChildren(
+    html_dom.Element element,
+    List<WeftNode> children,
+  ) {
+    var hasStrayContent = false;
+    for (final node in element.nodes) {
+      if (node is html_dom.Text) {
+        if (node.data.trim().isNotEmpty) hasStrayContent = true;
+      } else if (node is html_dom.Element) {
+        final childTag = node.localName?.toLowerCase();
+        if (childTag == null ||
+            !(const {
+              'caption',
+              'thead',
+              'tbody',
+              'tfoot',
+              'tr',
+            }).contains(childTag)) {
+          hasStrayContent = true;
+        }
+      }
+    }
+    if (hasStrayContent) {
+      _addIssue(
+        const SupportIssue(
+          code: 'html.table.content.unplaced',
+          message: 'Content directly inside a table section is not placed in '
+              'a cell and is not rendered.',
+        ),
+      );
+    }
+    return children;
+  }
+
+  List<WeftNode> _diagnoseTableRowChildren(
+    html_dom.Element element,
+    List<WeftNode> children,
+  ) {
+    var hasStrayContent = false;
+    for (final node in element.nodes) {
+      if (node is html_dom.Text) {
+        if (node.data.trim().isNotEmpty) hasStrayContent = true;
+      } else if (node is html_dom.Element) {
+        final childTag = node.localName?.toLowerCase();
+        if (childTag == null || (childTag != 'td' && childTag != 'th')) {
+          hasStrayContent = true;
+        }
+      }
+    }
+    if (hasStrayContent) {
+      _addIssue(
+        const SupportIssue(
+          code: 'html.table.rowContent.unplaced',
+          message: 'Content inside a table row outside of cells is not '
+              'rendered.',
+        ),
+      );
+    }
+    return children;
   }
 
   Map<String, String> _sanitizeAttributes(
@@ -332,6 +421,27 @@ final class _TreeBuilder {
           continue;
         }
         value = '$dimension';
+      } else if (name == 'colspan' || name == 'rowspan') {
+        final span = int.tryParse(value);
+        if (span == null || span <= 0) {
+          _addIssue(
+            SupportIssue(
+              code: 'table.span.invalid',
+              message: 'Invalid $name attribute was removed and treated as 1.',
+            ),
+          );
+          continue;
+        }
+        if (span > WeftHtmlSpec.maxSpan) {
+          _addIssue(
+            SupportIssue(
+              code: 'table.span.clamped',
+              message: 'The $name attribute was clamped to '
+                  '${WeftHtmlSpec.maxSpan}.',
+            ),
+          );
+        }
+        value = span.clamp(1, WeftHtmlSpec.maxSpan).toString();
       } else if (name == 'title' && value.length > 1024) {
         value = value.substring(0, 1024);
       }

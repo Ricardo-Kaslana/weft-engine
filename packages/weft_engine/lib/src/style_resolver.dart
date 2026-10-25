@@ -131,6 +131,10 @@ final class _StyleBuilder {
   WeftBoxSizing boxSizing = WeftBoxSizing.contentBox;
   WeftFloat float = WeftFloat.none;
   WeftClear clear = WeftClear.none;
+  WeftBorderCollapse borderCollapse = WeftBorderCollapse.separate;
+  double borderSpacingHorizontal = 2;
+  double borderSpacingVertical = 2;
+  WeftVerticalAlign verticalAlign = WeftVerticalAlign.top;
   WeftBorderSide borderTop = WeftBorderSide.none;
   WeftBorderSide borderRight = WeftBorderSide.none;
   WeftBorderSide borderBottom = WeftBorderSide.none;
@@ -229,6 +233,26 @@ final class _StyleBuilder {
         marginTop = fontSize;
         marginBottom = fontSize;
         backgroundColor = const Color(0xFFD0D7DE);
+      case 'table':
+        // Browsers apply no default margins to tables.
+        display = WeftDisplay.block;
+      case 'caption':
+        display = WeftDisplay.block;
+        textAlign = TextAlign.center;
+      case 'tr':
+      case 'thead':
+      case 'tbody':
+      case 'tfoot':
+        display = WeftDisplay.block;
+      case 'td':
+        display = WeftDisplay.block;
+        // Browsers vertically center table cell content by default.
+        verticalAlign = WeftVerticalAlign.middle;
+      case 'th':
+        display = WeftDisplay.block;
+        verticalAlign = WeftVerticalAlign.middle;
+        fontWeight = FontWeight.w700;
+        textAlign = TextAlign.center;
       case 'strong':
       case 'b':
         fontWeight = FontWeight.w700;
@@ -390,6 +414,42 @@ final class _StyleBuilder {
       };
     }
 
+    final collapseValue = declarations['border-collapse'];
+    if (collapseValue != null) {
+      final normalized = collapseValue.trim().toLowerCase();
+      if (normalized == 'collapse') {
+        borderCollapse = WeftBorderCollapse.collapse;
+      } else if (normalized == 'separate') {
+        borderCollapse = WeftBorderCollapse.separate;
+      }
+    }
+
+    final spacingValue = declarations['border-spacing'];
+    if (spacingValue != null) {
+      final parts = spacingValue
+          .trim()
+          .split(RegExp(r'\s+'))
+          .map((part) => _length(part, fontSize))
+          .toList();
+      if (parts.length == 1 && parts[0] != null) {
+        borderSpacingHorizontal = parts[0]!;
+        borderSpacingVertical = parts[0]!;
+      } else if (parts.length == 2 && parts[0] != null && parts[1] != null) {
+        borderSpacingHorizontal = parts[0]!;
+        borderSpacingVertical = parts[1]!;
+      }
+    }
+
+    final verticalAlignValue = declarations['vertical-align'];
+    if (verticalAlignValue != null) {
+      verticalAlign = switch (verticalAlignValue.trim().toLowerCase()) {
+        'top' => WeftVerticalAlign.top,
+        'middle' || 'baseline' => WeftVerticalAlign.middle,
+        'bottom' => WeftVerticalAlign.bottom,
+        _ => verticalAlign,
+      };
+    }
+
     marginTop = _length(
           declarations['margin-top'],
           fontSize,
@@ -461,6 +521,10 @@ final class _StyleBuilder {
       boxSizing: boxSizing,
       float: float,
       clear: clear,
+      borderCollapse: borderCollapse,
+      borderSpacingHorizontal: borderSpacingHorizontal,
+      borderSpacingVertical: borderSpacingVertical,
+      verticalAlign: verticalAlign,
       borderTop: borderTop,
       borderRight: borderRight,
       borderBottom: borderBottom,

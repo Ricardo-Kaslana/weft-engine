@@ -3,8 +3,10 @@ abstract final class WeftCssSpec {
     'background-color',
     'border',
     'border-bottom',
+    'border-collapse',
     'border-left',
     'border-right',
+    'border-spacing',
     'border-top',
     'box-sizing',
     'clear',
@@ -31,6 +33,7 @@ abstract final class WeftCssSpec {
     'padding-top',
     'text-align',
     'text-decoration',
+    'vertical-align',
     'white-space',
     'width',
   };

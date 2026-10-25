@@ -92,6 +92,18 @@
       "linkHrefs": [],
       "pixel": true,
       "geometry": true
+    },
+    {
+      "id": "table_basic",
+      "file": "cases/table_basic.html",
+      "width": 360,
+      "height": 460,
+      "minHeight": 300,
+      "minTextCommands": 6,
+      "minBoxes": 10,
+      "linkHrefs": [],
+      "pixel": false,
+      "geometry": true
     }
   ]
 }

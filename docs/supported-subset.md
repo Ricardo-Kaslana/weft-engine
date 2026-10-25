@@ -24,8 +24,8 @@
 | 描述列表 | `dl/dt/dd` | 部分实现 | 块级显示，无专用样式 |
 | 链接 | `a` | 已实现 | URL 清洗、视觉样式、跨行命中矩形和宿主回调；导航由宿主决定 |
 | 图片 | `img` | 部分实现 | `src/alt/width/height`、块级替换盒、左右 Float、`clear` 和宿主资源解析；尚无行内基线混排 |
-| 表格 | `table/thead/tbody/tfoot/tr/th/td/caption` | 阶段 2 | 当前触发显式回退 |
-| 单元格跨距 | `colspan/rowspan` | 阶段 2 | 随表格实现 |
+| 表格 | `table/thead/tbody/tfoot/tr/th/td/caption` | 部分实现 | 槽位网格、`colspan/rowspan`、隐式行、caption、separate/collapse 边框与 `vertical-align`；嵌套表格触发回退，`colgroup/col` 不支持 |
+| 单元格跨距 | `colspan/rowspan` | 已实现 | 1..1000 清洗、跨列跨行、悬空 rowspan 生成隐式行 |
 | 脚本 | 可信 `ScriptUnit` | 阶段 4 | 当前任何 `script` 都要求回退 |
 | Canvas、WebGL、iframe、对象嵌入 | 不进入引擎 | 不支持 | 触发 `requiresWebView` |
 | 表单、富文本编辑 | 不进入引擎 | 不支持 | 触发 `requiresWebView` |
@@ -63,7 +63,7 @@
 | 边框 | `border`、`border-top/right/bottom/left` | 部分实现：块级 solid，无圆角/虚线/独立宽高与颜色属性 |
 | 缩进与字距 | `text-indent/letter-spacing` | 阶段 1 后续 |
 | 定位 | `position/float/clear` | 部分实现：仅图片 Float，支持左右、clear 和跨段落行框缩短 |
-| 表格 | table display、`vertical-align`、`border-collapse` | 阶段 2 |
+| 表格 | `border-collapse/border-spacing`、单元格 `vertical-align` | 已实现：separate（默认 2px 间距，含表缘）、collapse（中心线共享边，取最宽者）、top/middle/bottom 对齐（baseline 归并为 middle） |
 | Flexbox | 不进入当前布局 | 后续候选 |
 | transform、filter、动画 | 不进入引擎 | 不支持 |
 
@@ -97,7 +97,7 @@
 - 固定字体下块级几何与 Chromium 误差小于 0.5px；`float_image` 案例的全部块/图片几何实测误差 ≤ 0.16px，逐行词盒由浏览器几何基线测试覆盖，但跨引擎像素差异仍高于 1% advisory 预算，主要来自字形抗锯齿。
 - 1:1 图片绘制目标在绘制时对齐整像素（浏览器同款行为）；缩放绘制仍按 FilterQuality.medium 重采样。
 - CJK 尚无固定可分发的像素字体，中文只有结构测试，没有像素基线。
-- 表格仍走回退；图片支持块级替换盒与左右 Float，但不支持行内基线混排。
+- 表格列宽为两遍自动布局（min/max-content + 比例分配）：固定字体下单元格边界与 Chromium 偏差约 ≤ 1px，自由分配场景可差数像素；`colgroup/col` 列宽属性不生效，嵌套表格触发 `requiresWebView`。详见 ADR 0012。
 
 ## Float 的 MVP 边界
 

@@ -11,6 +11,7 @@
 - `cjk_wrap`：中文标点、混合文本和固定宽度换行。
 - `pixel_basic`：拉丁文字的文章、行内样式、列表、引用、链接和边框；启用像素基线。
 - `float_image`：左/右浮动图片、带 margin 的排除区、clear、块级图片和逐行文字环绕；启用像素基线和浏览器几何基线。
+- `table_basic`：caption、thead/tbody、colspan/rowspan、collapse/separate 边框、单元格 padding 与垂直对齐；启用浏览器几何基线（暂不启用像素基线）。
 
 `packages/weft_engine/test/conformance_corpus_test.dart` 会自动读取 manifest，验证：
 
@@ -88,6 +89,14 @@ node tool/browser_references.mjs --case float_image
 cp build/conformance/browser/geometry/float_image.json \
    conformance/reference/float_image.geometry.json
 ```
+
+`table_basic` 案例同样固化了 Chrome 几何基线 `reference/table_basic.geometry.json`，由 `packages/weft_engine/test/table_basic_geometry_test.dart` 在 CI 中比对：
+
+- 块级段落与表格盒误差 ≤ 1.5px（表宽含列测量约 1px 的字形舍入）。
+- 单元格盒误差 ≤ 1.5px；separate 模式（固定列宽）下与 Chromium 完全一致。
+- 行高、跨列跨行覆盖、相邻单元格在边框中心线相接等结构关系精确断言。
+
+表格列宽是比例分配近似（ADR 0012）：需要自由分配的单元格在两侧引擎间可差数像素，因此该案例对第二张表固定了列宽，把断言集中在确定性行为上。
 
 ## 跨引擎像素报告
 

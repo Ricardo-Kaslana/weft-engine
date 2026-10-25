@@ -67,6 +67,7 @@ flowchart TB
 - 图片是块级替换元素：由 `WeftImageResolver` 提供 `ImageProvider`，`RenderWeftSurface` 监听解码结果并在完成后触发布局失效；布局只接收已解码的 `ui.Image`。
 - Float 使用共享的 `_FloatContext` 保存排除矩形。每个行盒按当前 `y` 查询左右可用边界，空间不足时下移到最近浮动底部；`clear` 将后续块级元素推到对应浮动下方。
 - Float 环绕走逐行分行路径，每行单独生成 `TextPainter` 和链接矩形；无浮动内容仍使用整段文本布局，避免改变已验收的静态路径。
+- 表格用槽位网格实现（ADR 0012）：`colspan/rowspan` 占位、两遍 min/max-content 列宽、行槽拉伸与中心线折叠边框；单元格通过强制宽度的 `layoutBlock` 复用全部块级行为。
 - `WeftView` 当前使用外部 `SingleChildScrollView` 提供滚动；后续将替换为引擎内部视口和分块缓存。
 - 文本缩放来自 `MediaQuery`，背景和文本命令在单一表面内按顺序绘制。
 
@@ -119,3 +120,4 @@ JS 不获得节点、盒树或渲染对象。它只能通过版本化能力桥�
 - `0009`：在布局阶段解析块级边框盒宽度，统合 box-sizing、padding、border 和约束。
 - `0010`：实现 CSS 兼容的相邻/父子/空块 margin 折叠与半行距。
 - `0011`：图片由宿主资源解析器提供，Float 使用共享排除区与逐行文本布局。
+- `0012`：表格使用槽位网格与中心线折叠边框模型。

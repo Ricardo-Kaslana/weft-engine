@@ -12,6 +12,10 @@ enum WeftFloat { none, left, right }
 
 enum WeftClear { none, left, right, both }
 
+enum WeftBorderCollapse { separate, collapse }
+
+enum WeftVerticalAlign { top, middle, bottom }
+
 final class WeftBorderSide {
   const WeftBorderSide({required this.width, required this.color});
 
@@ -51,6 +55,10 @@ final class WeftComputedStyle {
     this.boxSizing = WeftBoxSizing.contentBox,
     this.float = WeftFloat.none,
     this.clear = WeftClear.none,
+    this.borderCollapse = WeftBorderCollapse.separate,
+    this.borderSpacingHorizontal = 2,
+    this.borderSpacingVertical = 2,
+    this.verticalAlign = WeftVerticalAlign.top,
     this.borderTop = WeftBorderSide.none,
     this.borderRight = WeftBorderSide.none,
     this.borderBottom = WeftBorderSide.none,
@@ -96,6 +104,12 @@ final class WeftComputedStyle {
   final WeftBoxSizing boxSizing;
   final WeftFloat float;
   final WeftClear clear;
+  final WeftBorderCollapse borderCollapse;
+
+  /// Cell spacing between table columns/rows in the separate borders model.
+  final double borderSpacingHorizontal;
+  final double borderSpacingVertical;
+  final WeftVerticalAlign verticalAlign;
   final WeftBorderSide borderTop;
   final WeftBorderSide borderRight;
   final WeftBorderSide borderBottom;

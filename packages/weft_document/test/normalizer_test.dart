@@ -128,4 +128,93 @@ void main() {
       contains('html.node.limit'),
     );
   });
+
+  test('table family is accepted with sanitized spans', () {
+    final snapshot = const WeftNormalizer().normalize(
+      '<table><thead><tr><th colspan="2">Head</th></tr></thead>'
+      '<tbody><tr><td rowspan="0">A</td><td colspan="abc">B</td></tr>'
+      '<tr><td colspan="9999">C</td></tr></tbody></table>',
+      id: 'tables',
+    );
+
+    expect(snapshot.supportReport.canRender, isTrue);
+    final table = snapshot.body!.children.whereType<WeftElement>().single;
+    expect(table.tag, 'table');
+    expect(
+      snapshot.supportReport.issues.map((issue) => issue.code),
+      containsAll(<String>['table.span.invalid', 'table.span.clamped']),
+    );
+
+    final cells = <WeftElement>[];
+    void visit(WeftNode node) {
+      if (node is WeftElement) {
+        if (node.tag == 'td' || node.tag == 'th') cells.add(node);
+        for (final child in node.children) {
+          visit(child);
+        }
+      }
+    }
+
+    visit(table);
+    expect(cells.map((cell) => cell.tag), ['th', 'td', 'td', 'td']);
+    expect(cells[0].attribute('colspan'), '2');
+    // rowspan="0" is not a positive span; the attribute is removed with a
+    // report and the engine treats a missing span as 1.
+    expect(cells[1].attribute('rowspan'), isNull);
+    expect(cells[2].attribute('colspan'), isNull);
+    expect(cells[3].attribute('colspan'), '1000');
+  });
+
+  test('nested tables request an explicit fallback', () {
+    final snapshot = const WeftNormalizer().normalize(
+      '<table><tr><td>outer'
+      '<table><tr><td>inner</td></tr></table>'
+      '</td></tr></table>',
+      id: 'nested-table',
+    );
+
+    expect(snapshot.supportReport.canRender, isFalse);
+    expect(
+      snapshot.supportReport.issues.map((issue) => issue.code),
+      contains('html.table.nested'),
+    );
+    // The inner table subtree is dropped, the outer table survives.
+    final table = snapshot.body!.children.whereType<WeftElement>().single;
+    expect(table.tag, 'table');
+    final text = StringBuffer();
+    void collectText(WeftNode node) {
+      if (node is WeftText) text.write(node.text);
+      if (node is WeftElement) {
+        for (final child in node.children) {
+          collectText(child);
+        }
+      }
+    }
+
+    collectText(table);
+    expect(text.toString(), contains('outer'));
+    expect(text.toString(), isNot(contains('inner')));
+  });
+
+  test('stray table content is foster-parented like a browser', () {
+    // The HTML5 parser relocates misplaced table content before the table,
+    // matching browser tree construction, so nothing is silently dropped.
+    final snapshot = const WeftNormalizer().normalize(
+      '<div><table><tr><td>cell</td></tr>stray text</table></div>',
+      id: 'stray-table',
+    );
+
+    expect(snapshot.supportReport.canRender, isTrue);
+    final children = snapshot.body!.children.whereType<WeftElement>().single;
+    // The stray text is a sibling of the table, ahead of it.
+    expect(children.children.first, isA<WeftText>());
+    expect(
+      (children.children.first as WeftText).text,
+      contains('stray text'),
+    );
+    expect(
+      children.children.whereType<WeftElement>().map((e) => e.tag),
+      contains('table'),
+    );
+  });
 }

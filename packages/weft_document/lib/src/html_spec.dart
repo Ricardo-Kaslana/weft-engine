@@ -4,6 +4,7 @@ abstract final class WeftHtmlSpec {
     'b',
     'blockquote',
     'br',
+    'caption',
     'code',
     'dd',
     'div',
@@ -29,6 +30,13 @@ abstract final class WeftHtmlSpec {
     'strong',
     'sub',
     'sup',
+    'table',
+    'tbody',
+    'td',
+    'tfoot',
+    'th',
+    'thead',
+    'tr',
     'u',
     'ul',
   };
@@ -46,7 +54,6 @@ abstract final class WeftHtmlSpec {
     'object',
     'select',
     'svg',
-    'table',
     'textarea',
     'video',
   };
@@ -67,5 +74,11 @@ abstract final class WeftHtmlSpec {
   static const tagAttributes = <String, Set<String>>{
     'a': {'href'},
     'img': {'src', 'alt', 'width', 'height'},
+    'td': {'colspan', 'rowspan'},
+    'th': {'colspan', 'rowspan'},
   };
+
+  /// The upper bound for colspan/rowspan clamping, matching the HTML limit
+  /// browsers apply to colspan.
+  static const maxSpan = 1000;
 }

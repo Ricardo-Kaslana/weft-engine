@@ -125,6 +125,27 @@ img {
   display: block;
 }
 
+table {
+  display: table;
+  border-collapse: separate;
+  border-spacing: 2px;
+}
+
+td,
+th {
+  display: table-cell;
+  padding: 0;
+}
+
+th {
+  font-weight: 700;
+}
+
+caption {
+  display: table-caption;
+  text-align: center;
+}
+
 hr {
   height: 1px;
   margin: 1em 0;

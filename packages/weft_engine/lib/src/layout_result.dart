@@ -44,6 +44,11 @@ sealed class WeftPaintCommand {
   void paint(ui.Canvas canvas, ui.Offset origin);
 
   void dispose();
+
+  /// Returns an equivalent command translated by [offset]. Used by table
+  /// layout, which lays cells out at the origin before row heights are known
+  /// and shifts them into place afterwards.
+  WeftPaintCommand shift(ui.Offset offset);
 }
 
 final class WeftRectPaintCommand extends WeftPaintCommand {
@@ -63,6 +68,15 @@ final class WeftRectPaintCommand extends WeftPaintCommand {
 
   @override
   void dispose() {}
+
+  @override
+  WeftPaintCommand shift(ui.Offset offset) {
+    return WeftRectPaintCommand(
+      nodeId: nodeId,
+      rect: rect.shift(offset),
+      color: color,
+    );
+  }
 }
 
 final class WeftTextPaintCommand extends WeftPaintCommand {
@@ -83,6 +97,15 @@ final class WeftTextPaintCommand extends WeftPaintCommand {
   @override
   void dispose() {
     painter.dispose();
+  }
+
+  @override
+  WeftPaintCommand shift(ui.Offset shift) {
+    return WeftTextPaintCommand(
+      nodeId: nodeId,
+      painter: painter,
+      offset: offset + shift,
+    );
   }
 }
 
@@ -126,6 +149,15 @@ final class WeftImagePaintCommand extends WeftPaintCommand {
 
   @override
   void dispose() {}
+
+  @override
+  WeftPaintCommand shift(ui.Offset offset) {
+    return WeftImagePaintCommand(
+      nodeId: nodeId,
+      image: image,
+      destination: destination.shift(offset),
+    );
+  }
 }
 
 final class WeftLayoutResult {
