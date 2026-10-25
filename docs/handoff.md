@@ -13,12 +13,15 @@
 - 链接跨行命中、宿主图片解析、块级图片、左右 Float、clear 和跨段落文字环绕。
 - 表格：table 系标签、colspan/rowspan（含隐式行）、caption、separate/collapse 边框、border-spacing 和 vertical-align。
 - 逻辑文本索引与选区解析：跨段锚点→视觉矩形与复制文本，表面绘制选择高亮。
+- 分块渲染（ADR 0017）：按块缓存 ui.Picture、可见窗口裁剪、选区矩形与 caret 独立缓存。
+- 行内图片基线混排（ADR 0018）：img 默认 inline 原子参与断行，CSS 宽高（含百分比宽）。
+- 选择交互（ADR 0019）：长按选词/拖拽扩展/把手微调/复制按钮/tap 放 caret。
 - 图片/Float 与表格的浏览器几何基线（Chrome 参考固化在 conformance/reference/）。
 
 请继续下一个切片，优先级如下：
-1. 分块渲染：按块缓存 ui.Picture、视口外裁剪与选择矩形按块索引（性能门禁已在 docs/testing-strategy.md，改前留底、改后对比中位数）。
-2. 选择把手/工具条与 caret：拖拽把手微调选区、宿主复制菜单（WeftView.selectionText() 已就绪）。
-3. 行内图片基线混排或 CSS 高度/百分比宽度。
+1. 引擎内部滚动容器与视口虚拟化：分块 Picture 已就位（ADR 0017），把 SingleChildScrollView 的职责移进引擎可进一步裁剪布局与命中范围。
+2. 块级 CSS height/百分比宽度与 auto margin（图片已支持，块级盒未支持）。
+3. 表格 colgroup/col 与列宽分配精度。
 
 硬性约束：
 - 不做完整浏览器；不执行不可信脚本；不把 HTML 节点映射为独立 Widget。
@@ -26,7 +29,7 @@
 - 图片资源只能由宿主 WeftImageResolver 提供；引擎不得隐式发起网络请求。
 - 每次修改必须运行 `dart format --output=none --set-exit-if-changed .`、`dart analyze`、`dart run tool/verify.dart` 和 `packages/weft_engine/tool/golden_pixel_test.dart`。
 - 新增能力必须附带单元测试；影响布局时必须评估黄金基线与 conformance/reference/ 下的浏览器几何基线。
-- 重要技术取舍写入 docs/adr/（下一个编号为 0017）。
+- 重要技术取舍写入 docs/adr/（下一个编号为 0020）。
 
 先阅读 README.md、docs/architecture.md、docs/supported-subset.md 和 docs/handoff.md，再选择第一个任务并给出计划。
 
@@ -38,10 +41,10 @@
 - 分支：`main`
 - 最新提交：见 `git log`（本节只保证指南有效，不追踪哈希）
 - Flutter：3.35.5 stable；Dart：3.9.2
-- 常规测试 104+ 项、像素黄金 3 项 + 选区高亮 1 项、性能门禁 4 场景；`dart analyze` 无问题。
+- 常规测试 160+ 项（weft_engine 140、weft 13）、像素黄金 3 项 + 选区高亮 1 项、性能门禁 7 场景（4 布局 + 3 绘制）；`dart analyze` 无问题。
 - GitHub Actions 使用 Windows 执行像素黄金门禁。
 
-已实现到 ADR 0016：选择手势（长按选词/拖拽扩展/点击清除/`WeftView.selectionText()`）、CJK 禁则（`WeftLineBreakRules`，逐行路径显式、整段路径 ICU 对照零违规）、性能门禁（四场景基准 + 10 倍宽 CI 上限，见 docs/testing-strategy.md）。
+已实现到 ADR 0019：分块渲染（按块 ui.Picture 缓存 + 三层可见矩形策略 + 选区/caret 独立 memo，绘制中位数 1.9ms→1.0ms、窗口化 <0.1ms）、行内图片（U+FFFC 占位原子，双路径 placeholderDimensions，CSS height/百分比宽）、选择 chrome（把手拖拽/复制按钮/tap 放 caret，onSelectionChanged）.
 
 ## 包结构
 
@@ -71,16 +74,19 @@ docs/adr/               架构决策记录
 - 图片：宿主解析、异步解码失效、块级替换盒、固有比例、alt 回退；1:1 绘制像素对齐。
 - Float：图片左右浮动、逐行行框避让、clear、同侧堆叠、对侧并排、文档滚动高度。
 - 链接：跨行命中矩形、宿主 `onLinkTap`；单元格内链接同样可点。
-- 选择（ADR 0013）：逻辑文本索引（块边界/`<br>` 换行、空白裁剪）、`selectionRects`/`selectionText`、表面半透明高亮；锚点无法映射时安全清除。
+- 选择（ADR 0013/0015/0019）：逻辑文本索引（块边界/`<br>` 换行、空白裁剪）、`selectionRects`/`selectionText`、表面高亮；长按选词、拖拽扩展、把手微调端点、复制按钮（剪贴板策略在 weft 层）、tap 放 caret；`WeftView.onSelectionChanged`。
+- 分块渲染（ADR 0017）：绘制命令按 body 顶层子节点分块缓存 `ui.Picture`，三层可见矩形策略（canvas clip → viewport transform → 全绘兜底）；选区矩形与 caret 独立 memo，选区变化不重建 Picture。
+- 行内图片（ADR 0018）：img 默认 `display: inline`（UA 语义）以 U+FFFC 占位原子参与两条行内路径的断行，`vertical-align: baseline/middle`，占位符不随 textScaler 缩放；CSS height px 与百分比宽（相对包含块）。
 - 测试：规范化、布局、margin、盒模型、图片、浮动、表格（17 项）、选择（13 项）、CJK、长文档、公开层、像素基线和两个浏览器几何基线。
 
 ## 明确未实现
 
-- 选择手势（点击/拖拽定位锚点）、复制菜单、命中语义、可访问性语义。
-- CJK 禁则：标点行首/行尾约束、CJK 像素基线。
-- 内部滚动、分块 Picture 缓存、视口虚拟化与性能门禁。
+- 内部滚动容器与视口虚拟化（布局/命中仍全量）。
+- 块级 CSS height/百分比宽度、`auto` margin；行内原子的 margin 参与行框与 top/bottom 对齐。
+- CJK 像素基线与跨引擎像素预算达标。
 - 表格：嵌套表格（触发回退）、`colgroup/col`、浏览器级列宽分配精度。
-- 行内图片基线混排、CSS 高度/百分比宽度、`auto` margin。
+- 选择语义的可访问性语义（Semantics 树）。
+- QuickJS 原生执行、状态/事件/网络能力包。
 - QuickJS 原生执行、状态/事件/网络能力包。
 
 ## 关键约束
@@ -124,23 +130,23 @@ python tool/generate_assets.py
 
 ## 建议的下一步
 
-### A. 选择手势与复制
+### A. 内部滚动容器与视口虚拟化
 
-目标：点击放置锚点、拖拽扩展选区、长按选词、复制到剪贴板。
+目标：把 `WeftView` 里的 `SingleChildScrollView` 职责移进引擎/包层，布局与命中按视口裁剪（分块 Picture 与三层可见矩形策略已就位，见 ADR 0017 与 docs/testing-strategy.md 的绘制门禁）。
 
-注意：命中测试可经 `WeftTextPaintCommand.runs` 与 `TextPainter.getPositionForOffset` 反查 `(NodeId, offset)`；锚点跨内容更新安全清除的语义已在 ADR 0013 定死，不得改为越界钳制。
+注意：命中测试与选区解析目前遍历全量命令列表；虚拟化前先补大文档的命中/选区基准，沿用 10 倍宽门禁模式。
 
-### B. CJK 禁则
+### B. 块级盒模型补齐
 
-目标：行首/行尾标点约束、可配置标点表、CJK 结构测试扩展。
+目标：块级 height/百分比宽度、auto margin（图片已支持，见 ADR 0018 的 `_imageMetrics` 先例）。
 
-注意：换行走逐行分行路径（有浮动时）与整段路径（无浮动时），两处都要应用禁则；`conformance/cases/cjk_wrap.html` 已有结构语料。
+注意：百分比高在文档流中父高不定，图片按 auto 处理的决定写在 ADR 0018，块级盒沿用同一决定；`_resolveBoxWidth` 是块级宽度的现有入口。
 
-### C. 性能与分块渲染
+### C. 表格 colgroup/col 与列宽精度
 
-目标：长文档布局耗时基线、`ui.Picture` 分块缓存、视口外裁剪。
+目标：`colgroup/col` 元素与 span，列宽分配对齐浏览器算法（现有两遍 min/max 在 table_layout.part.dart）。
 
-注意：当前是全量布局 + 单一命令列表；引入分块前先建立性能门禁数字，避免无基线优化。文本选择矩形依赖全量命令列表，分块后需要按块索引。
+注意：ADR 0012 的槽位网格与折叠边框模型不得破坏；新增几何案例走 `node tool/browser_references.mjs --case <id> --emit-reference` 接入门禁。
 
 ## 常见误区
 
@@ -150,4 +156,5 @@ python tool/generate_assets.py
 - 不要绕过 `_FloatContext` 直接计算行框；表格单元格用独立 `_FloatContext`（近似 BFC），不要让浮动外溢单元格。
 - 不要为跨引擎像素通过而修改测试字体、通道容差或遮挡真实差异。
 - 不要在折叠边框模型外给单元格再画自身边框（半边框已折算为合成 padding）。
+- 不要把选区高亮、caret 或任何 chrome 画进分块 `ui.Picture`——它们必须随选区即时重绘，进 Picture 会破坏 ADR 0017 的缓存计数与失效语义。
 - 浏览器几何基线重新生成后必须人工审查 diff，不允许盲目覆盖。
