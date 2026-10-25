@@ -390,6 +390,29 @@ final class WeftLayoutResult {
     return rects;
   }
 
+  /// Width of the caret bar produced by [caretRectForAnchor].
+  static const double caretWidth = 2;
+
+  /// The caret rectangle for a collapsed-selection [anchor] in document
+  /// coordinates: a [caretWidth]-wide bar at the left edge of the anchor
+  /// position's glyph box, spanning the box's full height.
+  ///
+  /// Returns null when the anchor maps to no painted text — an unknown node
+  /// or an offset at the very end of a node's text — mirroring the safe-drop
+  /// semantics of the selection model (ADR 0013) instead of clamping.
+  ui.Rect? caretRectForAnchor(TextAnchor anchor) {
+    final rects =
+        textRectsForNode(anchor.nodeId, anchor.offset, anchor.offset + 1);
+    if (rects.isEmpty) return null;
+    final first = rects.first;
+    return ui.Rect.fromLTRB(
+      first.left,
+      first.top,
+      first.left + caretWidth,
+      first.bottom,
+    );
+  }
+
   /// Visual rectangles for a selection between two anchors, resolved through
   /// the logical text index. Anchors may sit in different nodes.
   List<ui.Rect> selectionRects(TextSelectionRange selection) {

@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/rendering.dart' show RenderAbstractViewport;
@@ -9,6 +10,65 @@ import 'image_resources.dart';
 import 'layout_engine.dart';
 import 'layout_result.dart';
 
+/// Accent color of the caret painted by [RenderWeftSurface] and of the
+/// selection handle overlays built by the weft view layer. Kept const so the
+/// selection chrome carries no theme dependency.
+const Color kWeftSelectionColor = Color(0xFF1A73E8);
+
+/// Edge length of a drag handle's square touch target, following the
+/// customary 44px minimum for touch targets.
+const double kWeftSelectionHandleTouchExtent = 44;
+
+/// Suggested size of the selection copy button. The engine places
+/// [WeftSelectionControlsGeometry.copyButton] with this size and the weft
+/// overlay draws itself inside that rect.
+const Size kWeftCopyButtonSize = Size(72, 32);
+
+/// Vertical gap between the selection bounds and the copy button.
+const double kWeftCopyButtonVerticalGap = 8;
+
+/// Geometry for the selection chrome overlays, in surface-local coordinates.
+///
+/// Handle anchors sit at the classic selection ends: the bottom-left of the
+/// first logical-order selection rectangle and the bottom-right of the last
+/// one. The touch rects around them and the copy button placement are only
+/// suggestions for the view layer — [RenderWeftSurface] never paints these
+/// widgets itself.
+final class WeftSelectionControlsGeometry {
+  const WeftSelectionControlsGeometry({
+    required this.startAnchor,
+    required this.endAnchor,
+    required this.startHandle,
+    required this.endHandle,
+    required this.copyButton,
+  });
+
+  /// Bottom-left corner of the first selection rectangle.
+  final ui.Offset startAnchor;
+
+  /// Bottom-right corner of the last selection rectangle.
+  final ui.Offset endAnchor;
+
+  /// Touch target around [startAnchor], or null when handles are disabled.
+  final ui.Rect? startHandle;
+
+  /// Touch target around [endAnchor], or null when handles are disabled.
+  final ui.Rect? endHandle;
+
+  /// Suggested copy button placement above the selection (below it when the
+  /// space above would leave the surface), or null when disabled.
+  final ui.Rect? copyButton;
+}
+
+/// A single render-object surface that lays out and paints a normalized
+/// document.
+///
+/// Used standalone — without [WeftView] — the surface paints the selection
+/// highlight and, for collapsed selections, a caret bar gated by [showCaret].
+/// Selection drag handles and the copy button never appear on a standalone
+/// surface: they are chrome overlay widgets owned by WeftView, positioned
+/// through [RenderWeftSurface.selectionControlsGeometry]. The show* flags
+/// here gate that query so the view layer can turn chrome off.
 class WeftSurface extends StatefulWidget {
   const WeftSurface({
     super.key,
@@ -17,6 +77,10 @@ class WeftSurface extends StatefulWidget {
     this.textScaler = TextScaler.noScaling,
     this.imageResolver,
     this.onLinkTap,
+    this.showSelectionHandles = true,
+    this.showCaret = true,
+    this.showCopyButton = true,
+    this.copyButtonLabel = '复制',
   });
 
   final WeftDocumentSnapshot document;
@@ -24,6 +88,23 @@ class WeftSurface extends StatefulWidget {
   final TextScaler textScaler;
   final WeftImageResolver? imageResolver;
   final ValueChanged<WeftLinkRegion>? onLinkTap;
+
+  /// Whether [RenderWeftSurface.selectionControlsGeometry] exposes drag
+  /// handle touch targets. Handles are overlay widgets owned by WeftView and
+  /// never paint here; standalone surfaces only surface the query.
+  final bool showSelectionHandles;
+
+  /// Whether a collapsed selection paints a caret bar on the canvas.
+  final bool showCaret;
+
+  /// Whether [RenderWeftSurface.selectionControlsGeometry] suggests a copy
+  /// button placement. Like the handles, the button is a WeftView overlay.
+  final bool showCopyButton;
+
+  /// Label for the copy button overlay built by WeftView, which forwards its
+  /// own parameter here so hosts share one source of defaults. A standalone
+  /// [WeftSurface] never shows a copy button.
+  final String copyButtonLabel;
 
   @override
   State<WeftSurface> createState() => _WeftSurfaceState();
@@ -47,6 +128,9 @@ class _WeftSurfaceState extends State<WeftSurface> {
       selection: widget.selection,
       textScaler: widget.textScaler,
       imageResolver: widget.imageResolver,
+      showSelectionHandles: widget.showSelectionHandles,
+      showCaret: widget.showCaret,
+      showCopyButton: widget.showCopyButton,
     );
     if (widget.onLinkTap == null) return surface;
     return GestureDetector(
@@ -65,12 +149,18 @@ class _RawWeftSurface extends LeafRenderObjectWidget {
     this.selection,
     this.textScaler = TextScaler.noScaling,
     this.imageResolver,
+    this.showSelectionHandles = true,
+    this.showCaret = true,
+    this.showCopyButton = true,
   });
 
   final WeftDocumentSnapshot document;
   final TextSelectionRange? selection;
   final TextScaler textScaler;
   final WeftImageResolver? imageResolver;
+  final bool showSelectionHandles;
+  final bool showCaret;
+  final bool showCopyButton;
 
   @override
   RenderWeftSurface createRenderObject(BuildContext context) {
@@ -80,6 +170,9 @@ class _RawWeftSurface extends LeafRenderObjectWidget {
       textScaler: textScaler,
       imageResolver: imageResolver,
       imageConfiguration: createLocalImageConfiguration(context),
+      showSelectionHandles: showSelectionHandles,
+      showCaret: showCaret,
+      showCopyButton: showCopyButton,
     );
   }
 
@@ -93,7 +186,10 @@ class _RawWeftSurface extends LeafRenderObjectWidget {
       ..selection = selection
       ..textScaler = textScaler
       ..imageConfiguration = createLocalImageConfiguration(context)
-      ..imageResolver = imageResolver;
+      ..imageResolver = imageResolver
+      ..showSelectionHandles = showSelectionHandles
+      ..showCaret = showCaret
+      ..showCopyButton = showCopyButton;
   }
 }
 
@@ -104,11 +200,17 @@ class RenderWeftSurface extends RenderBox {
     TextScaler textScaler = TextScaler.noScaling,
     WeftImageResolver? imageResolver,
     ImageConfiguration imageConfiguration = ImageConfiguration.empty,
+    bool showSelectionHandles = true,
+    bool showCaret = true,
+    bool showCopyButton = true,
   })  : _document = document,
         _selection = selection,
         _textScaler = textScaler,
         _imageResolver = imageResolver,
-        _imageConfiguration = imageConfiguration;
+        _imageConfiguration = imageConfiguration,
+        _showSelectionHandles = showSelectionHandles,
+        _showCaret = showCaret,
+        _showCopyButton = showCopyButton;
 
   static const _layoutEngine = WeftLayoutEngine();
 
@@ -117,6 +219,9 @@ class RenderWeftSurface extends RenderBox {
   TextScaler _textScaler;
   WeftImageResolver? _imageResolver;
   ImageConfiguration _imageConfiguration;
+  bool _showSelectionHandles;
+  bool _showCaret;
+  bool _showCopyButton;
   WeftLayoutResult? _layout;
   final Map<int, _ResolvedImage> _images = <int, _ResolvedImage>{};
 
@@ -134,6 +239,12 @@ class RenderWeftSurface extends RenderBox {
   WeftLayoutResult? _selectionRectsLayout;
   TextSelectionRange? _selectionRectsKey;
   List<ui.Rect> _selectionRects = const <ui.Rect>[];
+
+  /// Memo for [WeftLayoutResult.caretRectForAnchor], keyed like the selection
+  /// rects. Only a collapsed selection paints a caret.
+  WeftLayoutResult? _caretRectLayout;
+  TextSelectionRange? _caretRectKey;
+  ui.Rect? _caretRect;
 
   int _debugRebuiltChunkCount = 0;
   int _debugPaintedChunkCount = 0;
@@ -182,6 +293,35 @@ class RenderWeftSurface extends RenderBox {
     _clearImages();
   }
 
+  /// Whether [selectionControlsGeometry] exposes drag handle touch targets.
+  /// Handles are overlay widgets owned by the view layer and never paint
+  /// here; the flag only gates the geometry query.
+  bool get showSelectionHandles => _showSelectionHandles;
+
+  set showSelectionHandles(bool value) {
+    if (_showSelectionHandles == value) return;
+    _showSelectionHandles = value;
+    markNeedsPaint();
+  }
+
+  /// Whether a collapsed selection paints a caret bar on the canvas.
+  bool get showCaret => _showCaret;
+
+  set showCaret(bool value) {
+    if (_showCaret == value) return;
+    _showCaret = value;
+    markNeedsPaint();
+  }
+
+  /// Whether [selectionControlsGeometry] suggests a copy button placement.
+  bool get showCopyButton => _showCopyButton;
+
+  set showCopyButton(bool value) {
+    if (_showCopyButton == value) return;
+    _showCopyButton = value;
+    markNeedsPaint();
+  }
+
   @visibleForTesting
   WeftLayoutResult? get debugLayout => _layout;
 
@@ -228,6 +368,9 @@ class RenderWeftSurface extends RenderBox {
     _selectionRectsLayout = null;
     _selectionRectsKey = null;
     _selectionRects = const <ui.Rect>[];
+    _caretRectLayout = null;
+    _caretRectKey = null;
+    _caretRect = null;
   }
 
   @override
@@ -377,6 +520,116 @@ class RenderWeftSurface extends RenderBox {
     return layout.selectionText(selection);
   }
 
+  /// Touch targets and suggested placements for the selection chrome
+  /// overlays — drag handles and the copy button — in surface-local
+  /// coordinates, or null when there is nothing to show.
+  ///
+  /// Derived on top of the cached selection rectangles without solving new
+  /// text geometry. The overlays themselves are widgets owned by the view
+  /// layer (WeftView); a standalone surface exposes this query but paints no
+  /// chrome of its own beyond the caret.
+  WeftSelectionControlsGeometry? selectionControlsGeometry() {
+    final layout = _layout;
+    final selection = _selection;
+    if (layout == null || selection == null || selection.isCollapsed) {
+      return null;
+    }
+    if (!_showSelectionHandles && !_showCopyButton) return null;
+    final rects = _selectionRectsFor(layout, selection);
+    if (rects.isEmpty) return null;
+
+    final first = rects.first;
+    final last = rects.last;
+    ui.Rect? startHandle;
+    ui.Rect? endHandle;
+    if (_showSelectionHandles) {
+      // The start handle reaches left of its anchor, the end handle right of
+      // it, so the two targets never overlap and each offers grab space on
+      // the side its drag extends toward.
+      startHandle = _handleTargetRect(
+        ui.Offset(first.left, first.bottom),
+        reachLeft: true,
+      );
+      endHandle = _handleTargetRect(
+        ui.Offset(last.right, last.bottom),
+        reachLeft: false,
+      );
+    }
+    ui.Rect? copyButton;
+    if (_showCopyButton) {
+      copyButton = _copyButtonRect(rects, handleRects: [
+        if (startHandle != null) startHandle,
+        if (endHandle != null) endHandle,
+      ]);
+    }
+    return WeftSelectionControlsGeometry(
+      startAnchor: ui.Offset(first.left, first.bottom),
+      endAnchor: ui.Offset(last.right, last.bottom),
+      startHandle: startHandle,
+      endHandle: endHandle,
+      copyButton: copyButton,
+    );
+  }
+
+  /// Suggests a copy button rect above the selection bounds, falling back to
+  /// below them when the button would leave the surface at the top. The
+  /// below-fallback clears the handle touch targets so the button never sits
+  /// inside a handle's grab area; when the surface has no room left the
+  /// bottom clamp wins and a late overlap is accepted.
+  ui.Rect _copyButtonRect(
+    List<ui.Rect> rects, {
+    required List<ui.Rect> handleRects,
+  }) {
+    var union = rects.first;
+    for (var i = 1; i < rects.length; i++) {
+      union = union.expandToInclude(rects[i]);
+    }
+    const size = kWeftCopyButtonSize;
+    final bounds = ui.Offset.zero & this.size;
+    final left = (union.center.dx - size.width / 2)
+        .clamp(
+          bounds.left,
+          math.max(bounds.left, bounds.right - size.width),
+        )
+        .toDouble();
+    var top = union.top - kWeftCopyButtonVerticalGap - size.height;
+    if (top < bounds.top) {
+      var lowest = union.bottom;
+      for (final handle in handleRects) {
+        lowest = math.max(lowest, handle.bottom);
+      }
+      top = lowest + kWeftCopyButtonVerticalGap;
+    }
+    top = math.min(top, math.max(bounds.top, bounds.bottom - size.height));
+    return ui.Rect.fromLTWH(left, top, size.width, size.height);
+  }
+
+  /// The touch target for a drag handle anchored at the bottom edge of a
+  /// selection rectangle.
+  ///
+  /// Horizontal placement shifts instead of shrinking when the anchor sits
+  /// within one target extent of the surface edge, so the target keeps its
+  /// full width and still contains the anchor. Vertical placement shrinks
+  /// instead of shifting: the anchor sits on the bottom edge of the selected
+  /// line, and shifting the box up would put the grab area on top of the
+  /// line the handle belongs to.
+  ui.Rect _handleTargetRect(ui.Offset anchor, {required bool reachLeft}) {
+    const extent = kWeftSelectionHandleTouchExtent;
+    final bounds = ui.Offset.zero & size;
+    var left = reachLeft ? anchor.dx - extent : anchor.dx;
+    var right = reachLeft ? anchor.dx : anchor.dx + extent;
+    if (left < bounds.left) {
+      right += bounds.left - left;
+      left = bounds.left;
+    } else if (right > bounds.right) {
+      left -= right - bounds.right;
+      right = bounds.right;
+    }
+    final bottom = math.min(anchor.dy + extent, bounds.bottom);
+    final top = math.min(anchor.dy, bounds.bottom);
+    return ui.Rect.fromLTRB(left, top, right, bottom);
+  }
+
   @override
   bool hitTestSelf(Offset position) => true;
 
@@ -392,6 +645,9 @@ class RenderWeftSurface extends RenderBox {
     final visible = _visibleLocalRect(canvas, offset);
     canvas.translate(offset.dx, offset.dy);
     debugPaintChunks(canvas, visible: visible);
+    // Selection highlight and caret paint after the chunk pictures and must
+    // never be recorded into them: selection changes would then rebuild
+    // pictures (breaking the chunked rendering cache counters).
     _paintSelection(canvas, visible);
     canvas.restore();
   }
@@ -498,6 +754,16 @@ class RenderWeftSurface extends RenderBox {
     final layout = _layout;
     final selection = _selection;
     if (layout == null || selection == null) return;
+    if (selection.isCollapsed) {
+      if (!_showCaret) return;
+      final caret = _caretRectFor(layout, selection);
+      if (caret == null) return;
+      final clipped = caret.intersect(visible);
+      if (!clipped.isEmpty) {
+        canvas.drawRect(clipped, Paint()..color = kWeftSelectionColor);
+      }
+      return;
+    }
     final rects = _selectionRectsFor(layout, selection);
     final paint = Paint()..color = const Color(0x339E9E9E);
     for (final rect in rects) {
@@ -506,6 +772,16 @@ class RenderWeftSurface extends RenderBox {
         canvas.drawRect(clipped, paint);
       }
     }
+  }
+
+  ui.Rect? _caretRectFor(
+      WeftLayoutResult layout, TextSelectionRange selection) {
+    if (!identical(_caretRectLayout, layout) || _caretRectKey != selection) {
+      _caretRectLayout = layout;
+      _caretRectKey = selection;
+      _caretRect = layout.caretRectForAnchor(selection.anchor);
+    }
+    return _caretRect;
   }
 
   List<ui.Rect> _selectionRectsFor(

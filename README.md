@@ -21,7 +21,8 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - 图片资源不可用时回退为 `alt` 文本，不发起隐式网络请求。
 - 表格：`table/thead/tbody/tfoot/tr/th/td/caption`、`colspan/rowspan`（含隐式行）、caption、separate/collapse 边框、`border-spacing` 与单元格 `vertical-align`；单元格复用块级布局，链接可点。
 - 逻辑文本索引与选区解析（ADR 0013）：跨段锚点→视觉矩形和复制文本，`WeftSurface` 绘制选择高亮。
-- 选择手势（ADR 0015）：长按选词、拖拽扩展、点击清除，`WeftView.selectionText()` 导出选区文本；链接点击与选择共存。
+- 选择手势（ADR 0015/0019）：长按选词、拖拽扩展、点击文本放置 caret、点击空白清除，`WeftView.selectionText()` 导出选区文本；链接点击与选择共存。
+- 选择 chrome（ADR 0019）：折叠选区绘制 caret；选择把手可拖拽移动选区端点；复制按钮写入剪贴板并保留选区（`copyButtonLabel` 可配）；`WeftView.onSelectionChanged` 向宿主上报选区文本；把手/复制按钮可用 `showSelectionHandles`/`showCopyButton` 关闭。
 - CJK 禁则（ADR 0016）：可配置行首/行尾禁则表（默认覆盖常用中日标点），逐行分行路径显式执行禁则；整段路径经 ICU 对照零违规。
 - 分块渲染（ADR 0017）：绘制命令按 body 顶层子节点分块缓存为 `ui.Picture`，绘制时按可见窗口裁剪、只重绘相交块；选区矩形独立缓存，选区变化不重建 Picture。
 - 性能门禁：300 段文章/48 行表格/浮动环绕/跨段选区四场景基准工具与 10 倍宽上限的 CI 稳定门禁（见 docs/testing-strategy.md）。
@@ -31,13 +32,13 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - 中英文内容、窄宽度换行及 300 段长文档的布局烟测。
 - 六类代表性内容语料，以及 Chrome/Edge 诊断参考截图生成器。
 - Apache 2.0 Roboto/Roboto Mono 固定字体、三个 Flutter 像素黄金基线（含图片/浮动案例）、确定性 PNG 图片资产和 Windows CI 门禁。
-- Dart Pub workspace、77 项常规自动测试、3 项像素测试、浏览器几何基线测试和 GitHub Actions CI。
+- Dart Pub workspace、173 项常规自动测试、3 项像素测试、浏览器几何基线测试和 GitHub Actions CI。
 
 尚未实现：
 
 - CJK 像素字体与跨引擎像素预算达标。
 - 表格的嵌套表格、`colgroup/col` 列宽与浏览器级列宽分配精度。
-- 选择把手/工具条、caret、复制菜单和可访问性语义。
+- 选择工具条（完整菜单）、chrome 动画打磨和可访问性语义。
 - 视口虚拟化和引擎内部滚动容器。
 - QuickJS 原生库、FFI 绑定和真实脚本执行。
 - 状态、事件、网络能力包的具体实现。

@@ -61,8 +61,13 @@ void main() {
     await gesture.up();
     await tester.pump();
 
-    // Tapping away from any link clears the selection.
-    await tester.tapAt(origin + Offset(160, layout.size.height - 1));
+    // Tapping away from any text clears the selection. The point is taken
+    // from the actual surface box because the probe layout used for anchors
+    // can wrap differently than the width the view ends up laying out at.
+    final surfaceSize = tester.getSize(find.byType(WeftSurface));
+    await tester.tapAt(
+      origin + Offset(surfaceSize.width - 1, surfaceSize.height - 1),
+    );
     await tester.pump();
     expect(controller.selection, isNull);
     controller.dispose();
@@ -73,7 +78,11 @@ void main() {
     final controller = WeftController()
       ..loadDocument(
         const WeftNormalizer().normalize(
-          '<p><a href="https://example.com/help">Help</a> center</p>',
+          // A second paragraph gives the selection chrome room below the
+          // line, so the copy button's fallback placement does not cover the
+          // tapped link itself.
+          '<p><a href="https://example.com/help">Help</a> center</p>'
+          '<p>More body text follows the link.</p>',
           id: 'selection-link',
         ),
       );
@@ -123,8 +132,12 @@ void main() {
       reason: 'link taps leave the selection untouched',
     );
 
-    // Tapping away from the link clears the selection.
-    await tester.tapAt(origin + Offset(160, layout.size.height - 1));
+    // Tapping away from the link clears the selection (see the surface-size
+    // note in the previous test).
+    final surfaceSize = tester.getSize(find.byType(WeftSurface));
+    await tester.tapAt(
+      origin + Offset(surfaceSize.width - 1, surfaceSize.height - 1),
+    );
     await tester.pump();
     expect(controller.selection, isNull);
     controller.dispose();
