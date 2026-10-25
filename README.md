@@ -18,11 +18,12 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - 图片由宿主 `WeftImageResolver` 按需提供，支持宽高属性、固有比例、最大宽度约束和异步解码失效。
 - 图片 `float: left/right`、逐行文字环绕、`clear`、同侧堆叠和对侧并排；浮动内容计入文档滚动高度。
 - 图片资源不可用时回退为 `alt` 文本，不发起隐式网络请求。
+- `float_image` 一致性案例：Chrome 生成的浏览器几何基线（块、图片、逐行词盒误差 ≤ 0.5px）与 Flutter 像素黄金双重门禁；图片按 1:1 对齐整像素绘制。
 - 单一 `RenderObject` 渲染表面、可滚动公开视图和真实文本/背景/图片绘制指令。
 - 中英文内容、窄宽度换行及 300 段长文档的布局烟测。
 - 六类代表性内容语料，以及 Chrome/Edge 诊断参考截图生成器。
-- Apache 2.0 Roboto/Roboto Mono 固定字体、两个 Flutter 像素黄金基线和 Windows CI 门禁。
-- Dart Pub workspace、73 项常规自动测试、2 项像素测试和 GitHub Actions CI。
+- Apache 2.0 Roboto/Roboto Mono 固定字体、三个 Flutter 像素黄金基线（含图片/浮动案例）、确定性 PNG 图片资产和 Windows CI 门禁。
+- Dart Pub workspace、77 项常规自动测试、3 项像素测试、浏览器几何基线测试和 GitHub Actions CI。
 
 尚未实现：
 

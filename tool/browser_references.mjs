@@ -2,6 +2,7 @@
 
 import { execFileSync, spawn } from 'node:child_process';
 import {
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -73,8 +74,17 @@ async function main() {
 
   const htmlDir = join(output, 'html');
   const imageDir = join(output, 'images');
+  const geometryDir = join(output, 'geometry');
   mkdirSync(htmlDir, { recursive: true });
   mkdirSync(imageDir, { recursive: true });
+  mkdirSync(geometryDir, { recursive: true });
+
+  const assetsSource = join(ROOT, 'conformance', 'assets');
+  if (existsSync(assetsSource)) {
+    // Cases reference fixtures as `assets/<name>` relative to the wrapped
+    // HTML files, so the copy must live beside them under html/.
+    cpSync(assetsSource, join(htmlDir, 'assets'), { recursive: true });
+  }
 
   const profile = mkdtempSync(join(tmpdir(), 'weft-chrome-'));
   let chrome;
@@ -94,6 +104,7 @@ async function main() {
         output,
         htmlDir,
         imageDir,
+        geometryDir,
         fontFaceCss,
         compatCss,
       );
@@ -293,6 +304,7 @@ async function renderCase(
   output,
   htmlDir,
   imageDir,
+  geometryDir,
   fontFaceCss,
   compatCss,
 ) {
@@ -365,6 +377,14 @@ async function renderCase(
   }
   writeFileSync(imagePath, image);
 
+  const geometry = await collectGeometry(cdp);
+  const geometryPath = join(geometryDir, `${item.id}.json`);
+  writeFileSync(
+    geometryPath,
+    `${JSON.stringify(geometry, null, 2)}\n`,
+    'utf8',
+  );
+
   return {
     id: item.id,
     width,
@@ -372,8 +392,72 @@ async function renderCase(
     viewport,
     html: relative(output, htmlPath),
     screenshot: relative(output, imagePath),
+    geometry: relative(output, geometryPath),
   };
 }
+
+async function collectGeometry(cdp) {
+  const result = await cdp.send('Runtime.evaluate', {
+    expression: GEOMETRY_EXPRESSION,
+    returnByValue: true,
+  });
+  return result.result.value;
+}
+
+const GEOMETRY_EXPRESSION = `(() => {
+  const elements = {};
+  for (const el of document.body.querySelectorAll('[data-geo]')) {
+    const key = el.getAttribute('data-geo');
+    const r = el.getBoundingClientRect();
+    elements[key] = {
+      tag: el.tagName.toLowerCase(),
+      left: round(r.left),
+      top: round(r.top + window.scrollY),
+      width: round(r.width),
+      height: round(r.height),
+    };
+  }
+  const words = {};
+  for (const el of document.body.querySelectorAll('[data-words]')) {
+    const key = el.getAttribute('data-words');
+    const tokens = [];
+    for (const node of el.childNodes) {
+      if (node.nodeType !== Node.TEXT_NODE) continue;
+      const pattern = /\\S+/g;
+      let match;
+      while ((match = pattern.exec(node.data)) !== null) {
+        const range = document.createRange();
+        range.setStart(node, match.index);
+        range.setEnd(node, pattern.lastIndex);
+        const rects = [...range.getClientRects()].filter((r) => r.width > 0);
+        if (rects.length === 0) continue;
+        tokens.push({
+          text: match[0],
+          rects: rects.map((r) => ({
+            left: round(r.left),
+            top: round(r.top + window.scrollY),
+            right: round(r.right),
+            bottom: round(r.bottom + window.scrollY),
+          })),
+        });
+      }
+    }
+    words[key] = tokens;
+  }
+  return {
+    documentHeight: round(
+      Math.max(
+        document.documentElement.scrollHeight,
+        document.body.scrollHeight,
+      ),
+    ),
+    elements,
+    words,
+  };
+  function round(value) {
+    return Math.round(value * 100) / 100;
+  }
+})()`;
 
 function pngSize(buffer) {
   if (

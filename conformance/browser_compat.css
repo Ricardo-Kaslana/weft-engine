@@ -121,6 +121,10 @@ li {
   display: list-item;
 }
 
+img {
+  display: block;
+}
+
 hr {
   height: 1px;
   margin: 1em 0;

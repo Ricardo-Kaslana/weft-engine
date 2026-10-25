@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -44,6 +46,13 @@ void main() {
         reason: 'Pixel case $id requested fallback.',
       );
 
+      final imageSources = _assetImageSources(document);
+      if (imageSources.isNotEmpty) {
+        // File decoding runs on real timers that the fake-async clock never
+        // fires. Decode the fixtures up front and hand the surface providers
+        // that complete synchronously.
+        await tester.runAsync(() => _decodeAssetImages(imageSources));
+      }
       await tester.binding.setSurfaceSize(Size(width, height));
       final boundaryKey = GlobalKey();
       await tester.pumpWidget(
@@ -57,6 +66,12 @@ void main() {
                 child: WeftSurface(
                   document: document,
                   textScaler: TextScaler.noScaling,
+                  imageResolver: imageSources.isEmpty
+                      ? null
+                      : (request) {
+                          final image = _decodedImages[request.src];
+                          return image == null ? null : _PrecodedImage(image);
+                        },
                 ),
               ),
             ),
@@ -64,6 +79,11 @@ void main() {
         ),
       );
       await tester.pump();
+      if (imageSources.isNotEmpty) {
+        // Precoded providers complete on microtasks; keep pumping until the
+        // surface has re-laid out with the resolved images.
+        await tester.pumpAndSettle(const Duration(milliseconds: 10));
+      }
 
       await expectLater(
         find.byKey(boundaryKey),
@@ -74,6 +94,69 @@ void main() {
       await tester.binding.setSurfaceSize(null);
     });
   }
+}
+
+/// Collects the `assets/<name>` image sources referenced by a pixel case.
+Set<String> _assetImageSources(WeftDocumentSnapshot document) {
+  final result = <String>{};
+  void visit(WeftNode node) {
+    if (node is WeftElement) {
+      final src = node.tag == 'img' ? node.attribute('src') : null;
+      if (src != null && src.startsWith('assets/')) {
+        result.add(src);
+      }
+      for (final child in node.children) {
+        visit(child);
+      }
+    }
+  }
+
+  final body = document.body;
+  if (body != null) visit(body);
+  return result;
+}
+
+final _decodedImages = <String, ui.Image>{};
+
+Future<void> _decodeAssetImages(Set<String> sources) async {
+  final root = _workspaceRoot();
+  for (final src in sources) {
+    if (_decodedImages.containsKey(src)) continue;
+    final bytes = await File('${root.path}/conformance/$src').readAsBytes();
+    final completer = Completer<ui.Image>();
+    ui.decodeImageFromList(bytes, completer.complete);
+    _decodedImages[src] = await completer.future;
+  }
+}
+
+/// An [ImageProvider] that hands out an already decoded image, so the surface
+/// never needs real async decoding inside the fake clock.
+final class _PrecodedImage extends ImageProvider<_PrecodedImage> {
+  const _PrecodedImage(this.image);
+
+  final ui.Image image;
+
+  @override
+  Future<_PrecodedImage> obtainKey(ImageConfiguration configuration) async {
+    return this;
+  }
+
+  @override
+  ImageStreamCompleter loadImage(
+    _PrecodedImage key,
+    ImageDecoderCallback decode,
+  ) {
+    return OneFrameImageStreamCompleter(
+      Future<ImageInfo>.value(ImageInfo(image: key.image)),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is _PrecodedImage && other.image == image;
+
+  @override
+  int get hashCode => identityHashCode(image);
 }
 
 Future<void> _loadFonts(Directory root) async {

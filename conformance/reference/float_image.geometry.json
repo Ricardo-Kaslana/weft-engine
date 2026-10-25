@@ -1,0 +1,495 @@
+{
+  "documentHeight": 648,
+  "elements": {
+    "title": {
+      "tag": "h2",
+      "left": 0,
+      "top": 19.91,
+      "width": 360,
+      "height": 31.19
+    },
+    "intro": {
+      "tag": "p",
+      "left": 0,
+      "top": 71,
+      "width": 360,
+      "height": 48
+    },
+    "wrap-latin": {
+      "tag": "p",
+      "left": 0,
+      "top": 135,
+      "width": 360,
+      "height": 144
+    },
+    "float-left": {
+      "tag": "img",
+      "left": 0,
+      "top": 135,
+      "width": 120,
+      "height": 96
+    },
+    "between": {
+      "tag": "p",
+      "left": 0,
+      "top": 295,
+      "width": 360,
+      "height": 24
+    },
+    "wrap-opposing": {
+      "tag": "p",
+      "left": 0,
+      "top": 335,
+      "width": 360,
+      "height": 48
+    },
+    "float-right": {
+      "tag": "img",
+      "left": 216,
+      "top": 335,
+      "width": 144,
+      "height": 72
+    },
+    "cleared": {
+      "tag": "p",
+      "left": 0,
+      "top": 415,
+      "width": 360,
+      "height": 24
+    },
+    "divider": {
+      "tag": "hr",
+      "left": 0,
+      "top": 455,
+      "width": 360,
+      "height": 1
+    },
+    "hero": {
+      "tag": "img",
+      "left": 0,
+      "top": 472,
+      "width": 240,
+      "height": 120
+    },
+    "caption": {
+      "tag": "p",
+      "left": 0,
+      "top": 608,
+      "width": 360,
+      "height": 24
+    }
+  },
+  "words": {
+    "wrap-latin": [
+      {
+        "text": "alpha",
+        "rects": [
+          {
+            "left": 136,
+            "top": 137,
+            "right": 175.08,
+            "bottom": 156
+          }
+        ]
+      },
+      {
+        "text": "bravo",
+        "rects": [
+          {
+            "left": 179.03,
+            "top": 137,
+            "right": 218.47,
+            "bottom": 156
+          }
+        ]
+      },
+      {
+        "text": "charlie",
+        "rects": [
+          {
+            "left": 222.42,
+            "top": 137,
+            "right": 269.97,
+            "bottom": 156
+          }
+        ]
+      },
+      {
+        "text": "delta",
+        "rects": [
+          {
+            "left": 273.92,
+            "top": 137,
+            "right": 309.25,
+            "bottom": 156
+          }
+        ]
+      },
+      {
+        "text": "echo",
+        "rects": [
+          {
+            "left": 313.2,
+            "top": 137,
+            "right": 348,
+            "bottom": 156
+          }
+        ]
+      },
+      {
+        "text": "foxtrot",
+        "rects": [
+          {
+            "left": 136,
+            "top": 161,
+            "right": 183.28,
+            "bottom": 180
+          }
+        ]
+      },
+      {
+        "text": "golf",
+        "rects": [
+          {
+            "left": 187.23,
+            "top": 161,
+            "right": 214.78,
+            "bottom": 180
+          }
+        ]
+      },
+      {
+        "text": "hotel",
+        "rects": [
+          {
+            "left": 218.73,
+            "top": 161,
+            "right": 254.27,
+            "bottom": 180
+          }
+        ]
+      },
+      {
+        "text": "india",
+        "rects": [
+          {
+            "left": 258.22,
+            "top": 161,
+            "right": 292.55,
+            "bottom": 180
+          }
+        ]
+      },
+      {
+        "text": "juliet",
+        "rects": [
+          {
+            "left": 296.5,
+            "top": 161,
+            "right": 330.63,
+            "bottom": 180
+          }
+        ]
+      },
+      {
+        "text": "kilo",
+        "rects": [
+          {
+            "left": 334.58,
+            "top": 161,
+            "right": 359.58,
+            "bottom": 180
+          }
+        ]
+      },
+      {
+        "text": "lima",
+        "rects": [
+          {
+            "left": 136,
+            "top": 185,
+            "right": 166.5,
+            "bottom": 204
+          }
+        ]
+      },
+      {
+        "text": "mike",
+        "rects": [
+          {
+            "left": 170.45,
+            "top": 185,
+            "right": 204.8,
+            "bottom": 204
+          }
+        ]
+      },
+      {
+        "text": "november",
+        "rects": [
+          {
+            "left": 208.75,
+            "top": 185,
+            "right": 279.61,
+            "bottom": 204
+          }
+        ]
+      },
+      {
+        "text": "oscar",
+        "rects": [
+          {
+            "left": 283.56,
+            "top": 185,
+            "right": 323.44,
+            "bottom": 204
+          }
+        ]
+      },
+      {
+        "text": "papa",
+        "rects": [
+          {
+            "left": 136,
+            "top": 209,
+            "right": 171.36,
+            "bottom": 228
+          }
+        ]
+      },
+      {
+        "text": "quebec",
+        "rects": [
+          {
+            "left": 175.31,
+            "top": 209,
+            "right": 227.55,
+            "bottom": 228
+          }
+        ]
+      },
+      {
+        "text": "romeo",
+        "rects": [
+          {
+            "left": 231.5,
+            "top": 209,
+            "right": 277.52,
+            "bottom": 228
+          }
+        ]
+      },
+      {
+        "text": "sierra",
+        "rects": [
+          {
+            "left": 281.47,
+            "top": 209,
+            "right": 321.3,
+            "bottom": 228
+          }
+        ]
+      },
+      {
+        "text": "tango",
+        "rects": [
+          {
+            "left": 136,
+            "top": 233,
+            "right": 176.86,
+            "bottom": 252
+          }
+        ]
+      },
+      {
+        "text": "uniform",
+        "rects": [
+          {
+            "left": 180.81,
+            "top": 233,
+            "right": 236.47,
+            "bottom": 252
+          }
+        ]
+      },
+      {
+        "text": "victor",
+        "rects": [
+          {
+            "left": 240.42,
+            "top": 233,
+            "right": 280.05,
+            "bottom": 252
+          }
+        ]
+      },
+      {
+        "text": "whiskey",
+        "rects": [
+          {
+            "left": 284,
+            "top": 233,
+            "right": 340.88,
+            "bottom": 252
+          }
+        ]
+      },
+      {
+        "text": "xray",
+        "rects": [
+          {
+            "left": 0,
+            "top": 257,
+            "right": 29.19,
+            "bottom": 276
+          }
+        ]
+      },
+      {
+        "text": "yankee",
+        "rects": [
+          {
+            "left": 33.14,
+            "top": 257,
+            "right": 83.05,
+            "bottom": 276
+          }
+        ]
+      },
+      {
+        "text": "zulu",
+        "rects": [
+          {
+            "left": 87,
+            "top": 257,
+            "right": 116.45,
+            "bottom": 276
+          }
+        ]
+      },
+      {
+        "text": "alpha",
+        "rects": [
+          {
+            "left": 120.41,
+            "top": 257,
+            "right": 159.5,
+            "bottom": 276
+          }
+        ]
+      },
+      {
+        "text": "bravo",
+        "rects": [
+          {
+            "left": 163.45,
+            "top": 257,
+            "right": 202.88,
+            "bottom": 276
+          }
+        ]
+      },
+      {
+        "text": "charlie",
+        "rects": [
+          {
+            "left": 206.83,
+            "top": 257,
+            "right": 254.39,
+            "bottom": 276
+          }
+        ]
+      },
+      {
+        "text": "delta",
+        "rects": [
+          {
+            "left": 258.34,
+            "top": 257,
+            "right": 293.66,
+            "bottom": 276
+          }
+        ]
+      },
+      {
+        "text": "echo",
+        "rects": [
+          {
+            "left": 297.61,
+            "top": 257,
+            "right": 332.41,
+            "bottom": 276
+          }
+        ]
+      }
+    ],
+    "wrap-opposing": [
+      {
+        "text": "alpha",
+        "rects": [
+          {
+            "left": 0,
+            "top": 337,
+            "right": 39.08,
+            "bottom": 356
+          }
+        ]
+      },
+      {
+        "text": "bravo",
+        "rects": [
+          {
+            "left": 43.03,
+            "top": 337,
+            "right": 82.47,
+            "bottom": 356
+          }
+        ]
+      },
+      {
+        "text": "charlie",
+        "rects": [
+          {
+            "left": 86.42,
+            "top": 337,
+            "right": 133.97,
+            "bottom": 356
+          }
+        ]
+      },
+      {
+        "text": "delta",
+        "rects": [
+          {
+            "left": 137.92,
+            "top": 337,
+            "right": 173.25,
+            "bottom": 356
+          }
+        ]
+      },
+      {
+        "text": "echo",
+        "rects": [
+          {
+            "left": 0,
+            "top": 361,
+            "right": 34.8,
+            "bottom": 380
+          }
+        ]
+      },
+      {
+        "text": "foxtrot",
+        "rects": [
+          {
+            "left": 38.75,
+            "top": 361,
+            "right": 86.03,
+            "bottom": 380
+          }
+        ]
+      }
+    ]
+  }
+}

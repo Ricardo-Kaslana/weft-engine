@@ -104,10 +104,22 @@ final class WeftImagePaintCommand extends WeftPaintCommand {
       image.width.toDouble(),
       image.height.toDouble(),
     );
+    // Browsers snap replaced content to device pixels before rasterizing.
+    // A 1:1 blit at a fractional offset would instead resample every texel,
+    // so snap the destination when the source maps without scaling.
+    var target = destination.shift(origin);
+    if (target.width == source.width && target.height == source.height) {
+      target = ui.Rect.fromLTRB(
+        target.left.roundToDouble(),
+        target.top.roundToDouble(),
+        target.right.roundToDouble(),
+        target.bottom.roundToDouble(),
+      );
+    }
     canvas.drawImageRect(
       image,
       source,
-      destination.shift(origin),
+      target,
       Paint()..filterQuality = FilterQuality.medium,
     );
   }

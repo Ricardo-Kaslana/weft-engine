@@ -80,6 +80,18 @@
         "https://example.com/golden"
       ],
       "pixel": true
+    },
+    {
+      "id": "float_image",
+      "file": "cases/float_image.html",
+      "width": 360,
+      "height": 600,
+      "minHeight": 350,
+      "minTextCommands": 4,
+      "minBoxes": 6,
+      "linkHrefs": [],
+      "pixel": true,
+      "geometry": true
     }
   ]
 }
