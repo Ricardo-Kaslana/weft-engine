@@ -88,6 +88,22 @@ extension _TableLayoutMethods on _LayoutContext {
       rowCount = math.max(rowCount, cell.row + cell.rowSpan);
     }
 
+    // ---- Column track declarations from colgroup/col. They are collected
+    // wherever they appear among the table's children: CSS only allows them
+    // before the first row, but tolerating later placement keeps controlled
+    // content from silently losing its column widths (ADR 0022).
+    final tracks = _collectColumnTracks(
+      element,
+      style: style,
+      ancestors: tableAncestors,
+    );
+    var declaredColumns = 0;
+    for (final track in tracks) {
+      declaredColumns += track.span;
+    }
+    // Rows may declare more columns than the tracks; the surplus stays auto.
+    columnCount = math.max(columnCount, declaredColumns);
+
     final boxX = left + style.marginLeft;
     final availableBoxWidth = math.max(
       0.0,
@@ -170,6 +186,39 @@ extension _TableLayoutMethods on _LayoutContext {
         ? (verticalEdges[0].width + verticalEdges[columnCount].width) / 2
         : 0.0;
 
+    // ---- Per-column track declarations. A pinned column keeps its declared
+    // width measured between the edge centre lines (the cell border-box width
+    // in the separate model); a percentage column records an expectation
+    // against the resolved grid width. The first declaration covering a
+    // column wins.
+    final pinnedContentWidth = List<double?>.filled(columnCount, null);
+    final columnPercent = List<double?>.filled(columnCount, null);
+    var trackColumn = 0;
+    for (final track in tracks) {
+      for (var offset = 0;
+          offset < track.span && trackColumn < columnCount;
+          offset++, trackColumn++) {
+        if (track.fixedWidth == null && track.percentWidth == null) continue;
+        if (pinnedContentWidth[trackColumn] != null ||
+            columnPercent[trackColumn] != null) {
+          continue;
+        }
+        if (track.fixedWidth != null) {
+          final halfEdges = collapse
+              ? (verticalEdges[trackColumn].width +
+                      verticalEdges[trackColumn + 1].width) /
+                  2
+              : 0.0;
+          pinnedContentWidth[trackColumn] = math.max(
+            0.0,
+            track.fixedWidth! - halfEdges,
+          );
+        } else {
+          columnPercent[trackColumn] = track.percentWidth;
+        }
+      }
+    }
+
     // ---- Pass 1: intrinsic widths per column. Column intrinsics carry
     // content plus padding (and the cell's own borders in the separate
     // model); collapsed edges are accounted by the grid arithmetic instead.
@@ -186,18 +235,37 @@ extension _TableLayoutMethods on _LayoutContext {
     }
     for (final cell in cells) {
       if (cell.columnSpan == 1) continue;
+      // Pinned columns keep their declared width, so a spanning cell only
+      // pushes the need left over after subtracting them into the flexible
+      // columns it covers; when the pinned columns already provide enough,
+      // nothing is distributed and the cell overflows as usual (ADR 0022).
+      var pinned = 0.0;
+      for (var column = cell.column;
+          column < cell.column + cell.columnSpan;
+          column++) {
+        pinned += pinnedContentWidth[column] ?? 0;
+      }
       _distributeSpanWidth(
         columnMin,
         cell.column,
         cell.columnSpan,
-        cell.minWidth - spacingH * (cell.columnSpan - 1),
+        cell.minWidth - spacingH * (cell.columnSpan - 1) - pinned,
+        flexible: (column) => pinnedContentWidth[column] == null,
       );
       _distributeSpanWidth(
         columnMax,
         cell.column,
         cell.columnSpan,
-        cell.maxWidth - spacingH * (cell.columnSpan - 1),
+        cell.maxWidth - spacingH * (cell.columnSpan - 1) - pinned,
+        flexible: (column) => pinnedContentWidth[column] == null,
       );
+    }
+    // Pinned columns override whatever their cells measured.
+    for (var column = 0; column < columnCount; column++) {
+      final pinned = pinnedContentWidth[column];
+      if (pinned == null) continue;
+      columnMin[column] = pinned;
+      columnMax[column] = pinned;
     }
 
     // The full table border-box width covers the content plus every edge:
@@ -231,33 +299,114 @@ extension _TableLayoutMethods on _LayoutContext {
     }
 
     final contentWidths = List<double>.filled(columnCount, 0);
+    // Chrome treats a specified table width as the span between the outer
+    // edge centre lines, so in the collapsed model the outer half edges do
+    // not consume the column budget once column tracks exist. Track-less
+    // tables keep the ADR 0012 approximation where the whole grid fits the
+    // box (ADR 0022).
     final columnsBudget = math.max(
       0,
-      gridWidth - spacingTotal - allEdgesTotal,
+      gridWidth -
+          spacingTotal -
+          allEdgesTotal +
+          (style.width != null && tracks.isNotEmpty ? outerEdges : 0.0),
     );
-    if (columnsBudget >= contentSumMax) {
-      final extra = columnsBudget - contentSumMax;
-      final totalMax = _sum(columnMax);
+
+    // Pinned columns take their declared width first and never join the
+    // redistribution.
+    var pinnedSum = 0.0;
+    for (var column = 0; column < columnCount; column++) {
+      final pinned = pinnedContentWidth[column];
+      if (pinned == null) continue;
+      contentWidths[column] = pinned;
+      pinnedSum += pinned;
+    }
+
+    // Percentage columns hold an expectation against the resolved grid width
+    // (the table content box) and keep it while the auto columns consume the
+    // budget left after the pinned tracks (ADR 0022).
+    var percentSum = 0.0;
+    for (var column = 0; column < columnCount; column++) {
+      final percent = columnPercent[column];
+      if (percent == null) continue;
+      final halfEdges = collapse
+          ? (verticalEdges[column].width + verticalEdges[column + 1].width) / 2
+          : 0.0;
+      final target = math.max(0.0, percent / 100 * gridWidth - halfEdges);
+      contentWidths[column] = target;
+      percentSum += target;
+    }
+
+    var autoMinSum = 0.0;
+    var autoMaxSum = 0.0;
+    var autoCount = 0;
+    for (var column = 0; column < columnCount; column++) {
+      if (pinnedContentWidth[column] != null || columnPercent[column] != null) {
+        continue;
+      }
+      autoMinSum += columnMin[column];
+      autoMaxSum += columnMax[column];
+      autoCount += 1;
+    }
+    final autoBudget = math.max(0, columnsBudget - pinnedSum - percentSum);
+    if (autoCount > 0 && autoBudget >= autoMaxSum) {
+      final extra = autoBudget - autoMaxSum;
       for (var column = 0; column < columnCount; column++) {
-        final share = totalMax > 0
-            ? extra * columnMax[column] / totalMax
-            : extra / columnCount;
+        if (pinnedContentWidth[column] != null ||
+            columnPercent[column] != null) {
+          continue;
+        }
+        final share = autoMaxSum > 0
+            ? extra * columnMax[column] / autoMaxSum
+            : extra / autoCount;
         contentWidths[column] = columnMax[column] + share;
       }
-    } else if (columnsBudget >= contentSumMin) {
-      final extra = columnsBudget - contentSumMin;
-      final totalMax = _sum(columnMax);
+    } else if (autoCount > 0 && autoBudget >= autoMinSum) {
+      final extra = autoBudget - autoMinSum;
       for (var column = 0; column < columnCount; column++) {
-        final share = totalMax > 0
-            ? extra * columnMax[column] / totalMax
-            : extra / columnCount;
+        if (pinnedContentWidth[column] != null ||
+            columnPercent[column] != null) {
+          continue;
+        }
+        final share = autoMaxSum > 0
+            ? extra * columnMax[column] / autoMaxSum
+            : extra / autoCount;
         contentWidths[column] = columnMin[column] + share;
       }
-    } else {
-      final totalMin = contentSumMin;
-      final scale = totalMin > 0 ? columnsBudget / totalMin : 1.0;
+    } else if (autoCount > 0) {
+      final scale = autoMinSum > 0 ? autoBudget / autoMinSum : 1.0;
       for (var column = 0; column < columnCount; column++) {
+        if (pinnedContentWidth[column] != null ||
+            columnPercent[column] != null) {
+          continue;
+        }
         contentWidths[column] = columnMin[column] * scale;
+      }
+    }
+
+    // Percentage tracks are re-solved proportionally once the auto columns
+    // have taken their share: they shrink when the pinned tracks alone
+    // overflow the budget, and stretch to consume whatever is left when no
+    // auto column exists to absorb it (ADR 0022).
+    if (percentSum > 0) {
+      var autoSum = 0.0;
+      for (var column = 0; column < columnCount; column++) {
+        if (pinnedContentWidth[column] != null ||
+            columnPercent[column] != null) {
+          continue;
+        }
+        autoSum += contentWidths[column];
+      }
+      final leftover = math.max(0, columnsBudget - pinnedSum - autoSum);
+      final scale = leftover / percentSum;
+      if (scale != 1.0) {
+        for (var column = 0; column < columnCount; column++) {
+          if (pinnedContentWidth[column] != null ||
+              columnPercent[column] == null) {
+            continue;
+          }
+          contentWidths[column] *= scale;
+        }
       }
     }
 
@@ -308,18 +457,18 @@ extension _TableLayoutMethods on _LayoutContext {
       double? paddingRight;
       if (collapse) {
         // The cell box spans from one edge centerline to the next. Column
-        // widths already carry cell padding, so only the shared half edges
-        // are added; they become synthetic padding so content stays clear of
-        // borders while the background extends beneath them, like a browser.
+        // widths are the centre-line distances including interior edges, so
+        // the slice sums to the full span; the shared half edges become
+        // synthetic padding so content stays clear of borders while the
+        // background extends beneath them, like a browser.
         final edgeLeft = verticalEdges[cell.column].width;
         final edgeRight = verticalEdges[cell.column + cell.columnSpan].width;
         borderBoxWidth = _sum(
-              contentWidths.sublist(
-                cell.column,
-                cell.column + cell.columnSpan,
-              ),
-            ) +
-            (edgeLeft + edgeRight) / 2;
+          columnWidths.sublist(
+            cell.column,
+            cell.column + cell.columnSpan,
+          ),
+        );
         paddingLeft = cellStyle.paddingLeft + edgeLeft / 2;
         paddingRight = cellStyle.paddingRight + edgeRight / 2;
       } else {
@@ -827,26 +976,40 @@ extension _TableLayoutMethods on _LayoutContext {
     return (min: min, max: max);
   }
 
+  /// Distributes a spanning cell's required width into the columns it covers.
+  /// Columns where [flexible] returns false are skipped entirely: they keep
+  /// the width a col declaration pinned, so the caller reduces the
+  /// requirement by what those columns already provide.
   void _distributeSpanWidth(
     List<double> columns,
     int start,
     int span,
-    double required,
-  ) {
+    double required, {
+    bool Function(int column)? flexible,
+  }) {
     var current = 0.0;
+    var flexibleCount = 0;
     for (var index = start; index < start + span; index++) {
-      current += columns[index];
+      if (flexible?.call(index) ?? true) {
+        current += columns[index];
+        flexibleCount += 1;
+      }
     }
-    if (required <= current) return;
+    if (flexibleCount == 0 || required <= current) return;
     final deficit = required - current;
     final weights = <double>[
-      for (var index = start; index < start + span; index++) columns[index],
+      for (var index = start; index < start + span; index++)
+        if (flexible?.call(index) ?? true) columns[index],
     ];
     final total = _sum(weights);
-    for (var offset = 0; offset < span; offset++) {
-      final share =
-          total > 0 ? deficit * weights[offset] / total : deficit / span;
-      columns[start + offset] += share;
+    var weightIndex = 0;
+    for (var index = start; index < start + span; index++) {
+      if (!(flexible?.call(index) ?? true)) continue;
+      final share = total > 0
+          ? deficit * weights[weightIndex] / total
+          : deficit / flexibleCount;
+      columns[index] += share;
+      weightIndex += 1;
     }
   }
 
@@ -864,6 +1027,70 @@ extension _TableLayoutMethods on _LayoutContext {
     if (parsed == null || parsed < 1) return 1;
     return parsed.clamp(1, 1000);
   }
+
+  /// Column track declarations from the colgroup/col children of [element].
+  /// A colgroup without col children declares placeholder tracks for its own
+  /// span; per HTML the span attribute is ignored once col children exist.
+  /// Widths come from CSS first and the width attribute second, so a px value
+  /// pins its columns while a percentage records an expectation.
+  List<_ColumnTrack> _collectColumnTracks(
+    WeftElement element, {
+    required WeftComputedStyle style,
+    required List<WeftElement> ancestors,
+  }) {
+    final tracks = <_ColumnTrack>[];
+    void addCol(WeftElement col) {
+      final colStyle = styleResolver.resolve(
+        col,
+        parent: style,
+        ancestors: ancestors,
+      );
+      double? fixed;
+      double? percent;
+      final attributePercent = _attributePercent(col, 'width');
+      if (colStyle.width != null) {
+        fixed = colStyle.width;
+      } else if (colStyle.widthPercent != null) {
+        percent = colStyle.widthPercent;
+      } else if (attributePercent != null) {
+        percent = attributePercent;
+      } else {
+        fixed = _attributeLength(col, 'width');
+      }
+      tracks.add(
+        _ColumnTrack(
+          span: _spanAttribute(col, 'span'),
+          fixedWidth: fixed,
+          percentWidth: percent,
+        ),
+      );
+    }
+
+    for (final child in element.children) {
+      if (child is! WeftElement) continue;
+      switch (child.tag) {
+        case 'colgroup':
+          final cols = child.children
+              .whereType<WeftElement>()
+              .where((col) => col.tag == 'col')
+              .toList();
+          if (cols.isEmpty) {
+            for (var index = 0;
+                index < _spanAttribute(child, 'span');
+                index++) {
+              tracks.add(_ColumnTrack());
+            }
+          } else {
+            for (final col in cols) {
+              addCol(col);
+            }
+          }
+        case 'col':
+          addCol(child);
+      }
+    }
+    return tracks;
+  }
 }
 
 double? _attributeLength(WeftElement element, String name) {
@@ -872,6 +1099,27 @@ double? _attributeLength(WeftElement element, String name) {
   final parsed = double.tryParse(value);
   if (parsed == null || !parsed.isFinite || parsed <= 0) return null;
   return parsed;
+}
+
+/// Parses a col width attribute percentage (25 for `width="25%"`), or null
+/// for any other value.
+double? _attributePercent(WeftElement element, String name) {
+  final value = element.attribute(name);
+  if (value == null || !value.endsWith('%')) return null;
+  final parsed = double.tryParse(value.substring(0, value.length - 1));
+  if (parsed == null || !parsed.isFinite || parsed <= 0) return null;
+  return parsed;
+}
+
+/// One column track declaration collected from colgroup/col elements. Fixed
+/// and percentage widths are mutually exclusive; a track with neither is a
+/// pure placeholder that keeps its columns auto-sized.
+final class _ColumnTrack {
+  _ColumnTrack({this.span = 1, this.fixedWidth, this.percentWidth});
+
+  final int span;
+  final double? fixedWidth;
+  final double? percentWidth;
 }
 
 /// A table cell placed in the slot grid. Laid out at the origin, then

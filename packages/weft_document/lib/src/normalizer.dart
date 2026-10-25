@@ -262,6 +262,18 @@ final class _TreeBuilder {
         );
         continue;
       }
+      if ((tag == 'colgroup' || tag == 'col') && _tableDepth == 0) {
+        // Column declarations only carry meaning inside a table; the HTML5
+        // parser normally keeps them there, so this is a defensive guard for
+        // other tree sources.
+        _addIssue(
+          SupportIssue(
+            code: 'html.table.col.unplaced',
+            message: 'Element "$tag" outside of a table is not rendered.',
+          ),
+        );
+        continue;
+      }
       if (!WeftHtmlSpec.allowedTags.contains(tag)) {
         _addIssue(
           SupportIssue(
@@ -302,6 +314,8 @@ final class _TreeBuilder {
         children = _diagnoseTableChildren(node, children);
       } else if (tag == 'tr') {
         children = _diagnoseTableRowChildren(node, children);
+      } else if (tag == 'colgroup') {
+        children = _diagnoseColgroupChildren(children);
       }
       result.add(
         WeftElement(
@@ -318,25 +332,36 @@ final class _TreeBuilder {
 
   /// Content that a table section cannot place (stray text, unknown blocks)
   /// must be diagnosed: the engine skips it during layout, and dropping it
-  /// silently would change the document meaning without a report.
+  /// silently would change the document meaning without a report. Column
+  /// declarations are only meaningful as direct children of the table.
   List<WeftNode> _diagnoseTableChildren(
     html_dom.Element element,
     List<WeftNode> children,
   ) {
+    final allowedTags = element.localName?.toLowerCase() == 'table'
+        ? const {
+            'caption',
+            'col',
+            'colgroup',
+            'thead',
+            'tbody',
+            'tfoot',
+            'tr',
+          }
+        : const {
+            'caption',
+            'thead',
+            'tbody',
+            'tfoot',
+            'tr',
+          };
     var hasStrayContent = false;
     for (final node in element.nodes) {
       if (node is html_dom.Text) {
         if (node.data.trim().isNotEmpty) hasStrayContent = true;
       } else if (node is html_dom.Element) {
         final childTag = node.localName?.toLowerCase();
-        if (childTag == null ||
-            !(const {
-              'caption',
-              'thead',
-              'tbody',
-              'tfoot',
-              'tr',
-            }).contains(childTag)) {
+        if (childTag == null || !allowedTags.contains(childTag)) {
           hasStrayContent = true;
         }
       }
@@ -380,6 +405,32 @@ final class _TreeBuilder {
     return children;
   }
 
+  /// A colgroup only holds col elements. Anything else is dropped with a
+  /// report: the engine reads column declarations from col children only, so
+  /// keeping stray content would silently change the document meaning.
+  List<WeftNode> _diagnoseColgroupChildren(List<WeftNode> children) {
+    final kept = <WeftNode>[];
+    var droppedContent = false;
+    for (final node in children) {
+      if (node is WeftElement && node.tag == 'col') {
+        kept.add(node);
+        continue;
+      }
+      if (node is WeftText && node.text.trim().isEmpty) continue;
+      droppedContent = true;
+    }
+    if (droppedContent) {
+      _addIssue(
+        const SupportIssue(
+          code: 'html.table.colgroup.content.unplaced',
+          message: 'Content inside a colgroup other than col elements is not '
+              'rendered.',
+        ),
+      );
+    }
+    return kept;
+  }
+
   Map<String, String> _sanitizeAttributes(
     html_dom.Element element,
     String tag,
@@ -421,7 +472,19 @@ final class _TreeBuilder {
           continue;
         }
         value = '$dimension';
-      } else if (name == 'colspan' || name == 'rowspan') {
+      } else if (name == 'width' && tag == 'col') {
+        final parsed = _columnWidth(value);
+        if (parsed == null) {
+          _addIssue(
+            const SupportIssue(
+              code: 'table.col.width.invalid',
+              message: 'Invalid column width attribute was removed.',
+            ),
+          );
+          continue;
+        }
+        value = parsed;
+      } else if (name == 'colspan' || name == 'rowspan' || name == 'span') {
         final span = int.tryParse(value);
         if (span == null || span <= 0) {
           _addIssue(
@@ -497,6 +560,19 @@ final class _TreeBuilder {
       return '';
     }
     return value;
+  }
+
+  /// Validates a col width attribute: a positive px number or percentage.
+  /// The raw value is kept so the engine can interpret the unit.
+  String? _columnWidth(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return null;
+    final numberText = trimmed.endsWith('%')
+        ? trimmed.substring(0, trimmed.length - 1)
+        : trimmed;
+    final number = double.tryParse(numberText);
+    if (number == null || !number.isFinite || number <= 0) return null;
+    return trimmed;
   }
 
   String _sanitizeImageSource(String value) {

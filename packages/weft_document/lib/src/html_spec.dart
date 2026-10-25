@@ -6,6 +6,8 @@ abstract final class WeftHtmlSpec {
     'br',
     'caption',
     'code',
+    'col',
+    'colgroup',
     'dd',
     'div',
     'dl',
@@ -41,7 +43,7 @@ abstract final class WeftHtmlSpec {
     'ul',
   };
 
-  static const voidTags = <String>{'br', 'hr', 'img'};
+  static const voidTags = <String>{'br', 'col', 'hr', 'img'};
 
   static const fallbackTags = <String>{
     'audio',
@@ -73,6 +75,8 @@ abstract final class WeftHtmlSpec {
 
   static const tagAttributes = <String, Set<String>>{
     'a': {'href'},
+    'col': {'span', 'width'},
+    'colgroup': {'span'},
     'img': {'src', 'alt', 'width', 'height'},
     'td': {'colspan', 'rowspan'},
     'th': {'colspan', 'rowspan'},

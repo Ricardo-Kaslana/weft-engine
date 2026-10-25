@@ -1,0 +1,132 @@
+{
+  "documentHeight": 263,
+  "elements": {
+    "title": {
+      "tag": "h2",
+      "left": 0,
+      "top": 19.91,
+      "width": 360,
+      "height": 31.19
+    },
+    "t1": {
+      "tag": "table",
+      "left": 0,
+      "top": 71,
+      "width": 361,
+      "height": 136
+    },
+    "cap": {
+      "tag": "caption",
+      "left": 0,
+      "top": 71,
+      "width": 361,
+      "height": 24
+    },
+    "h1": {
+      "tag": "th",
+      "left": 0.5,
+      "top": 95.5,
+      "width": 80,
+      "height": 37
+    },
+    "h2": {
+      "tag": "th",
+      "left": 80.5,
+      "top": 95.5,
+      "width": 110,
+      "height": 37
+    },
+    "h3": {
+      "tag": "th",
+      "left": 190.5,
+      "top": 95.5,
+      "width": 90,
+      "height": 37
+    },
+    "h4": {
+      "tag": "th",
+      "left": 280.5,
+      "top": 95.5,
+      "width": 40.33,
+      "height": 37
+    },
+    "h5": {
+      "tag": "th",
+      "left": 320.83,
+      "top": 95.5,
+      "width": 39.67,
+      "height": 37
+    },
+    "r1": {
+      "tag": "td",
+      "left": 0.5,
+      "top": 132.5,
+      "width": 80,
+      "height": 37
+    },
+    "u1": {
+      "tag": "td",
+      "left": 80.5,
+      "top": 132.5,
+      "width": 110,
+      "height": 37
+    },
+    "v1": {
+      "tag": "td",
+      "left": 190.5,
+      "top": 132.5,
+      "width": 90,
+      "height": 37
+    },
+    "w1": {
+      "tag": "td",
+      "left": 280.5,
+      "top": 132.5,
+      "width": 40.33,
+      "height": 37
+    },
+    "x1": {
+      "tag": "td",
+      "left": 320.83,
+      "top": 132.5,
+      "width": 39.67,
+      "height": 37
+    },
+    "r2": {
+      "tag": "td",
+      "left": 0.5,
+      "top": 169.5,
+      "width": 80,
+      "height": 37
+    },
+    "u2": {
+      "tag": "td",
+      "left": 80.5,
+      "top": 169.5,
+      "width": 110,
+      "height": 37
+    },
+    "v2": {
+      "tag": "td",
+      "left": 190.5,
+      "top": 169.5,
+      "width": 90,
+      "height": 37
+    },
+    "w2": {
+      "tag": "td",
+      "left": 280.5,
+      "top": 169.5,
+      "width": 80,
+      "height": 37
+    },
+    "after": {
+      "tag": "p",
+      "left": 0,
+      "top": 223,
+      "width": 360,
+      "height": 24
+    }
+  },
+  "words": {}
+}

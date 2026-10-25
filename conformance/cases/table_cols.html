@@ -1,0 +1,27 @@
+<style>
+  body { font-family: "WeftRoboto"; }
+  table { border-collapse: collapse; }
+  td, th { border: 1px solid #d0d7de; padding: 6px 10px; vertical-align: top; }
+  th { font-weight: 700; text-align: left; }
+  col.narrow { width: 80px; }
+  col.wide { width: 110px; }
+  col.share { width: 25%; }
+</style>
+<h2 data-geo="title">Column track geometry baseline</h2>
+<table data-geo="t1" style="width: 360px">
+  <caption data-geo="cap">Quarterly forecast</caption>
+  <colgroup>
+    <col class="narrow">
+    <col class="wide">
+  </colgroup>
+  <col class="share">
+  <colgroup span="2"></colgroup>
+  <thead>
+    <tr><th data-geo="h1">Sku</th><th data-geo="h2">Stock</th><th data-geo="h3">Share</th><th data-geo="h4">A</th><th data-geo="h5">B</th></tr>
+  </thead>
+  <tbody>
+    <tr><td data-geo="r1">North</td><td data-geo="u1">1,240</td><td data-geo="v1">48,200</td><td data-geo="w1">A</td><td data-geo="x1">B</td></tr>
+    <tr><td data-geo="r2">South</td><td data-geo="u2">2,410</td><td data-geo="v2">31,900</td><td data-geo="w2" colspan="2">Merged</td></tr>
+  </tbody>
+</table>
+<p data-geo="after">Paragraph after the tracked table.</p>
