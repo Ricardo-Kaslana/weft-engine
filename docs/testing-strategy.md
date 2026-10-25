@@ -30,6 +30,7 @@ dart run tool/verify.dart
 - 图片资源：宿主解析、异步解码后的重新布局和资源释放。
 - 稳健性：窄宽度换行、中文文本、300 段长文档。
 - 链接：跨行区域、相邻链接、非链接区域、渲染表面命中和公开回调。
+- 命中裁剪（ADR 0020）：裁剪路径与全量扫描的逐点等价、chrome 散落文本命中、负 margin 跨块重叠下的扁平序、块间隙与文档外空点；`WeftView` 滚动透传（注入 controller、手势滚动、不加入 PrimaryScrollController）。
 - 盒模型：content-box/border-box、最小/最大宽度、边框简写覆盖和不支持样式的降级。
 - 一致性语料：文章、排版、盒模型、嵌套列表和 CJK 的内容/链接/盒边界检查。
 - 公开层：控制器、显式回退、链接回调、图片解析器转发和渲染表面替换。
@@ -87,6 +88,10 @@ flutter test test/perf_gate_test.dart --no-pub --timeout 120s     # CI 门禁
 | paintArticle300Direct | 直绘 article300 全部命令到新画布(ADR 0017 分块前的全量重绘路径,作为基线保留) | ~1.7–2.1 ms | 500 ms |
 | paintArticle300Full | `RenderWeftSurface` 分块绘制,可见区域 = 整篇文档(全部块命中) | ~0.9–1.1 ms | 500 ms |
 | paintArticle300Window | `RenderWeftSurface` 分块绘制,800px 高窗口置于文档纵向中部 | <0.1 ms | 500 ms |
+| hitAnchorTop | 对挂载文档的 article300 布局结果调用一次 `anchorAt`,点取文档顶部首个文本字形中心(ADR 0020) | 改前 ~20 µs → 改后 ~3 µs | 500 ms |
+| hitAnchorMiddle | 同上,点取文档中部 | 改前 ~11 µs → 改后 ~2–3 µs | 500 ms |
+| hitAnchorBottom | 同上,点取文档底部 | 改前 ~2 µs → 改后 ~3 µs | 500 ms |
+| hitLinkArticle | 同一布局调用一次 `linkAt`,点取中部链接矩形中心 | 改前 ~8 µs → 改后 ~1 µs | 500 ms |
 
 上限 = 实测中位数的 10 倍,向上取整到整百 ms,下限 500 ms(中位数低于 50 ms 的场景直接取 500 ms)。上限刻意放宽,原因:
 
@@ -94,9 +99,13 @@ flutter test test/perf_gate_test.dart --no-pub --timeout 120s     # CI 门禁
 - CI runner 与开发机的性能差异、虚拟化和并发任务抖动都远小于 10 倍余量;
 - 目标是拦截"数量级变慢"的回归(如缓存失效、重复文本测量、浮动语境下的整段重排),不追精度;真实画像仍按"性能测量"一节的方法离线采集 P50/P95/P99。
 
+命中场景(hit*)的单次调用在微秒量级,基准工具对它们以 µs 打印;其门禁全部落在 500 ms 下限,只能拦截灾难性(千倍级)回归,精确对比以上表的改前/改后数字为准。改前数字在落地裁剪前测得(未挂载快照、全量逐命令/逐链接扫描的路径),改后为挂载快照后的分块裁剪路径(ADR 0020);两轮测量同为 1 次预热 + 5 次采样取中位数。
+
 分块渲染等后续优化的对比方法:动手前先跑基准工具留底,改完后在同一场景上复测并比较中位数(以中位数为准,不看单次最快值),同时确认门禁仍绿;若中位数改善明显,可按同一规则(10 倍、取整到整百、下限 500 ms)收紧上限并更新本表。场景构造代码在基准工具与门禁测试中保持逐字一致,改动任一侧必须同步另一侧,否则上限与场景失去对应关系。
 
 分块渲染(ADR 0017)按此方法落地:paintArticle300Direct 直绘全部命令,是分块前 paint 的基线场景,永久保留;paintArticle300Full/Window 走 `RenderWeftSurface.debugPaintChunks` 生产路径(基准与门禁均以预热建好 Picture 缓存后的稳态绘制为测量对象)。分块只允许改变执行方式,不允许改变输出:块绘制与直绘的逐字节像素等价由 `test/chunked_rendering_test.dart` 固化,黄金基线不因分块调整。
+
+命中裁剪(ADR 0020)按同一方法落地:hitAnchor*/hitLinkArticle 的计时体恰为一次 `anchorAt`/`linkAt` 调用,基准与门禁均以预热建好命中索引后的稳态解析为测量对象。裁剪只允许改变执行方式,不允许改变结果:裁剪路径与全量扫描的逐点一致(含块间隙空点、chrome 散落文本、负 margin 跨块重叠)由 `test/hit_culling_test.dart` 固化。
 
 ## Runtime 安全测试
 

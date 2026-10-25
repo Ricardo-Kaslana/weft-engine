@@ -41,6 +41,7 @@ class WeftView extends StatefulWidget {
   const WeftView({
     super.key,
     required this.controller,
+    this.scrollController,
     this.fallbackBuilder,
     this.onLinkTap,
     this.onSelectionChanged,
@@ -52,6 +53,14 @@ class WeftView extends StatefulWidget {
   });
 
   final WeftController controller;
+
+  /// Optional controller for the view's internal vertical scroll view
+  /// (ADR 0020). The view always scrolls its own content — the surface is
+  /// laid out at the full document height — and never joins the primary
+  /// scroll group, so a host passes a controller here to read or drive the
+  /// scroll offset, not to opt out of internal scrolling.
+  final ScrollController? scrollController;
+
   final WeftFallbackBuilder? fallbackBuilder;
   final ValueChanged<WeftLinkRegion>? onLinkTap;
 
@@ -368,14 +377,22 @@ class WeftViewState extends State<WeftView> {
           child: surface,
         );
         _scheduleOverlaySyncIfNeeded();
-        // Overlay positions are surface-local and the Stack wraps the
-        // content one-to-one, so the chrome scrolls with the document
-        // without any viewport bookkeeping.
-        return Stack(
-          children: [
-            content,
-            ..._buildSelectionOverlays(),
-          ],
+        // The view owns vertical scrolling: the surface is laid out at the
+        // full document height and the scroll view clips and offsets it.
+        // primary: false keeps this scroll view detached from the
+        // PrimaryScrollController even when no [WeftView.scrollController]
+        // is injected. Overlay positions are surface-local and the Stack
+        // wraps the content one-to-one inside the scroll view, so the chrome
+        // scrolls with the document without any viewport bookkeeping.
+        return SingleChildScrollView(
+          controller: widget.scrollController,
+          primary: false,
+          child: Stack(
+            children: [
+              content,
+              ..._buildSelectionOverlays(),
+            ],
+          ),
         );
       },
     );

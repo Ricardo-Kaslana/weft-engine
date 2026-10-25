@@ -391,6 +391,9 @@ class RenderWeftSurface extends RenderBox {
       textScaler: _textScaler,
       images: _resolvedImages,
     );
+    // Hand the laid-out snapshot to the result so hit queries can build
+    // their chunk index (ADR 0020); without it they fall back to full scans.
+    current.attachDocument(_document);
     _layout = current;
     previous?.dispose();
     size = constraints.constrain(Size(width, current.size.height));

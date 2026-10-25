@@ -21,6 +21,9 @@ import 'package:weft_engine/weft_engine.dart';
 // Measured medians on the reference machine (2026-10, Windows dev box):
 // article300 ~52-56 ms, table48 ~26-28 ms, floatWrap ~6-9 ms,
 // selection300 ~0.7-0.9 ms. Medians below 50 ms use the 500 ms floor.
+// The hit scenarios (ADR 0020) resolve a single point in the microsecond
+// range, so their gates sit at the floor and only catch catastrophic
+// regressions; the real comparison lives in docs/testing-strategy.md.
 const int _article300CapMs = 600; // 10x ~55 ms, rounded up to a hundred.
 const int _table48CapMs = 500; // Median < 50 ms: floor cap.
 const int _floatWrapCapMs = 500; // Median < 50 ms: floor cap.
@@ -28,6 +31,7 @@ const int _selection300CapMs = 500; // Median < 50 ms: floor cap.
 const int _paintDirectCapMs = 500; // Median < 50 ms: floor cap.
 const int _paintFullCapMs = 500; // Median < 50 ms: floor cap.
 const int _paintWindowCapMs = 500; // Median < 50 ms: floor cap.
+const int _hitCapMs = 500; // Median in µs range: floor cap.
 
 const double _viewportWidth = 360;
 const double _paintWindowHeight = 800;
@@ -133,6 +137,64 @@ void main() {
       });
     });
   });
+
+  test('perf gate: hitAnchorTop under $_hitCapMs ms', () {
+    final (layout, top, _, _, _) = _hitScenario('gate-hit-top');
+    addTearDown(layout.dispose);
+    _runUnderCap(_hitCapMs, 'hitAnchorTop', () {
+      layout.anchorAt(top);
+    });
+  });
+
+  test('perf gate: hitAnchorMiddle under $_hitCapMs ms', () {
+    final (layout, _, middle, _, _) = _hitScenario('gate-hit-middle');
+    addTearDown(layout.dispose);
+    _runUnderCap(_hitCapMs, 'hitAnchorMiddle', () {
+      layout.anchorAt(middle);
+    });
+  });
+
+  test('perf gate: hitAnchorBottom under $_hitCapMs ms', () {
+    final (layout, _, _, bottom, _) = _hitScenario('gate-hit-bottom');
+    addTearDown(layout.dispose);
+    _runUnderCap(_hitCapMs, 'hitAnchorBottom', () {
+      layout.anchorAt(bottom);
+    });
+  });
+
+  test('perf gate: hitLinkArticle under $_hitCapMs ms', () {
+    final (layout, _, _, _, link) = _hitScenario('gate-hit-link');
+    addTearDown(layout.dispose);
+    _runUnderCap(_hitCapMs, 'hitLinkArticle', () {
+      layout.linkAt(link);
+    });
+  });
+}
+
+/// One attached article layout plus the known hit points for the hit gates,
+/// mirroring the hit scenarios in tool/layout_benchmark_test.dart. Every
+/// point is asserted to resolve a real hit before it is timed.
+(WeftLayoutResult, Offset, Offset, Offset, Offset) _hitScenario(String id) {
+  final document = _normalize(_articleHtml(), id);
+  final layout = const WeftLayoutEngine().layout(
+    document,
+    width: _viewportWidth,
+  );
+  layout.attachDocument(document);
+  Offset glyphPoint(WeftTextEntry entry) {
+    return layout.textRectsForNode(entry.nodeId, 0, 1).first.center;
+  }
+
+  final entries = layout.textIndex!.entries;
+  final top = glyphPoint(entries.first);
+  final middle = glyphPoint(entries[entries.length ~/ 2]);
+  final bottom = glyphPoint(entries.last);
+  final link = layout.links[layout.links.length ~/ 2].rects.first.center;
+  expect(layout.anchorAt(top), isNotNull);
+  expect(layout.anchorAt(middle), isNotNull);
+  expect(layout.anchorAt(bottom), isNotNull);
+  expect(layout.linkAt(link), isNotNull);
+  return (layout, top, middle, bottom, link);
 }
 
 /// Records painting commands onto a throwaway canvas and releases the

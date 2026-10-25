@@ -50,6 +50,29 @@ void main() {
     final paintLayout = engine.layout(article, width: _viewportWidth);
     addTearDown(paintLayout.dispose);
 
+    // Hit scenarios resolve single points against the article layout. The
+    // document is attached so the timed path is the chunk-culled hit
+    // resolution (ADR 0020), and points are resolved up front through the
+    // logical text index so the timed body is exactly one anchorAt/linkAt
+    // call. Every scenario is asserted to hit real content before it is
+    // timed.
+    paintLayout.attachDocument(article);
+    ui.Offset glyphPoint(WeftTextEntry entry) {
+      return paintLayout.textRectsForNode(entry.nodeId, 0, 1).first.center;
+    }
+
+    final articleEntries = paintLayout.textIndex!.entries;
+    final hitTopPoint = glyphPoint(articleEntries.first);
+    final hitMiddlePoint =
+        glyphPoint(articleEntries[articleEntries.length ~/ 2]);
+    final hitBottomPoint = glyphPoint(articleEntries.last);
+    final hitLink = paintLayout.links[paintLayout.links.length ~/ 2];
+    final hitLinkPoint = hitLink.rects.first.center;
+    expect(paintLayout.anchorAt(hitTopPoint), isNotNull);
+    expect(paintLayout.anchorAt(hitMiddlePoint), isNotNull);
+    expect(paintLayout.anchorAt(hitBottomPoint), isNotNull);
+    expect(paintLayout.linkAt(hitLinkPoint), isNotNull);
+
     // The chunked scenarios drive a detached RenderWeftSurface through the
     // production paint path (partition, picture cache, culling). The warm-up
     // run builds the picture cache, so the timed runs measure steady-state
@@ -108,6 +131,18 @@ void main() {
           paintSurface.debugPaintChunks(canvas, visible: scrolledWindow);
         });
       },
+      'hitAnchorTop': () {
+        paintLayout.anchorAt(hitTopPoint);
+      },
+      'hitAnchorMiddle': () {
+        paintLayout.anchorAt(hitMiddlePoint);
+      },
+      'hitAnchorBottom': () {
+        paintLayout.anchorAt(hitBottomPoint);
+      },
+      'hitLinkArticle': () {
+        paintLayout.linkAt(hitLinkPoint);
+      },
     };
 
     final report = StringBuffer();
@@ -124,10 +159,15 @@ void main() {
       final median = samples[samples.length ~/ 2];
       // Nearest-rank P95 over five samples is the maximum sample.
       final p95 = samples.last;
+      // Single hit resolutions land in the microsecond range, where
+      // millisecond precision would round every sample to zero.
+      final inMicros = entry.key.startsWith('hit');
+      final scale = inMicros ? 1000.0 : 1.0;
+      final unit = inMicros ? 'µs' : 'ms';
       report.writeln(
-        '${entry.key.padRight(12)} median ${median.toStringAsFixed(1)} ms'
-        '  p95 ${p95.toStringAsFixed(1)} ms'
-        '  samples [${samples.map((value) => value.toStringAsFixed(1)).join(', ')}]',
+        '${entry.key.padRight(12)} median ${(median * scale).toStringAsFixed(1)} $unit'
+        '  p95 ${(p95 * scale).toStringAsFixed(1)} $unit'
+        '  samples [${samples.map((value) => (value * scale).toStringAsFixed(1)).join(', ')}]',
       );
     }
     // ignore: avoid_print
