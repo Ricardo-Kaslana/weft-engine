@@ -128,6 +128,9 @@ final class _StyleBuilder {
   double? width;
   double? minWidth;
   double? maxWidth;
+  double? height;
+  double? widthPercent;
+  double? heightPercent;
   WeftBoxSizing boxSizing = WeftBoxSizing.contentBox;
   WeftFloat float = WeftFloat.none;
   WeftClear clear = WeftClear.none;
@@ -135,6 +138,8 @@ final class _StyleBuilder {
   double borderSpacingHorizontal = 2;
   double borderSpacingVertical = 2;
   WeftVerticalAlign verticalAlign = WeftVerticalAlign.top;
+  WeftInlineVerticalAlign inlineVerticalAlign =
+      WeftInlineVerticalAlign.baseline;
   WeftBorderSide borderTop = WeftBorderSide.none;
   WeftBorderSide borderRight = WeftBorderSide.none;
   WeftBorderSide borderBottom = WeftBorderSide.none;
@@ -236,6 +241,11 @@ final class _StyleBuilder {
       case 'table':
         // Browsers apply no default margins to tables.
         display = WeftDisplay.block;
+      case 'img':
+        // The UA stylesheet renders replaced content inline, so an image
+        // without author styles joins the surrounding line as an atom.
+        // `display: block` opts back into the block replacement box.
+        display = WeftDisplay.inline;
       case 'caption':
         display = WeftDisplay.block;
         textAlign = TextAlign.center;
@@ -331,6 +341,13 @@ final class _StyleBuilder {
     if (widthValue != null) {
       final normalized = widthValue.trim().toLowerCase();
       width = normalized == 'auto' ? null : _length(widthValue, fontSize);
+      widthPercent = normalized == 'auto' ? null : _percentage(widthValue);
+    }
+    final heightValue = declarations['height'];
+    if (heightValue != null) {
+      final normalized = heightValue.trim().toLowerCase();
+      height = normalized == 'auto' ? null : _length(heightValue, fontSize);
+      heightPercent = normalized == 'auto' ? null : _percentage(heightValue);
     }
     final minWidthValue = declarations['min-width'];
     if (minWidthValue != null) {
@@ -442,12 +459,19 @@ final class _StyleBuilder {
 
     final verticalAlignValue = declarations['vertical-align'];
     if (verticalAlignValue != null) {
-      verticalAlign = switch (verticalAlignValue.trim().toLowerCase()) {
+      final normalized = verticalAlignValue.trim().toLowerCase();
+      verticalAlign = switch (normalized) {
         'top' => WeftVerticalAlign.top,
         'middle' || 'baseline' => WeftVerticalAlign.middle,
         'bottom' => WeftVerticalAlign.bottom,
         _ => verticalAlign,
       };
+      // Table cells merge baseline into middle (ADR 0012); inline replaced
+      // content keeps the distinction. Unsupported values degrade to the
+      // CSS default for replaced content, which is baseline.
+      inlineVerticalAlign = normalized == 'middle'
+          ? WeftInlineVerticalAlign.middle
+          : WeftInlineVerticalAlign.baseline;
     }
 
     marginTop = _length(
@@ -518,6 +542,9 @@ final class _StyleBuilder {
       width: width,
       minWidth: minWidth,
       maxWidth: maxWidth,
+      height: height,
+      widthPercent: widthPercent,
+      heightPercent: heightPercent,
       boxSizing: boxSizing,
       float: float,
       clear: clear,
@@ -525,6 +552,7 @@ final class _StyleBuilder {
       borderSpacingHorizontal: borderSpacingHorizontal,
       borderSpacingVertical: borderSpacingVertical,
       verticalAlign: verticalAlign,
+      inlineVerticalAlign: inlineVerticalAlign,
       borderTop: borderTop,
       borderRight: borderRight,
       borderBottom: borderBottom,
@@ -603,6 +631,17 @@ final class _StyleBuilder {
     if (parsed == null || !parsed.isFinite) return null;
     if (!allowNegative && parsed < 0) return null;
     return parsed;
+  }
+
+  /// Parses a `<number>%` declaration into its percentage value (50 for
+  /// "50%"), or null for any other unit.
+  static double? _percentage(String? raw) {
+    if (raw == null) return null;
+    final value = raw.trim().toLowerCase();
+    if (!value.endsWith('%')) return null;
+    final number = double.tryParse(value.substring(0, value.length - 1));
+    if (number == null || !number.isFinite || number < 0) return null;
+    return number;
   }
 
   static double? _fontSize(String raw, double parentSize) {

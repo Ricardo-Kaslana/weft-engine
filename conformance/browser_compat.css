@@ -122,7 +122,9 @@ li {
 }
 
 img {
-  display: block;
+  /* Matches Weft's tag default (style_resolver.dart): the UA stylesheet
+     renders replaced content inline; cases opt into block per element. */
+  display: inline;
 }
 
 table {

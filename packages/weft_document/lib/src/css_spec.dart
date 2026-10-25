@@ -17,6 +17,7 @@ abstract final class WeftCssSpec {
     'font-size',
     'font-style',
     'font-weight',
+    'height',
     'line-height',
     'list-style-type',
     'margin',

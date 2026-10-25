@@ -301,7 +301,7 @@ final class _LayoutContext {
     var trailingCollapses =
         style.borderBottom.width == 0 && style.paddingBottom == 0;
     var orderedItem = 0;
-    final inline = _InlineAccumulator(this);
+    final inline = _InlineAccumulator(this, containingWidth: contentWidth);
 
     double flushInline() {
       if (!inline.hasContent) return 0;
@@ -357,6 +357,13 @@ final class _LayoutContext {
               top: cursor,
               floats: floats,
             );
+            continue;
+          }
+
+          // Inline-displayed resolved images join the line as atomic
+          // placeholders instead of becoming block items.
+          if (childStyle.display == WeftDisplay.inline) {
+            inline.addImageAtom(child, childStyle, image);
             continue;
           }
 
@@ -539,6 +546,17 @@ final class _LayoutContext {
     final chromeWidth = style.horizontalPadding + style.horizontalBorder;
     final chromeHeight = style.verticalPadding + style.verticalBorder;
     final cssWidth = style.width;
+    final cssHeight = style.height;
+    // Percentage heights resolve as auto: the parent height is unknown while
+    // content flows, so no percentage can be computed against it.
+    final resolvedHeight = cssHeight == null
+        ? null
+        : math.max(
+            0.0,
+            style.boxSizing == WeftBoxSizing.borderBox
+                ? cssHeight - chromeHeight
+                : cssHeight,
+          );
 
     double contentWidth;
     double? explicitHeight;
@@ -546,7 +564,24 @@ final class _LayoutContext {
       contentWidth = style.boxSizing == WeftBoxSizing.borderBox
           ? cssWidth - chromeWidth
           : cssWidth;
-      explicitHeight = attributeHeight;
+      explicitHeight = resolvedHeight ?? attributeHeight;
+    } else if (style.widthPercent != null) {
+      // Percentage widths resolve against the containing block's content
+      // width before the image's own margins shorten the usable space.
+      // Intrinsic measurement passes an infinite width, where percentages
+      // behave as auto and fall back to the natural size, matching CSS.
+      final resolved = availableWidth.isFinite
+          ? availableWidth * style.widthPercent! / 100
+          : naturalWidth;
+      contentWidth = style.boxSizing == WeftBoxSizing.borderBox
+          ? resolved - chromeWidth
+          : resolved;
+      explicitHeight = resolvedHeight ?? attributeHeight;
+    } else if (resolvedHeight != null) {
+      // An explicit CSS height with an auto width derives the width from the
+      // ratio. No explicit height is recorded here, so the min/max clamps
+      // below rescale both axes together and keep the ratio intact.
+      contentWidth = resolvedHeight * ratio;
     } else if (attributeWidth != null && attributeHeight != null) {
       contentWidth = attributeWidth;
       explicitHeight = attributeHeight;
@@ -906,6 +941,9 @@ final class _LayoutContext {
     if (element.tag == 'hr') return false;
     // A table box never collapses through itself.
     if (element.tag == 'table') return false;
+    // Replaced content always contributes height, so a box holding only an
+    // image never collapses through.
+    if (element.tag == 'img') return false;
     // An empty list item still renders a marker, so it must be laid out.
     if (style.display == WeftDisplay.listItem) return false;
     final childAncestors = <WeftElement>[...ancestors, element];
@@ -946,6 +984,9 @@ final class _LayoutContext {
     WeftComputedStyle style,
     List<WeftElement> ancestors,
   ) {
+    // Replaced content is never empty, even though it has no children for
+    // the recursion below to inspect.
+    if (element.tag == 'img') return false;
     final childAncestors = <WeftElement>[...ancestors, element];
     for (final child in element.children) {
       if (child is WeftText) {
@@ -1004,6 +1045,7 @@ final class _LayoutContext {
             runs: inline.runSpecs(line.textStart, line.textEnd),
           ),
         );
+        _addAtomCommands(line.atomPlacements, Offset(line.x, line.y));
       }
       links.addAll(lines.links);
       return math.max(0, lines.bottom - y);
@@ -1030,10 +1072,30 @@ final class _LayoutContext {
         runs: inline.runSpecs(0, inlineLayout.textEnd),
       ),
     );
+    _addAtomCommands(inlineLayout.atomPlacements, offset);
     for (final link in inlineLayout.links) {
       links.add(link.shift(offset));
     }
     return height;
+  }
+
+  /// Emits one image command per inline atom at its laid-out content rect.
+  void _addAtomCommands(List<_AtomPlacement> placements, ui.Offset offset) {
+    for (final placement in placements) {
+      commands.add(
+        WeftImagePaintCommand(
+          nodeId: placement.nodeId,
+          image: placement.image,
+          destination: placement.destination.shift(offset),
+        ),
+      );
+      boxes.add(
+        WeftLayoutBox(
+          nodeId: placement.nodeId,
+          rect: placement.boxRect.shift(offset),
+        ),
+      );
+    }
   }
 
   String? _markerFor({

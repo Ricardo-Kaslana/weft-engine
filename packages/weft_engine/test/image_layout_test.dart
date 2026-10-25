@@ -22,8 +22,11 @@ void main() {
   });
 
   test('block image uses explicit attributes as its content box', () {
+    // display: block opts an image back into the block replacement box;
+    // unstyled images are inline atoms (see inline_image_test.dart).
     final document = const WeftNormalizer().normalize(
-      '<img id="pic" src="asset:pic.png" width="200" height="100">',
+      '<img id="pic" src="asset:pic.png" '
+      'style="display: block" width="200" height="100">',
       id: 'block-image',
     );
     final layout = const WeftLayoutEngine().layout(

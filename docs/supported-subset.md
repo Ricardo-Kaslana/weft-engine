@@ -23,7 +23,7 @@
 | 列表 | `ul/ol/li` | 部分实现 | disc、decimal、none 和无障碍外的独立标记 |
 | 描述列表 | `dl/dt/dd` | 部分实现 | 块级显示，无专用样式 |
 | 链接 | `a` | 已实现 | URL 清洗、视觉样式、跨行命中矩形和宿主回调；导航由宿主决定 |
-| 图片 | `img` | 部分实现 | `src/alt/width/height`、块级替换盒、左右 Float、`clear` 和宿主资源解析；尚无行内基线混排 |
+| 图片 | `img` | 部分实现 | `src/alt/width/height`、块级替换盒、左右 Float、`clear` 和宿主资源解析；img 默认 `display: inline`，以原子参与基线混排，`display: block` 退回块级替换盒（ADR 0018） |
 | 表格 | `table/thead/tbody/tfoot/tr/th/td/caption` | 部分实现 | 槽位网格、`colspan/rowspan`、隐式行、caption、separate/collapse 边框与 `vertical-align`；嵌套表格触发回退，`colgroup/col` 不支持 |
 | 单元格跨距 | `colspan/rowspan` | 已实现 | 1..1000 清洗、跨列跨行、悬空 rowspan 生成隐式行 |
 | 脚本 | 可信 `ScriptUnit` | 阶段 4 | 当前任何 `script` 都要求回退 |
@@ -58,12 +58,13 @@
 | 盒模型 | `margin(-side)`、`padding(-side)` | 已实现非负 padding、可负 margin 和相邻/父子/空块折叠 |
 | 显示 | `display: block/inline/list-item/none` | 已实现 |
 | 列表 | `list-style-type: disc/decimal/none` | 已实现 |
-| 宽度 | `width/min-width/max-width/box-sizing` | 部分实现：块级 px/em/rem，不含百分比和 auto margin |
-| 高度 | `height/min-height/max-height` | 阶段 1 后续 |
+| 宽度 | `width/min-width/max-width/box-sizing` | 部分实现：块级 px/em/rem，图片另支持百分比（相对包含块，ADR 0018）；块级不含百分比和 auto margin |
+| 高度 | `height`（图片） | 部分实现：图片支持 CSS px 高度（宽度按比例推导）；height 百分比按 auto 处理；块级高度仍为内容驱动 |
 | 边框 | `border`、`border-top/right/bottom/left` | 部分实现：块级 solid，无圆角/虚线/独立宽高与颜色属性 |
 | 缩进与字距 | `text-indent/letter-spacing` | 阶段 1 后续 |
 | 定位 | `position/float/clear` | 部分实现：仅图片 Float，支持左右、clear 和跨段落行框缩短 |
 | 表格 | `border-collapse/border-spacing`、单元格 `vertical-align` | 已实现：separate（默认 2px 间距，含表缘）、collapse（中心线共享边，取最宽者）、top/middle/bottom 对齐（baseline 归并为 middle） |
+| 行内对齐 | 图片 `vertical-align: baseline/middle` | 部分实现：仅行内图片原子消费（默认 baseline）；top/bottom/长度/百分比退化为 baseline，表格单元格语义不受影响 |
 | Flexbox | 不进入当前布局 | 后续候选 |
 | transform、filter、动画 | 不进入引擎 | 不支持 |
 
@@ -88,7 +89,8 @@
 
 - 链接点击交给 `WeftView.onLinkTap`，引擎不会自行打开浏览器或执行导航。
 - 图片必须由宿主 `WeftImageResolver` 提供 `ImageProvider`；引擎不进行隐式网络请求。未解析或加载失败时显示 `alt` 文本。
-- 图片支持块级替换盒和左右 Float；非浮动图片位于段落中时会成为块级项，行内图片基线混排尚未实现。
+- 图片默认 `display: inline`（与浏览器 UA 样式表一致），以原子（U+FFFC 占位符）参与行内混排；显式 `display: block` 退回块级替换盒。行内原子忽略自身 `margin`，padding/border 只预留空间不绘制；`vertical-align` 只支持 baseline/middle。
+- 图片百分比宽度相对包含块 content 宽解析；CSS `height`（px）显式给出时宽度按比例推导；height 百分比按 auto 处理。
 - Float 仅支持作为块级容器直接子元素的 `img`；行内元素内部的嵌套浮动图片当前不参与布局。
 - 浮动图片自身的 `margin`、`padding` 和边框参与排除区；`clear` 作用于后续块级元素。
 - 宽度和边框只作用到块级盒；行内边框、百分比宽度、`auto` margin、CSS 高度和圆角尚未实现。
@@ -103,7 +105,7 @@
 
 当前已支持图片的左右浮动、逐行可用行框、`clear`、同侧堆叠、对侧并排、跨段落环绕和文档滚动高度。
 
-尚未支持任意元素的 Float、浮动与表格/行内格式化上下文的交互、`clear` 的 margin 合并细节，以及行内图片基线混排。Float 的定位与排除区在 `layout_engine.dart` 的 `_FloatContext` 中维护，后续表格和 Flexbox 必须复用同一套行框可用区查询，不得另建绕过机制。
+尚未支持任意元素的 Float、浮动与表格/行内格式化上下文的交互、`clear` 的 margin 合并细节。Float 的定位与排除区在 `layout_engine.dart` 的 `_FloatContext` 中维护，后续表格和 Flexbox 必须复用同一套行框可用区查询，不得另建绕过机制。行内图片以原子参与浮动旁的逐行排版（见 ADR 0018）。
 
 ## 不支持输入处理
 

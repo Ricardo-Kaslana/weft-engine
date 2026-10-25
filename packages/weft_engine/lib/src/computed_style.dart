@@ -16,6 +16,12 @@ enum WeftBorderCollapse { separate, collapse }
 
 enum WeftVerticalAlign { top, middle, bottom }
 
+/// Vertical alignment of inline replaced content (image atoms) inside a line
+/// box. Table cells keep [WeftVerticalAlign]; this enum only exists because
+/// CSS `vertical-align: baseline` and `middle` mean different things for
+/// inline atoms than the merged table semantics.
+enum WeftInlineVerticalAlign { baseline, middle }
+
 final class WeftBorderSide {
   const WeftBorderSide({required this.width, required this.color});
 
@@ -52,6 +58,9 @@ final class WeftComputedStyle {
     this.width,
     this.minWidth,
     this.maxWidth,
+    this.height,
+    this.widthPercent,
+    this.heightPercent,
     this.boxSizing = WeftBoxSizing.contentBox,
     this.float = WeftFloat.none,
     this.clear = WeftClear.none,
@@ -59,6 +68,7 @@ final class WeftComputedStyle {
     this.borderSpacingHorizontal = 2,
     this.borderSpacingVertical = 2,
     this.verticalAlign = WeftVerticalAlign.top,
+    this.inlineVerticalAlign = WeftInlineVerticalAlign.baseline,
     this.borderTop = WeftBorderSide.none,
     this.borderRight = WeftBorderSide.none,
     this.borderBottom = WeftBorderSide.none,
@@ -101,6 +111,18 @@ final class WeftComputedStyle {
   final double? width;
   final double? minWidth;
   final double? maxWidth;
+
+  /// Explicit CSS height in px. Only consumed by replaced content sizing;
+  /// block heights remain content-driven.
+  final double? height;
+
+  /// Percentage width (e.g. `50` for `width: 50%`). Resolved by replaced
+  /// content against the containing block; block widths still ignore it.
+  final double? widthPercent;
+
+  /// Percentage height. Stored for diagnostics but resolved as auto: the
+  /// parent height is unknown while content flows.
+  final double? heightPercent;
   final WeftBoxSizing boxSizing;
   final WeftFloat float;
   final WeftClear clear;
@@ -110,6 +132,10 @@ final class WeftComputedStyle {
   final double borderSpacingHorizontal;
   final double borderSpacingVertical;
   final WeftVerticalAlign verticalAlign;
+
+  /// Inline atom alignment; distinct from [verticalAlign] so table cell
+  /// semantics (which merge baseline into middle) stay untouched.
+  final WeftInlineVerticalAlign inlineVerticalAlign;
   final WeftBorderSide borderTop;
   final WeftBorderSide borderRight;
   final WeftBorderSide borderBottom;
