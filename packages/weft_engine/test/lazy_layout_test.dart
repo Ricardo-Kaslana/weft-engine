@@ -313,7 +313,8 @@ void main() {
     expect(floatBlock.floatExclusions, isNotEmpty);
   });
 
-  test('lazy Float admission is limited to nested resolved images', () async {
+  test('lazy Float admission supports resolved images in normal blocks',
+      () async {
     final image = await _createImage(40, 40);
     addTearDown(image.dispose);
     const engine = WeftLayoutEngine();
@@ -367,7 +368,8 @@ void main() {
     });
 
     expect(layouts[0].debugIsLazy, isTrue);
-    expect(layouts.skip(1).every((layout) => !layout.debugIsLazy), isTrue);
+    expect(layouts[1].debugIsLazy, isTrue);
+    expect(layouts.skip(2).every((layout) => !layout.debugIsLazy), isTrue);
   });
 
   test('valid anchors focus-measure lazy surfaces without going full', () {

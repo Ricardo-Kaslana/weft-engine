@@ -13,7 +13,7 @@ ADR 0017/0020 已按可见窗口裁剪绘制和命中，但每次文档更新仍
 
 - 公开 `WeftLayoutEngine.layout()` 保持 canonical 全量结果。新增 `layoutViewport()` 供 Surface 使用，传入 document 可见窗口；部分 lazy result 不会作为完整布局的 previous。
 - `WeftView.enableLazyLayout` 默认 true，可显式关闭；standalone `WeftSurface` 默认 full。只有 WeftView 提供有界 viewportHeight 时才启用。
-- 准入递归检查计算样式和图片输入。顶层块内部、已解析 `img` 的 Float 允许进入 lazy；body 直属 Float、非图片 Float、inline 祖先下 Float、body 直属 loose inline/text、display:none、self-collapsing 或未解析图片的文档直接 full。表格作为单个顶层原子块，不做行级或表内虚拟化。
+- 准入递归检查计算样式和图片输入。顶层块内部及 body 直属、已解析 `img` 的 Float 都允许进入 lazy；非图片 Float、inline 祖先下 Float、body 直属 loose inline/text、display:none、self-collapsing 或未解析图片的文档直接 full。表格作为单个顶层原子块，不做行级或表内虚拟化。
 
 ### 连续精确前缀与估算后缀
 
@@ -27,7 +27,7 @@ ADR 0017/0020 已按可见窗口裁剪绘制和命中，但每次文档更新仍
 - 每个顶层块缓存“本块布局期间新增”的不可变 `WeftFloatExclusion` delta，使用绝对文档坐标并保持创建顺序；它不是完整 FloatContext 快照。
 - 离屏块即使命令已淘汰也保留 checkpoint。复用该块时，在 left/top 与 materialized 校验通过后 replay 到当前 FloatContext；返回 null 交给重新布局的路径不 replay，避免重复添加。
 - Float 块再次物化时自行重新产生排除区，新缓存携带新 delta；多代物化/淘汰不会丢失 checkpoint。
-- 文档 extent 继续由 replay 后的 FloatContext.maxBottom 决定。body 直属 Float 没有 topLevelBlock 条目，准入和布局期缓存资格双重拒绝。
+- 文档 extent 继续由 replay 后的 FloatContext.maxBottom 决定。body 直属已解析图片 Float 也生成 height=0 的顶层缓存条目，保存图片命令与排除区 checkpoint，structural ordinal 继续与 body.children 对齐。
 - 表格 cell/caption 的局部 FloatContext 不进入外层 checkpoint；顶层 table 重排时由局部上下文重建。
 
 ### 滚动、校正与所有权
@@ -70,4 +70,4 @@ ADR 0017/0020 已按可见窗口裁剪绘制和命中，但每次文档更新仍
 
 - 新增 engine lazy/结构/底部收敛/首帧 selection/空命令块/多屏往返/嵌套 Float checkpoint 测试与 12 项 WeftView lazy 测试；weft_engine 常规测试 216 项、weft 30 项。
 - 嵌套 Float article300 首屏基准约 4.1ms；普通 article300 lazy 首屏仍约 3.2ms、6 个块。
-- 限制：未测后缀高度和滚动条长度会校正；冷跳底部仍为 O(N) 顺序测量；body 直属/非图片/inline 祖先 Float、未解析图片、一个超高顶层块和屏外选择/Semantics 会回退或保持 full。尚无异步分帧测量、表格行虚拟化、图片解码虚拟化和精确随机跳转。
+- 限制：未测后缀高度和滚动条长度会校正；冷跳底部仍为 O(N) 顺序测量；非图片/inline 祖先 Float、未解析图片、一个超高顶层块和屏外选择/Semantics 会回退或保持 full。尚无表格行虚拟化、图片解码虚拟化和精确随机跳转。

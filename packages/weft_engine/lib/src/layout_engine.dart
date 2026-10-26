@@ -357,11 +357,8 @@ bool _supportsLazyLayout({
     );
     if (style.display == WeftDisplay.none) return false;
     if (style.float != WeftFloat.none) {
-      final parentIsBody =
-          ancestors.isNotEmpty && identical(ancestors.last, body);
       if (element.tag != 'img' ||
           images[element.id] == null ||
-          parentIsBody ||
           underInlineAncestor) {
         return false;
       }
@@ -379,7 +376,10 @@ bool _supportsLazyLayout({
           parent: style,
           ancestors: childAncestors,
         );
-        if (childStyle.display == WeftDisplay.inline) return false;
+        if (childStyle.display == WeftDisplay.inline &&
+            childStyle.float == WeftFloat.none) {
+          return false;
+        }
       }
       if (!visit(child, style, childAncestors, childrenUnderInline)) {
         return false;
@@ -922,16 +922,47 @@ final class _LayoutContext {
         if (image != null) {
           if (childStyle.float != WeftFloat.none) {
             flushInline();
-            _disableTopLevelCache(element);
-            _placeFloatImage(
-              element: child,
-              style: childStyle,
-              image: image,
-              contentX: contentX,
-              contentWidth: contentWidth,
-              top: cursor,
-              floats: floats,
-            );
+            if (identical(element, body)) {
+              final reused = _reuseTopLevelBlock(
+                parent: element,
+                child: child,
+                left: contentX,
+                top: cursor,
+                ordinal: ordinal,
+                floats: floats,
+              );
+              if (reused != null) continue;
+              final start = _startTopLevelBlock(element, floats);
+              _placeFloatImage(
+                element: child,
+                style: childStyle,
+                image: image,
+                contentX: contentX,
+                contentWidth: contentWidth,
+                top: cursor,
+                floats: floats,
+              );
+              _cacheTopLevelBlock(
+                parent: element,
+                child: child,
+                left: contentX,
+                top: cursor,
+                height: 0,
+                ordinal: ordinal,
+                floats: floats,
+                start: start,
+              );
+            } else {
+              _placeFloatImage(
+                element: child,
+                style: childStyle,
+                image: image,
+                contentX: contentX,
+                contentWidth: contentWidth,
+                top: cursor,
+                floats: floats,
+              );
+            }
             continue;
           }
 

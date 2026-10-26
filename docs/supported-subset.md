@@ -129,8 +129,8 @@
 - `WeftView.enableLazyLayout` 默认开启：简单文档只精确测量并物化可见顶层块（含 250px overscan），未测后缀以同类块高度估算滚动 extent。
 - 已测前缀坐标与 canonical 一致；滚出窗口的 TextPainter/commands 会释放，重新进入时在原块流中重建。表格整块处理，不做表内虚拟化。
 - 跳到估算底部后随 extent 校正使用 ScrollPosition.correctBy 跟随；同 id 流式尾部追加继续保留未变可见资源。
-- 顶层块内部、已解析 `img` 的左右 Float 可进入 lazy；排除区按块保存并在离屏复用/重新物化时恢复，后续文字行宽与 clear 保持 canonical。
-- 非空 selection、Semantics、body 直属 Float、非图片/inline 祖先 Float、未解析图片、body loose inline 或复杂结构会升级/回退完整布局；升级按 document.id 粘滞。
+- 顶层块内部及 body 直属、已解析 `img` 的左右 Float 可进入 lazy；排除区按顶层块保存并在离屏复用/重新物化时恢复，后续文字行宽与 clear 保持 canonical。
+- 非空 selection、Semantics、非图片/inline 祖先 Float、未解析图片、body loose inline 或复杂结构会升级/回退完整布局；升级按 document.id 粘滞。
 
 - `WeftViewState.scrollToAnchor` 可按逻辑文本锚点导航；懒布局使用 focus 精确测量并物化目标块，保留当前窗口和 lazy 状态，alignment 支持顶部/居中/底部，无效锚点安全返回 false。
 - `scrollToAnchorAsync` 将深链测量拆成逐帧预算（默认每 pass 32 块）；测量期间保持当前滚动内容，完成后才定位，取消/文档变化返回 false。
