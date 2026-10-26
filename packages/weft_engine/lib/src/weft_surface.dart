@@ -86,6 +86,7 @@ class WeftSurface extends StatefulWidget {
     this.onSemanticsLinkTap,
     this.onSemanticsCopy,
     this.enableLazyLayout = false,
+    this.lazyOverscan = 250,
     this.viewportHeight,
     this.initialViewportPixels = 0,
     this.onLazyExtentCorrection,
@@ -106,6 +107,7 @@ class WeftSurface extends StatefulWidget {
   final ValueChanged<WeftLinkRegion>? onSemanticsLinkTap;
   final ValueChanged<String>? onSemanticsCopy;
   final bool enableLazyLayout;
+  final double lazyOverscan;
   final double? viewportHeight;
   final double initialViewportPixels;
   final ValueChanged<double>? onLazyExtentCorrection;
@@ -152,6 +154,7 @@ class _WeftSurfaceState extends State<WeftSurface> {
       onSemanticsLinkTap: widget.onSemanticsLinkTap ?? widget.onLinkTap,
       onSemanticsCopy: widget.onSemanticsCopy,
       enableLazyLayout: widget.enableLazyLayout,
+      lazyOverscan: widget.lazyOverscan,
       viewportHeight: widget.viewportHeight,
       initialViewportPixels: widget.initialViewportPixels,
       onLazyExtentCorrection: widget.onLazyExtentCorrection,
@@ -179,6 +182,7 @@ class _RawWeftSurface extends LeafRenderObjectWidget {
     this.onSemanticsLinkTap,
     this.onSemanticsCopy,
     this.enableLazyLayout = false,
+    this.lazyOverscan = 250,
     this.viewportHeight,
     this.initialViewportPixels = 0,
     this.onLazyExtentCorrection,
@@ -194,6 +198,7 @@ class _RawWeftSurface extends LeafRenderObjectWidget {
   final ValueChanged<WeftLinkRegion>? onSemanticsLinkTap;
   final ValueChanged<String>? onSemanticsCopy;
   final bool enableLazyLayout;
+  final double lazyOverscan;
   final double? viewportHeight;
   final double initialViewportPixels;
   final ValueChanged<double>? onLazyExtentCorrection;
@@ -211,6 +216,7 @@ class _RawWeftSurface extends LeafRenderObjectWidget {
       onSemanticsLinkTap: onSemanticsLinkTap,
       onSemanticsCopy: onSemanticsCopy,
       enableLazyLayout: enableLazyLayout,
+      lazyOverscan: lazyOverscan,
       viewportHeight: viewportHeight,
       initialViewportPixels: initialViewportPixels,
       onLazyExtentCorrection: onLazyExtentCorrection,
@@ -235,6 +241,7 @@ class _RawWeftSurface extends LeafRenderObjectWidget {
       ..onSemanticsLinkTap = onSemanticsLinkTap
       ..onSemanticsCopy = onSemanticsCopy
       ..enableLazyLayout = enableLazyLayout
+      ..lazyOverscan = lazyOverscan
       ..viewportHeight = viewportHeight
       ..onLazyExtentCorrection = onLazyExtentCorrection
       ..showSelectionHandles = showSelectionHandles
@@ -252,6 +259,7 @@ class RenderWeftSurface extends RenderBox {
     ValueChanged<WeftLinkRegion>? onSemanticsLinkTap,
     ValueChanged<String>? onSemanticsCopy,
     bool enableLazyLayout = false,
+    double lazyOverscan = 250,
     double? viewportHeight,
     double initialViewportPixels = 0,
     ValueChanged<double>? onLazyExtentCorrection,
@@ -266,6 +274,7 @@ class RenderWeftSurface extends RenderBox {
         _onSemanticsLinkTap = onSemanticsLinkTap,
         _onSemanticsCopy = onSemanticsCopy,
         _enableLazyLayout = enableLazyLayout,
+        _lazyOverscan = lazyOverscan,
         _viewportHeight = viewportHeight,
         _viewportPixels = initialViewportPixels,
         _onLazyExtentCorrection = onLazyExtentCorrection,
@@ -288,6 +297,7 @@ class RenderWeftSurface extends RenderBox {
   ValueChanged<WeftLinkRegion>? _onSemanticsLinkTap;
   ValueChanged<String>? _onSemanticsCopy;
   bool _enableLazyLayout;
+  double _lazyOverscan;
   double? _viewportHeight;
   double _viewportPixels;
   ValueChanged<double>? _onLazyExtentCorrection;
@@ -386,6 +396,14 @@ class RenderWeftSurface extends RenderBox {
     _enableLazyLayout = value;
     if (!value) _exitLazyMode();
     _invalidateLayout();
+  }
+
+  double get lazyOverscan => _lazyOverscan;
+
+  set lazyOverscan(double value) {
+    if (_lazyOverscan == value) return;
+    _lazyOverscan = math.max(0, value);
+    markNeedsLayout();
   }
 
   double? get viewportHeight => _viewportHeight;
@@ -588,8 +606,8 @@ class RenderWeftSurface extends RenderBox {
         ? _layoutEngine.layoutViewport(
             _document,
             width: width,
-            viewportStart: math.max(0, _viewportPixels - 250),
-            viewportEnd: _viewportPixels + viewportHeight + 250,
+            viewportStart: math.max(0, _viewportPixels - _lazyOverscan),
+            viewportEnd: _viewportPixels + viewportHeight + _lazyOverscan,
             textScaler: _textScaler,
             images: _resolvedImages,
             previous: previous,
@@ -627,8 +645,8 @@ class RenderWeftSurface extends RenderBox {
         body == null) {
       return false;
     }
-    final start = math.max(0, _viewportPixels - 250);
-    final end = _viewportPixels + viewportHeight + 250;
+    final start = math.max(0, _viewportPixels - _lazyOverscan);
+    final end = _viewportPixels + viewportHeight + _lazyOverscan;
     for (final block in cache.blocks) {
       final needed = (block.top < end && block.top + block.height > start) ||
           (block.paintBounds.top < end && block.paintBounds.bottom > start);
@@ -983,8 +1001,8 @@ class RenderWeftSurface extends RenderBox {
       final focused = _layoutEngine.layoutViewport(
         _document,
         width: size.width,
-        viewportStart: math.max(0, _viewportPixels - 250),
-        viewportEnd: _viewportPixels + viewportHeight + 250,
+        viewportStart: math.max(0, _viewportPixels - _lazyOverscan),
+        viewportEnd: _viewportPixels + viewportHeight + _lazyOverscan,
         focusNodeId: anchor.nodeId,
         textScaler: _textScaler,
         images: _resolvedImages,
@@ -1056,8 +1074,8 @@ class RenderWeftSurface extends RenderBox {
       final focused = _layoutEngine.layoutViewport(
         _document,
         width: size.width,
-        viewportStart: math.max(0, _viewportPixels - 250),
-        viewportEnd: _viewportPixels + viewportHeight + 250,
+        viewportStart: math.max(0, _viewportPixels - _lazyOverscan),
+        viewportEnd: _viewportPixels + viewportHeight + _lazyOverscan,
         focusNodeId: anchor.nodeId,
         maxNewBlocks: maxNewBlocks,
         textScaler: _textScaler,

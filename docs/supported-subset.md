@@ -126,7 +126,7 @@
 
 当前能力（ADR 0025）：
 
-- `WeftView.enableLazyLayout` 默认开启：简单文档只精确测量并物化可见顶层块（含 250px overscan），未测后缀以同类块高度估算滚动 extent。
+- `WeftView.enableLazyLayout` 默认开启：简单文档只精确测量并物化可见顶层块，未测后缀以同类块高度估算滚动 extent；`lazyOverscan` 可调整窗口外预取（默认 250px）。
 - 已测前缀坐标与 canonical 一致；滚出窗口的 TextPainter/commands 会释放，重新进入时在原块流中重建。表格整块处理，不做表内虚拟化。
 - 跳到估算底部后随 extent 校正使用 ScrollPosition.correctBy 跟随；同 id 流式尾部追加继续保留未变可见资源。
 - 顶层块内部及 body 直属、已解析 `img` 的左右 Float 可进入 lazy；排除区按顶层块保存并在离屏复用/重新物化时恢复，后续文字行宽与 clear 保持 canonical。

@@ -49,6 +49,7 @@ class WeftView extends StatefulWidget {
     this.onSelectionChanged,
     this.imageResolver,
     this.enableLazyLayout = true,
+    this.lazyOverscan = 250,
     this.showSelectionHandles = true,
     this.showCaret = true,
     this.showCopyButton = true,
@@ -78,6 +79,9 @@ class WeftView extends StatefulWidget {
   /// Whether simple documents lazily materialize only the visible block
   /// window. Selection and Semantics still upgrade to a complete layout.
   final bool enableLazyLayout;
+
+  /// Extra document pixels materialized above and below the viewport.
+  final double lazyOverscan;
 
   /// Whether drag handles overlay the current selection. Forwarded to the
   /// surface's geometry query and used to gate the overlay widgets here.
@@ -544,6 +548,7 @@ class WeftViewState extends State<WeftView> {
               onSemanticsLinkTap: widget.onLinkTap,
               onSemanticsCopy: _copyText,
               enableLazyLayout: widget.enableLazyLayout,
+              lazyOverscan: widget.lazyOverscan,
               viewportHeight:
                   constraints.hasBoundedHeight ? constraints.maxHeight : null,
               initialViewportPixels: _viewportPixelsSeed,

@@ -401,6 +401,28 @@ void main() {
     controller.dispose();
   }, semanticsEnabled: false);
 
+  testWidgets('lazyOverscan controls the materialized window', (tester) async {
+    final controller = _controller(120);
+    final scroll = ScrollController();
+    await _pump(tester, controller, scroll, lazyOverscan: 0);
+    final render = tester.renderObject<RenderWeftSurface>(
+      find.byType(WeftSurface),
+    );
+    final fresh = const WeftLayoutEngine().layoutViewport(
+      controller.document!,
+      width: 320,
+      viewportStart: 0,
+      viewportEnd: 400,
+    );
+    addTearDown(fresh.dispose);
+    expect(render.debugLayout!.commands, hasLength(fresh.commands.length));
+    for (var i = 0; i < fresh.commands.length; i++) {
+      expect(render.debugLayout!.commands[i].nodeId, fresh.commands[i].nodeId);
+    }
+    scroll.dispose();
+    controller.dispose();
+  }, semanticsEnabled: false);
+
   testWidgets('enableLazyLayout false keeps the canonical full layout', (
     tester,
   ) async {
@@ -579,6 +601,7 @@ Future<void> _pump(
   WeftController controller,
   ScrollController? scroll, {
   GlobalKey<WeftViewState>? viewKey,
+  double lazyOverscan = 250,
 }) {
   return tester.pumpWidget(
     Directionality(
@@ -591,6 +614,7 @@ Future<void> _pump(
             key: viewKey,
             controller: controller,
             scrollController: scroll,
+            lazyOverscan: lazyOverscan,
           ),
         ),
       ),
