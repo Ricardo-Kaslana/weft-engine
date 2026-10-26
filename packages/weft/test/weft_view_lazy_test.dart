@@ -241,6 +241,52 @@ void main() {
     controller.dispose();
   }, semanticsEnabled: false);
 
+  testWidgets('scrollToAnchorAsync measures across frames without blanking', (
+    tester,
+  ) async {
+    final controller = _controller(120);
+    final scroll = ScrollController();
+    final viewKey = GlobalKey<WeftViewState>();
+    await _pump(tester, controller, scroll, viewKey: viewKey);
+    final probe = const WeftLayoutEngine().layout(
+      controller.document!,
+      width: 320,
+    );
+    final entry = probe.textIndex!.entries.firstWhere(
+      (candidate) => candidate.text.startsWith('Paragraph 100 '),
+    );
+    probe.dispose();
+
+    final future = viewKey.currentState!.scrollToAnchorAsync(
+      TextAnchor(entry.nodeId, 0),
+      maxNewBlocks: 4,
+    );
+    bool? result;
+    var completed = false;
+    future.then((value) {
+      result = value;
+      completed = true;
+    });
+    await tester.pump();
+    final render = tester.renderObject<RenderWeftSurface>(
+      find.byType(WeftSurface),
+    );
+    expect(render.debugLayout!.commands, isNotEmpty);
+    expect(scroll.offset, 0);
+    for (var frame = 0; frame < 80 && !completed; frame++) {
+      await tester.pump();
+    }
+    expect(completed, isTrue);
+    expect(result, isTrue);
+    await tester.pump();
+    await tester.pump();
+    expect(render.debugLayout!.debugIsLazy, isTrue);
+    expect(scroll.offset, greaterThan(0));
+
+    scroll.dispose();
+    controller.dispose();
+  }, semanticsEnabled: false);
+
   testWidgets('scrollToAnchor uses the internal controller when none injected',
       (
     tester,

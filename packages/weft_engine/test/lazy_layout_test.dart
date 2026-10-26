@@ -405,6 +405,52 @@ void main() {
     );
   });
 
+  test('async anchor measurement advances within a block budget', () {
+    const engine = WeftLayoutEngine();
+    final document = _article(80);
+    final canonical = engine.layout(document, width: 320);
+    final entry = canonical.textIndex!.entries.last;
+    canonical.dispose();
+    var layout = engine.layoutViewport(
+      document,
+      width: 320,
+      viewportStart: 0,
+      viewportEnd: 650,
+      focusNodeId: entry.nodeId,
+      maxNewBlocks: 10,
+    );
+    var passes = 1;
+    expect(layout.debugIsLazy, isTrue);
+    expect(layout.debugLaidOutBlockCount, lessThanOrEqualTo(10));
+    var previousPrefix = layout.incrementalCache!.measuredPrefixLength;
+    expect(previousPrefix, lessThan(document.body!.children.length));
+    while (previousPrefix < document.body!.children.length && passes < 30) {
+      final next = engine.layoutViewport(
+        document,
+        width: 320,
+        viewportStart: 0,
+        viewportEnd: 650,
+        focusNodeId: entry.nodeId,
+        maxNewBlocks: 10,
+        previous: layout,
+      );
+      layout.dispose();
+      layout = next;
+      passes += 1;
+      expect(layout.debugLaidOutBlockCount, lessThanOrEqualTo(10));
+      final measured = layout.incrementalCache!.measuredPrefixLength;
+      expect(measured, greaterThan(previousPrefix));
+      previousPrefix = measured;
+    }
+    addTearDown(layout.dispose);
+    expect(
+      layout.incrementalCache!.measuredPrefixLength,
+      document.body!.children.length,
+    );
+    expect(layout.debugIsLazy, isTrue);
+    expect(layout.incrementalCache!.blocks.last.materialized, isTrue);
+  });
+
   test('surface enables lazy layout when a viewport is supplied', () {
     final render = RenderWeftSurface(
       document: _article(120),
