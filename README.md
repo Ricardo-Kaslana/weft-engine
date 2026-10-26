@@ -28,7 +28,7 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - 流式增量布局（ADR 0023）：同 id 追加复用未变顶层前缀与 TextPainter；未变前缀 Picture 也跨快照保留。
 - 可访问性语义（ADR 0024/0026）：单表面文本、链接、图片与选区 Semantics，支持标题 header、链接语义 tap、选区 copy 和屏外 showOnScreen。
 - 渐进式布局虚拟化（ADR 0025）：WeftView 简单长文只物化可见块，首屏不创建全文 TextPainter；顶层块内图片 Float 通过排除区 checkpoint 参与 lazy，selection/Semantics/复杂文档回退 full。
-- 锚点导航（ADR 0027）：`WeftViewState.scrollToAnchor` 按逻辑文本锚点和 alignment 精确定位；首次深链升级完整布局，无效锚点安全返回 false。
+- 锚点导航（ADR 0027）：`WeftViewState.scrollToAnchor` 按逻辑文本锚点和 alignment 精确定位；lazy 文档使用一次性 focus 布局保留懒加载，无效锚点安全返回 false。
 - 性能门禁：布局/绘制/命中 14 场景基准工具与 10 倍宽上限的 CI 稳定门禁（见 docs/testing-strategy.md）；命中解析经分块索引裁剪（ADR 0020），`WeftView.scrollController` 可注入。
 - `float_image` 一致性案例：Chrome 生成的浏览器几何基线（块、图片、逐行词盒误差 ≤ 0.5px）与 Flutter 像素黄金双重门禁；图片按 1:1 对齐整像素绘制。
 - `table_basic`/`table_cols` 一致性案例：表格浏览器几何基线（单元格 ≤ 1.5px、行/列结构精确断言），覆盖 collapse/separate、跨列跨行、caption 与 colgroup/col 列宽。

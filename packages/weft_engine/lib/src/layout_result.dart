@@ -285,6 +285,13 @@ final class WeftChunk {
     return chunks;
   }
 
+  static int? topLevelOrdinalForNode(
+    WeftDocumentSnapshot document,
+    NodeId nodeId,
+  ) {
+    return _topLevelOrdinalsByNode(document)[nodeId];
+  }
+
   /// Maps every node id under a top-level body child to that child's
   /// zero-based ordinal. Body itself is absent — its own commands belong to
   /// the chrome chunk — and so is every node when the document has no body.

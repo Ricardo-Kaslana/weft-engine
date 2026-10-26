@@ -370,7 +370,7 @@ void main() {
     expect(layouts.skip(1).every((layout) => !layout.debugIsLazy), isTrue);
   });
 
-  test('only valid anchors upgrade a lazy surface for geometry', () {
+  test('valid anchors focus-measure lazy surfaces without going full', () {
     final document = _article(80);
     final canonical = const WeftLayoutEngine().layout(document, width: 320);
     addTearDown(canonical.dispose);
@@ -396,8 +396,13 @@ void main() {
 
     final rect = render.textRectForAnchor(TextAnchor(entry.nodeId, 2));
     expect(rect, expected);
-    expect(render.debugLayout!.debugIsLazy, isFalse);
-    expect(render.debugFullLayoutReason, 'anchor');
+    expect(render.debugLayout!.debugIsLazy, isTrue);
+    expect(render.debugFullLayoutRequired, isFalse);
+    expect(render.debugFullLayoutReason, isNull);
+    expect(
+      render.debugLayout!.incrementalCache!.blocks.last.materialized,
+      isTrue,
+    );
   });
 
   test('surface enables lazy layout when a viewport is supplied', () {

@@ -132,7 +132,7 @@
 - 顶层块内部、已解析 `img` 的左右 Float 可进入 lazy；排除区按块保存并在离屏复用/重新物化时恢复，后续文字行宽与 clear 保持 canonical。
 - 非空 selection、Semantics、body 直属 Float、非图片/inline 祖先 Float、未解析图片、body loose inline 或复杂结构会升级/回退完整布局；升级按 document.id 粘滞。
 
-- `WeftViewState.scrollToAnchor` 可按逻辑文本锚点导航；首次深链会升级完整布局以取得精确矩形，alignment 支持顶部/居中/底部，无效锚点安全返回 false。
+- `WeftViewState.scrollToAnchor` 可按逻辑文本锚点导航；懒布局使用 focus 精确测量并物化目标块，保留当前窗口和 lazy 状态，alignment 支持顶部/居中/底部，无效锚点安全返回 false。
 - 边界与限制：滚动条长度在未测完时是估算值；锚点导航与冷跳底部仍可能需要顺序测量中间块，不做 O(1) 随机定位或异步分帧；一个超高顶层块、body 直属 Float、表内局部 Float 和图片解码资源仍未虚拟化。
 
 ## 当前明确限制

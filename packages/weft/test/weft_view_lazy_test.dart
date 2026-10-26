@@ -176,7 +176,7 @@ void main() {
     controller.dispose();
   }, semanticsEnabled: false);
 
-  testWidgets('scrollToAnchor upgrades once and honors alignment and clamp', (
+  testWidgets('scrollToAnchor keeps lazy and honors alignment and clamp', (
     tester,
   ) async {
     final controller = _controller(120);
@@ -214,8 +214,9 @@ void main() {
     );
     await tester.pump();
     await tester.pump();
-    expect(render.debugLayout!.debugIsLazy, isFalse);
-    expect(render.debugFullLayoutReason, 'anchor');
+    expect(render.debugLayout!.debugIsLazy, isTrue);
+    expect(render.debugFullLayoutRequired, isFalse);
+    expect(render.debugFullLayoutReason, isNull);
     final position = scroll.position;
     final expected = (targetRect.top -
             0.5 * (position.viewportDimension - targetRect.height))

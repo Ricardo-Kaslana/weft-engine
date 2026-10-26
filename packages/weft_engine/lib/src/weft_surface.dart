@@ -944,12 +944,48 @@ class RenderWeftSurface extends RenderBox {
         anchor.offset >= entry.text.length) {
       return null;
     }
-    _ensureFullLayoutForQuery('anchor');
-    final layout = _layout;
+    final viewportHeight = _viewportHeight;
+    if (before.debugIsLazy &&
+        !_fullLayoutRequired &&
+        _enableLazyLayout &&
+        viewportHeight != null &&
+        viewportHeight > 0) {
+      _exitLazyMode();
+      final focused = _layoutEngine.layoutViewport(
+        _document,
+        width: size.width,
+        viewportStart: math.max(0, _viewportPixels - 250),
+        viewportEnd: _viewportPixels + viewportHeight + 250,
+        focusNodeId: anchor.nodeId,
+        textScaler: _textScaler,
+        images: _resolvedImages,
+        previous: before,
+      );
+      focused.attachDocument(_document);
+      _layout = focused;
+      before.dispose();
+      if (!focused.debugIsLazy) {
+        _markFullLayoutRequired('engine-fallback');
+      }
+      markNeedsLayout();
+    } else {
+      _ensureFullLayoutForQuery('anchor');
+    }
+    var layout = _layout;
     if (layout == null) return null;
-    return _unionRects(
+    var rect = _unionRects(
       layout.textRectsForNode(anchor.nodeId, anchor.offset, anchor.offset + 1),
     );
+    if (rect == null && layout.debugIsLazy) {
+      _ensureFullLayoutForQuery('anchor');
+      layout = _layout;
+      if (layout == null) return null;
+      rect = _unionRects(
+        layout.textRectsForNode(
+            anchor.nodeId, anchor.offset, anchor.offset + 1),
+      );
+    }
+    return rect;
   }
 
   /// Touch targets and suggested placements for the selection chrome

@@ -42,6 +42,7 @@ final class WeftLayoutEngine {
     required double width,
     required double viewportStart,
     required double viewportEnd,
+    NodeId? focusNodeId,
     TextScaler textScaler = TextScaler.noScaling,
     Map<int, ui.Image> images = const {},
     WeftLineBreakRules lineBreakRules = const WeftLineBreakRules(),
@@ -56,6 +57,7 @@ final class WeftLayoutEngine {
       previous: previous,
       viewportStart: viewportStart,
       viewportEnd: viewportEnd,
+      focusNodeId: focusNodeId,
     );
   }
 
@@ -68,6 +70,7 @@ final class WeftLayoutEngine {
     WeftLayoutResult? previous,
     double? viewportStart,
     double? viewportEnd,
+    NodeId? focusNodeId,
   }) {
     if (!width.isFinite || width <= 0) {
       return WeftLayoutResult(
@@ -114,6 +117,9 @@ final class WeftLayoutEngine {
       reusableBlocks: reusableBlocks,
       viewportStart: lazy ? viewportStart : null,
       viewportEnd: lazy ? viewportEnd : null,
+      focusOrdinal: lazy && focusNodeId != null
+          ? WeftChunk.topLevelOrdinalForNode(document, focusNodeId)
+          : null,
     );
     final textIndex = WeftTextIndex.build(
       document: document,
@@ -390,6 +396,7 @@ final class _LayoutContext {
     required this.reusableBlocks,
     this.viewportStart,
     this.viewportEnd,
+    this.focusOrdinal,
     this.lineBreakRules = const WeftLineBreakRules(),
   }) {
     for (final block in reusableBlocks.values) {
@@ -404,6 +411,7 @@ final class _LayoutContext {
   final Map<int, WeftCachedLayoutBlock> reusableBlocks;
   final double? viewportStart;
   final double? viewportEnd;
+  final int? focusOrdinal;
 
   /// Kinsoku tables applied by the line-by-line inline layout path.
   final WeftLineBreakRules lineBreakRules;
@@ -440,6 +448,7 @@ final class _LayoutContext {
     required double left,
     required double top,
     required double height,
+    required int? ordinal,
     required _FloatContext floats,
     required (int, int, int, int)? start,
   }) {
@@ -455,6 +464,7 @@ final class _LayoutContext {
       top: top,
       height: height,
       paintBounds: paintBounds,
+      ordinal: ordinal,
     );
     if (!materialize) {
       for (final command in blockCommands) {
@@ -487,6 +497,7 @@ final class _LayoutContext {
     required WeftElement child,
     required double left,
     required double top,
+    required int? ordinal,
     required _FloatContext floats,
   }) {
     if (!identical(parent, body) || reuseStopped) return null;
@@ -500,6 +511,7 @@ final class _LayoutContext {
       top: block.top,
       height: block.height,
       paintBounds: block.paintBounds,
+      ordinal: ordinal,
     );
     if (isLazy && materialize && !block.materialized) return null;
     floats.addExclusions(block.floatExclusions);
@@ -534,16 +546,26 @@ final class _LayoutContext {
     required double top,
     required double height,
     required ui.Rect paintBounds,
+    required int? ordinal,
   }) {
     if (!isLazy) return true;
+    if (ordinal != null && ordinal == focusOrdinal) return true;
     final start = viewportStart!;
     final end = viewportEnd!;
     return (top < end && top + height > start) ||
         (paintBounds.top < end && paintBounds.bottom > start);
   }
 
-  bool _shouldEstimateTopLevel(WeftElement parent, double cursor) {
-    return isLazy && identical(parent, body) && cursor >= viewportEnd!;
+  bool _shouldEstimateTopLevel(
+    WeftElement parent,
+    double cursor,
+    int? ordinal,
+  ) {
+    final focus = focusOrdinal;
+    return isLazy &&
+        identical(parent, body) &&
+        cursor >= viewportEnd! &&
+        (focus == null || ordinal! > focus);
   }
 
   double _estimateHeight(WeftElement child, WeftComputedStyle style) {
@@ -866,7 +888,10 @@ final class _LayoutContext {
       return height;
     }
 
-    for (final child in element.children) {
+    final children = element.children;
+    for (var childIndex = 0; childIndex < children.length; childIndex++) {
+      final child = children[childIndex];
+      final ordinal = identical(element, body) ? childIndex : null;
       if (child is WeftText) {
         _disableTopLevelCache(element);
         inline.addText(child, style);
@@ -927,7 +952,7 @@ final class _LayoutContext {
           trailingCollapses =
               style.borderBottom.width == 0 && style.paddingBottom == 0;
 
-          if (_shouldEstimateTopLevel(element, cursor) &&
+          if (_shouldEstimateTopLevel(element, cursor, ordinal) &&
               !reusableBlocks.containsKey(child.id)) {
             cursor += _estimateHeight(child, childStyle);
             pendingMargin = outerBottom;
@@ -939,6 +964,7 @@ final class _LayoutContext {
             child: child,
             left: contentX,
             top: cursor,
+            ordinal: ordinal,
             floats: floats,
           );
           if (reusedHeight != null) {
@@ -961,6 +987,7 @@ final class _LayoutContext {
                 left: contentX,
                 top: cursor - metrics.boxHeight,
                 height: metrics.boxHeight,
+                ordinal: ordinal,
                 floats: floats,
                 start: start,
               );
@@ -1008,7 +1035,7 @@ final class _LayoutContext {
         trailingCollapses =
             style.borderBottom.width == 0 && style.paddingBottom == 0;
 
-        if (_shouldEstimateTopLevel(element, cursor) &&
+        if (_shouldEstimateTopLevel(element, cursor, ordinal) &&
             !reusableBlocks.containsKey(child.id)) {
           cursor += _estimateHeight(child, childStyle);
           pendingMargin = outerBottom;
@@ -1020,6 +1047,7 @@ final class _LayoutContext {
           child: child,
           left: contentX,
           top: cursor,
+          ordinal: ordinal,
           floats: floats,
         );
         if (reusedHeight != null) {
@@ -1041,6 +1069,7 @@ final class _LayoutContext {
             left: contentX,
             top: cursor - result.height,
             height: result.height,
+            ordinal: ordinal,
             floats: floats,
             start: start,
           );
@@ -1105,7 +1134,7 @@ final class _LayoutContext {
         childStyle: childStyle,
         orderedItem: orderedItem,
       );
-      if (_shouldEstimateTopLevel(element, cursor) &&
+      if (_shouldEstimateTopLevel(element, cursor, ordinal) &&
           !reusableBlocks.containsKey(child.id)) {
         cursor += _estimateHeight(child, childStyle);
         pendingMargin = outerBottom;
@@ -1117,6 +1146,7 @@ final class _LayoutContext {
         child: child,
         left: contentX,
         top: cursor,
+        ordinal: ordinal,
         floats: floats,
       );
       if (reusedHeight != null) {
@@ -1140,6 +1170,7 @@ final class _LayoutContext {
           left: contentX,
           top: cursor - result.height,
           height: result.height,
+          ordinal: ordinal,
           floats: floats,
           start: start,
         );
