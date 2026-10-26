@@ -442,6 +442,7 @@ final class _LayoutContext {
         left: left,
         top: top,
         height: height,
+        materialized: materialize,
         paintBounds: paintBounds,
         boxes: materialize ? blockBoxes : const [],
         commands: materialize ? blockCommands : const [],
@@ -468,7 +469,7 @@ final class _LayoutContext {
       height: block.height,
       paintBounds: block.paintBounds,
     );
-    if (isLazy && materialize && block.commands.isEmpty) return null;
+    if (isLazy && materialize && !block.materialized) return null;
     final blockCommands =
         materialize ? block.commands : const <WeftPaintCommand>[];
     final blockBoxes = materialize ? block.boxes : const <WeftLayoutBox>[];
@@ -482,6 +483,7 @@ final class _LayoutContext {
         left: block.left,
         top: block.top,
         height: block.height,
+        materialized: materialize,
         paintBounds: block.paintBounds,
         boxes: blockBoxes,
         commands: blockCommands,

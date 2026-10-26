@@ -50,6 +50,132 @@ void main() {
     controller.dispose();
   }, semanticsEnabled: false);
 
+  testWidgets('initial controller offset seeds the first lazy window', (
+    tester,
+  ) async {
+    final controller = _controller(120);
+    final scroll = ScrollController(initialScrollOffset: 800);
+    await _pump(tester, controller, scroll);
+    final render = tester.renderObject<RenderWeftSurface>(
+      find.byType(WeftSurface),
+    );
+    expect(render.debugViewportPixels, 800);
+    expect(render.debugLayout!.debugIsLazy, isTrue);
+    final fresh = const WeftLayoutEngine().layoutViewport(
+      controller.document!,
+      width: 320,
+      viewportStart: 550,
+      viewportEnd: 1450,
+    );
+    addTearDown(fresh.dispose);
+    expect(render.debugLayout!.commands, hasLength(fresh.commands.length));
+    for (var i = 0; i < fresh.commands.length; i++) {
+      expect(render.debugLayout!.commands[i].nodeId, fresh.commands[i].nodeId);
+      expect(render.debugLayout!.commands[i].bounds, fresh.commands[i].bounds);
+    }
+    scroll.dispose();
+    controller.dispose();
+  }, semanticsEnabled: false);
+
+  testWidgets('selection present before first pump forces full layout', (
+    tester,
+  ) async {
+    final controller = _controller(80);
+    final probe = const WeftLayoutEngine().layout(
+      controller.document!,
+      width: 320,
+    );
+    final entries = probe.textIndex!.entries;
+    controller.updateSelection(
+      TextSelectionRange(
+        anchor: TextAnchor(entries.first.nodeId, 0),
+        extent: TextAnchor(entries.last.nodeId, 1),
+      ),
+    );
+    probe.dispose();
+    await _pump(tester, controller, null);
+    final render = tester.renderObject<RenderWeftSurface>(
+      find.byType(WeftSurface),
+    );
+    expect(render.debugFullLayoutRequired, isTrue);
+    expect(render.debugFullLayoutReason, 'selection');
+    expect(render.debugLayout!.debugIsLazy, isFalse);
+    controller.dispose();
+  }, semanticsEnabled: false);
+
+  testWidgets('height-only blocks do not relayout for a one-pixel scroll', (
+    tester,
+  ) async {
+    final html = StringBuffer();
+    for (var i = 0; i < 40; i++) {
+      html.write('<div style="height: 24px"></div>');
+    }
+    final controller = WeftController()
+      ..loadDocument(
+        const WeftNormalizer().normalize(
+          html.toString(),
+          id: 'lazy-height-only-view',
+        ),
+      );
+    final scroll = ScrollController();
+    await _pump(tester, controller, scroll);
+    final render = tester.renderObject<RenderWeftSurface>(
+      find.byType(WeftSurface),
+    );
+    final before = render.debugLayout!;
+    expect(before.debugIsLazy, isTrue);
+    scroll.jumpTo(1);
+    await tester.pump();
+    expect(identical(render.debugLayout, before), isTrue);
+    scroll.dispose();
+    controller.dispose();
+  }, semanticsEnabled: false);
+
+  testWidgets('constraint changes keep the lazy window canonical', (
+    tester,
+  ) async {
+    final controller = _controller(120);
+    final scroll = ScrollController();
+    await _pump(tester, controller, scroll);
+    scroll.jumpTo(600);
+    await tester.pump();
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+          child: SizedBox(
+            width: 260,
+            height: 320,
+            child: WeftView(
+              controller: controller,
+              scrollController: scroll,
+            ),
+          ),
+        ),
+      ),
+    );
+    final render = tester.renderObject<RenderWeftSurface>(
+      find.byType(WeftSurface),
+    );
+    expect(render.viewportHeight, 320);
+    expect(render.debugLayout!.debugIsLazy, isTrue);
+    final fresh = const WeftLayoutEngine().layoutViewport(
+      controller.document!,
+      width: 260,
+      viewportStart: 350,
+      viewportEnd: 1170,
+    );
+    addTearDown(fresh.dispose);
+    expect(render.debugLayout!.commands, hasLength(fresh.commands.length));
+    for (var i = 0; i < fresh.commands.length; i++) {
+      expect(render.debugLayout!.commands[i].nodeId, fresh.commands[i].nodeId);
+      expect(render.debugLayout!.commands[i].bounds, fresh.commands[i].bounds);
+    }
+    scroll.dispose();
+    controller.dispose();
+  }, semanticsEnabled: false);
+
   testWidgets('enableLazyLayout false keeps the canonical full layout', (
     tester,
   ) async {
@@ -131,6 +257,33 @@ void main() {
       closeTo(scroll.position.maxScrollExtent, 1),
     );
 
+    scroll.dispose();
+    controller.dispose();
+  }, semanticsEnabled: false);
+
+  testWidgets('Semantics at the estimated bottom cancels lazy correction', (
+    tester,
+  ) async {
+    final controller = _controllerWithTallTail();
+    final scroll = ScrollController();
+    await _pump(tester, controller, scroll);
+    scroll.jumpTo(scroll.position.maxScrollExtent);
+    await tester.pump();
+    await tester.pump();
+    final render = tester.renderObject<RenderWeftSurface>(
+      find.byType(WeftSurface),
+    );
+    expect(render.debugLayout!.debugIsLazy, isTrue);
+    expect(render.debugFollowLazyBottom, isTrue);
+
+    final semantics = tester.ensureSemantics();
+    await tester.pump();
+    expect(render.debugLayout!.debugIsLazy, isFalse);
+    expect(render.debugFollowLazyBottom, isFalse);
+    expect(render.debugPendingLazyCorrection, 0);
+    expect(scroll.offset, closeTo(scroll.position.maxScrollExtent, 1));
+
+    semantics.dispose();
     scroll.dispose();
     controller.dispose();
   }, semanticsEnabled: false);

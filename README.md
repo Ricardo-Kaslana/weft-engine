@@ -35,7 +35,7 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - 中英文内容、窄宽度换行及 300 段长文档的布局烟测。
 - 六类代表性内容语料，以及 Chrome/Edge 诊断参考截图生成器。
 - Apache 2.0 Roboto/Roboto Mono 固定字体、三个 Flutter 像素黄金基线（含图片/浮动案例）、确定性 PNG 图片资产和 Windows CI 门禁。
-- Dart Pub workspace、250+ 项常规自动测试、3 项像素测试、浏览器几何基线测试和 GitHub Actions CI。
+- Dart Pub workspace、260+ 项常规自动测试、3 项像素测试、浏览器几何基线测试和 GitHub Actions CI。
 
 尚未实现：
 

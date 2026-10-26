@@ -563,6 +563,7 @@ final class WeftCachedLayoutBlock {
     required this.left,
     required this.top,
     required this.height,
+    required this.materialized,
     ui.Rect? paintBounds,
     required Iterable<WeftLayoutBox> boxes,
     required Iterable<WeftPaintCommand> commands,
@@ -576,6 +577,10 @@ final class WeftCachedLayoutBlock {
   final double left;
   final double top;
   final double height;
+
+  /// Whether commands/boxes/links are currently held for this block. A
+  /// materialized block may legally have no paint commands.
+  final bool materialized;
   final ui.Rect paintBounds;
   final List<WeftLayoutBox> boxes;
   final List<WeftPaintCommand> commands;

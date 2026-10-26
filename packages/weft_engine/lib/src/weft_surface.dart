@@ -85,6 +85,7 @@ class WeftSurface extends StatefulWidget {
     this.onSemanticsLinkTap,
     this.enableLazyLayout = false,
     this.viewportHeight,
+    this.initialViewportPixels = 0,
     this.onLazyExtentCorrection,
     this.showSelectionHandles = true,
     this.showCaret = true,
@@ -103,6 +104,7 @@ class WeftSurface extends StatefulWidget {
   final ValueChanged<WeftLinkRegion>? onSemanticsLinkTap;
   final bool enableLazyLayout;
   final double? viewportHeight;
+  final double initialViewportPixels;
   final ValueChanged<double>? onLazyExtentCorrection;
 
   /// Whether [RenderWeftSurface.selectionControlsGeometry] exposes drag
@@ -147,6 +149,7 @@ class _WeftSurfaceState extends State<WeftSurface> {
       onSemanticsLinkTap: widget.onSemanticsLinkTap ?? widget.onLinkTap,
       enableLazyLayout: widget.enableLazyLayout,
       viewportHeight: widget.viewportHeight,
+      initialViewportPixels: widget.initialViewportPixels,
       onLazyExtentCorrection: widget.onLazyExtentCorrection,
       showSelectionHandles: widget.showSelectionHandles,
       showCaret: widget.showCaret,
@@ -172,6 +175,7 @@ class _RawWeftSurface extends LeafRenderObjectWidget {
     this.onSemanticsLinkTap,
     this.enableLazyLayout = false,
     this.viewportHeight,
+    this.initialViewportPixels = 0,
     this.onLazyExtentCorrection,
     this.showSelectionHandles = true,
     this.showCaret = true,
@@ -185,6 +189,7 @@ class _RawWeftSurface extends LeafRenderObjectWidget {
   final ValueChanged<WeftLinkRegion>? onSemanticsLinkTap;
   final bool enableLazyLayout;
   final double? viewportHeight;
+  final double initialViewportPixels;
   final ValueChanged<double>? onLazyExtentCorrection;
   final bool showSelectionHandles;
   final bool showCaret;
@@ -200,6 +205,7 @@ class _RawWeftSurface extends LeafRenderObjectWidget {
       onSemanticsLinkTap: onSemanticsLinkTap,
       enableLazyLayout: enableLazyLayout,
       viewportHeight: viewportHeight,
+      initialViewportPixels: initialViewportPixels,
       onLazyExtentCorrection: onLazyExtentCorrection,
       imageConfiguration: createLocalImageConfiguration(context),
       showSelectionHandles: showSelectionHandles,
@@ -238,6 +244,7 @@ class RenderWeftSurface extends RenderBox {
     ValueChanged<WeftLinkRegion>? onSemanticsLinkTap,
     bool enableLazyLayout = false,
     double? viewportHeight,
+    double initialViewportPixels = 0,
     ValueChanged<double>? onLazyExtentCorrection,
     ImageConfiguration imageConfiguration = ImageConfiguration.empty,
     bool showSelectionHandles = true,
@@ -250,11 +257,17 @@ class RenderWeftSurface extends RenderBox {
         _onSemanticsLinkTap = onSemanticsLinkTap,
         _enableLazyLayout = enableLazyLayout,
         _viewportHeight = viewportHeight,
+        _viewportPixels = initialViewportPixels,
         _onLazyExtentCorrection = onLazyExtentCorrection,
         _imageConfiguration = imageConfiguration,
         _showSelectionHandles = showSelectionHandles,
         _showCaret = showCaret,
-        _showCopyButton = showCopyButton;
+        _showCopyButton = showCopyButton {
+    if (selection != null) {
+      _fullLayoutRequired = true;
+      _debugFullLayoutReason = 'selection';
+    }
+  }
 
   static const _layoutEngine = WeftLayoutEngine();
 
@@ -265,13 +278,14 @@ class RenderWeftSurface extends RenderBox {
   ValueChanged<WeftLinkRegion>? _onSemanticsLinkTap;
   bool _enableLazyLayout;
   double? _viewportHeight;
-  double _viewportPixels = 0;
+  double _viewportPixels;
   ValueChanged<double>? _onLazyExtentCorrection;
   bool _fullLayoutRequired = false;
   String? _debugFullLayoutReason;
   bool _followLazyBottom = false;
   bool _lazyCorrectionScheduled = false;
   double _pendingLazyCorrection = 0;
+  int _lazyGeneration = 0;
   ImageConfiguration _imageConfiguration;
   bool _showSelectionHandles;
   bool _showCaret;
@@ -320,8 +334,8 @@ class RenderWeftSurface extends RenderBox {
       _clearImages();
       _semanticsChildNodes.clear();
       _fullLayoutRequired = false;
-      _followLazyBottom = false;
-      _pendingLazyCorrection = 0;
+      _debugFullLayoutReason = null;
+      _exitLazyMode();
     }
   }
 
@@ -330,7 +344,7 @@ class RenderWeftSurface extends RenderBox {
   set selection(TextSelectionRange? value) {
     if (_selection == value) return;
     _selection = value;
-    if (value != null) _requireFullLayout();
+    if (value != null) _requireFullLayout('selection');
     markNeedsPaint();
     markNeedsSemanticsUpdate();
   }
@@ -348,6 +362,7 @@ class RenderWeftSurface extends RenderBox {
   set enableLazyLayout(bool value) {
     if (_enableLazyLayout == value) return;
     _enableLazyLayout = value;
+    if (!value) _exitLazyMode();
     _invalidateLayout();
   }
 
@@ -356,6 +371,7 @@ class RenderWeftSurface extends RenderBox {
   set viewportHeight(double? value) {
     if (_viewportHeight == value) return;
     _viewportHeight = value;
+    if (value == null || value <= 0) _exitLazyMode();
     markNeedsLayout();
   }
 
@@ -371,10 +387,25 @@ class RenderWeftSurface extends RenderBox {
     if (_needsLazyRelayout()) markNeedsLayout();
   }
 
-  void _requireFullLayout() {
-    _fullLayoutRequired = true;
-    _debugFullLayoutReason = 'selection';
-    if (_layout?.debugIsLazy == true) _invalidateLayout();
+  void _exitLazyMode() {
+    _followLazyBottom = false;
+    _pendingLazyCorrection = 0;
+    _lazyCorrectionScheduled = false;
+    _lazyGeneration += 1;
+  }
+
+  void _markFullLayoutRequired(String reason) {
+    if (!_fullLayoutRequired) {
+      _fullLayoutRequired = true;
+      _debugFullLayoutReason = reason;
+    }
+    _exitLazyMode();
+  }
+
+  void _requireFullLayout(String reason) {
+    final hadLazyLayout = _layout?.debugIsLazy == true;
+    _markFullLayoutRequired(reason);
+    if (hadLazyLayout) _invalidateLayout();
   }
 
   TextScaler get textScaler => _textScaler;
@@ -470,6 +501,12 @@ class RenderWeftSurface extends RenderBox {
   @visibleForTesting
   double get debugViewportPixels => _viewportPixels;
 
+  @visibleForTesting
+  bool get debugFollowLazyBottom => _followLazyBottom;
+
+  @visibleForTesting
+  double get debugPendingLazyCorrection => _pendingLazyCorrection;
+
   void _invalidateLayout({bool preservePrevious = false}) {
     if (preservePrevious) {
       _discardSelectionCache();
@@ -510,6 +547,9 @@ class RenderWeftSurface extends RenderBox {
     }
 
     _syncImages();
+    if (_selection != null && !_fullLayoutRequired) {
+      _markFullLayoutRequired('selection');
+    }
     final width = constraints.maxWidth;
     final previous = _layout;
     final viewportHeight = _viewportHeight;
@@ -517,7 +557,9 @@ class RenderWeftSurface extends RenderBox {
         !_fullLayoutRequired &&
         viewportHeight != null &&
         viewportHeight > 0;
-    if (previous?.debugIsLazy == true) _updateLazyBottomFollow();
+    if (useLazy && previous?.debugIsLazy == true) {
+      _updateLazyBottomFollow();
+    }
     final oldHeight = previous?.size.height ?? 0;
     final current = useLazy
         ? _layoutEngine.layoutViewport(
@@ -537,8 +579,7 @@ class RenderWeftSurface extends RenderBox {
             previous: previous,
           );
     if (useLazy && !current.debugIsLazy) {
-      _fullLayoutRequired = true;
-      _debugFullLayoutReason = 'engine-fallback';
+      _markFullLayoutRequired('engine-fallback');
     }
     // Hand the laid-out snapshot to the result so hit queries can build
     // their chunk index (ADR 0020); without it they fall back to full scans.
@@ -552,6 +593,7 @@ class RenderWeftSurface extends RenderBox {
   }
 
   bool _needsLazyRelayout() {
+    if (_fullLayoutRequired) return false;
     final layout = _layout;
     final cache = layout?.incrementalCache;
     final viewportHeight = _viewportHeight;
@@ -567,7 +609,7 @@ class RenderWeftSurface extends RenderBox {
     for (final block in cache.blocks) {
       final needed = (block.top < end && block.top + block.height > start) ||
           (block.paintBounds.top < end && block.paintBounds.bottom > start);
-      if (needed != block.commands.isNotEmpty) return true;
+      if (needed != block.materialized) return true;
     }
     if (cache.measuredPrefixLength < body.children.length) {
       if (cache.blocks.isEmpty) return true;
@@ -581,8 +623,10 @@ class RenderWeftSurface extends RenderBox {
     final cache = _layout?.incrementalCache;
     final viewportHeight = _viewportHeight;
     final childCount = _document.body?.children.length ?? 0;
-    _followLazyBottom = cache != null &&
+    _followLazyBottom = !_fullLayoutRequired &&
+        cache != null &&
         cache.isLazy &&
+        cache.document.id == _document.id &&
         viewportHeight != null &&
         cache.measuredPrefixLength < childCount &&
         _viewportPixels >=
@@ -595,9 +639,13 @@ class RenderWeftSurface extends RenderBox {
     if (_lazyCorrectionScheduled) return;
     _lazyCorrectionScheduled = true;
     final expectedPixels = _viewportPixels;
+    final generation = _lazyGeneration;
     SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (generation != _lazyGeneration) return;
       _lazyCorrectionScheduled = false;
       if (!attached ||
+          _fullLayoutRequired ||
+          _layout?.debugIsLazy != true ||
           !_followLazyBottom ||
           _viewportPixels != expectedPixels ||
           _pendingLazyCorrection == 0) {
@@ -613,8 +661,7 @@ class RenderWeftSurface extends RenderBox {
   void _upgradeLazyLayoutForSemantics() {
     final previous = _layout;
     if (previous?.debugIsLazy != true) return;
-    _fullLayoutRequired = true;
-    _debugFullLayoutReason = 'semantics';
+    _markFullLayoutRequired('semantics');
     final current = _layoutEngine.layout(
       _document,
       width: size.width,
@@ -805,8 +852,7 @@ class RenderWeftSurface extends RenderBox {
   void _handleImageUpdate() {
     if (!attached) return;
     if (_layout?.debugIsLazy == true) {
-      _fullLayoutRequired = true;
-      _debugFullLayoutReason = 'image';
+      _markFullLayoutRequired('image');
     }
     final phase = SchedulerBinding.instance.schedulerPhase;
     if (phase == SchedulerPhase.persistentCallbacks ||
@@ -1171,6 +1217,7 @@ class RenderWeftSurface extends RenderBox {
 
   @override
   void dispose() {
+    _exitLazyMode();
     _discardPaintCache();
     _layout?.dispose();
     _layout = null;

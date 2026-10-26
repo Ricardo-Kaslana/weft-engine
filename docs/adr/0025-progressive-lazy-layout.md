@@ -35,11 +35,19 @@ ADR 0017/0020 已按可见窗口裁剪绘制和命中，但每次文档更新仍
 - Semantics assemble 遇到 lazy result 时先同步升级 full，再生成全部屏外节点；不暴露“仅可见块”语义，ADR0024 的 showOnScreen 契约保持不变。
 - full 升级按 document.id 粘滞，selection 清除或 Semantics 关闭后不来回切换；新文档才重新评估。图片晚解码或身份变化同样升级 full。
 
+### 健壮性不变量
+
+- 构造时已有 selection 即视为 full；`performLayout` 再做一次防御判定，覆盖直接构造和相同值不触发 setter 的路径。
+- 所有 full 升级、无界 viewport、禁用 lazy、document.id 换文档和 dispose 都经过统一退出：清除底部跟随与排队校正并递增 generation。post-frame 校正执行前验证 generation、attached、full 状态、layout 仍 lazy、follow 和 pixels，过期回调不得校正新状态。
+- ScrollController 的初始 offset 只在 RenderObject 创建时作为像素 seed；后续实时值只由滚动 listener 更新。WeftView 在首帧和 controller 切换后 post-frame 对账一次，覆盖初始恢复与滚动位置夹取。
+- 缓存块显式记录 `materialized`。合法无绘制命令的纯高度块不能被误判为待物化，否则每次滚动都会重排。
+- 多屏正向/反向、约束变化与 document id 重置都必须与 fresh canonical 窗口等价。
+
 ## 理由
 
 - 首屏收益来自不创建未测块 TextPainter，而估算只影响滚动条，不进入绘制、命中或语义几何，错误不会被当作内容呈现。
 - 连续测量保持 margin collapse、列表序号和块坐标精确，避免从任意块恢复不可能完整的布局 checkpoint。
-- 复用 ADR0023 的所有权和内容身份检查，不引入第三个 Painter owner；ADV 0024 则在需要时升级 full，优先保证无障碍和跨屏选择正确。
+- 复用 ADR0023 的所有权和内容身份检查，不引入第三个 Painter owner；ADR0024 则在需要时升级 full，优先保证无障碍和跨屏选择正确。
 
 ## 后果
 
@@ -52,5 +60,5 @@ ADR 0017/0020 已按可见窗口裁剪绘制和命中，但每次文档更新仍
 
   首屏约降低 93%。数据来自本机 1 次预热、5 次采样，真实设备会受字体和 JIT 影响；CI 仍使用宽松上限，结构计数测试断言首屏远小于全文档。
 
-- 新增 engine lazy/结构/底部收敛测试与 7 项 WeftView lazy 测试；weft_engine 常规测试 210 项、weft 25 项。
+- 新增 engine lazy/结构/底部收敛/首帧 selection/空命令块/多屏往返测试与 12 项 WeftView lazy 测试；weft_engine 常规测试 213 项、weft 30 项。
 - 限制：未测后缀高度和滚动条长度会校正；冷跳底部仍为 O(N) 顺序测量；一个超高顶层块、Float、未解析图片和屏外选择/Semantics 会回退或保持 full。尚无异步分帧测量、表格行虚拟化、图片解码虚拟化和精确随机跳转。

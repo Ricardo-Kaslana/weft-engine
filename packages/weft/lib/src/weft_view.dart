@@ -108,10 +108,29 @@ class WeftViewState extends State<WeftView> {
   ScrollController get _scrollController =>
       widget.scrollController ?? _internalScrollController;
 
+  bool _viewportSyncScheduled = false;
+
+  double get _viewportPixelsSeed {
+    final controller = _scrollController;
+    return controller.hasClients
+        ? controller.offset
+        : controller.initialScrollOffset;
+  }
+
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_handleScroll);
+    _scheduleViewportSync();
+  }
+
+  void _scheduleViewportSync() {
+    if (_viewportSyncScheduled) return;
+    _viewportSyncScheduled = true;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _viewportSyncScheduled = false;
+      if (mounted) _handleScroll();
+    });
   }
 
   @override
@@ -121,6 +140,8 @@ class WeftViewState extends State<WeftView> {
       (oldWidget.scrollController ?? _internalScrollController)
           .removeListener(_handleScroll);
       _scrollController.addListener(_handleScroll);
+      _surfaceRenderObject?.setViewportPixels(_viewportPixelsSeed);
+      _scheduleViewportSync();
     }
   }
 
@@ -404,6 +425,7 @@ class WeftViewState extends State<WeftView> {
               enableLazyLayout: widget.enableLazyLayout,
               viewportHeight:
                   constraints.hasBoundedHeight ? constraints.maxHeight : null,
+              initialViewportPixels: _viewportPixelsSeed,
               onLazyExtentCorrection: _correctLazyExtent,
               showSelectionHandles: widget.showSelectionHandles,
               showCaret: widget.showCaret,
