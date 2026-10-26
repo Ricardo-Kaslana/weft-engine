@@ -1058,6 +1058,48 @@ class RenderWeftSurface extends RenderBox {
     return null;
   }
 
+  /// The first painted text anchor inside [nodeId], or null when the node or
+  /// its painted text cannot be resolved.
+  TextAnchor? firstTextAnchorInNode(NodeId nodeId) {
+    final layout = _layout;
+    final body = _document.body;
+    final index = layout?.textIndex;
+    if (layout == null || body == null || index == null) return null;
+
+    TextAnchor? first(WeftNode node) {
+      if (node is WeftText) {
+        final entry = index.entryByNode[node.id];
+        if (entry != null && entry.text.isNotEmpty) {
+          return TextAnchor(entry.nodeId, 0);
+        }
+        return null;
+      }
+      if (node is! WeftElement) return null;
+      for (final child in node.children) {
+        final found = first(child);
+        if (found != null) return found;
+      }
+      return null;
+    }
+
+    WeftNode? located;
+    bool visit(WeftNode node) {
+      if (node.id == nodeId) {
+        located = node;
+        return true;
+      }
+      if (node is WeftElement) {
+        for (final child in node.children) {
+          if (visit(child)) return true;
+        }
+      }
+      return false;
+    }
+
+    if (!visit(body) || located == null) return null;
+    return first(located!);
+  }
+
   /// Touch targets and suggested placements for the selection chrome
   /// overlays — drag handles and the copy button — in surface-local
   /// coordinates, or null when there is nothing to show.

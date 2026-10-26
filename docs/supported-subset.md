@@ -134,6 +134,7 @@
 
 - `WeftViewState.scrollToAnchor` 可按逻辑文本锚点导航；懒布局使用 focus 精确测量并物化目标块，保留当前窗口和 lazy 状态，alignment 支持顶部/居中/底部，无效锚点安全返回 false。
 - `scrollToAnchorAsync` 将深链测量拆成逐帧预算（默认每 pass 32 块）；测量期间保持当前滚动内容，完成后才定位，取消/文档变化返回 false。
+- `scrollToNode` 定位元素内首个可朗读文本锚点，复用同一 alignment/lazy focus 路径。
 - 边界与限制：滚动条长度在未测完时是估算值；锚点导航与冷跳底部仍可能需要顺序测量中间块，不做 O(1) 随机定位或异步分帧；一个超高顶层块、body 直属 Float、表内局部 Float 和图片解码资源仍未虚拟化。
 
 ## 当前明确限制

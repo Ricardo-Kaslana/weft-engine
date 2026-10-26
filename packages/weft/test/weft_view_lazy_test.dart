@@ -287,6 +287,25 @@ void main() {
     controller.dispose();
   }, semanticsEnabled: false);
 
+  testWidgets('scrollToNode targets the first text inside an element', (
+    tester,
+  ) async {
+    final controller = _controller(120);
+    final scroll = ScrollController();
+    final viewKey = GlobalKey<WeftViewState>();
+    await _pump(tester, controller, scroll, viewKey: viewKey);
+    final paragraph = (controller.document!.body!.children[80] as WeftElement);
+    expect(
+      viewKey.currentState!.scrollToNode(paragraph.id),
+      isTrue,
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(scroll.offset, greaterThan(0));
+    scroll.dispose();
+    controller.dispose();
+  }, semanticsEnabled: false);
+
   testWidgets('scrollToAnchor uses the internal controller when none injected',
       (
     tester,

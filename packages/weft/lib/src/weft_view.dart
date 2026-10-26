@@ -380,6 +380,13 @@ class WeftViewState extends State<WeftView> {
     return true;
   }
 
+  /// Scrolls to the first text inside document element [nodeId].
+  bool scrollToNode(NodeId nodeId, {double alignment = 0.0}) {
+    final anchor = _surfaceRenderObject?.firstTextAnchorInNode(nodeId);
+    if (anchor == null) return false;
+    return scrollToAnchor(anchor, alignment: alignment);
+  }
+
   /// Resolves [anchor] across animation frames, then scrolls to it.
   ///
   /// Returns false when the anchor is invalid or the request is superseded
