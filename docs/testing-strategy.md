@@ -88,6 +88,7 @@ flutter test test/perf_gate_test.dart --no-pub --timeout 120s     # CI 门禁
 | article300 | 300 段中英混排文章,每 10 段一个标题,段内含强调与链接 | ~42–56 ms | 600 ms |
 | appendArticle300Full | article300 尾部追加第 301 段,不使用 previous,永久保留全量对照 | 改前 ~37.3 ms;改后同轮 ~31.8 ms | 500 ms |
 | appendArticle300Incremental | 同一追加场景,旧 300 段布局在计时前准备,计时内复用前缀并释放旧/新结果 | ~6.7 ms | 500 ms |
+| lazyArticle300FirstViewport | article300 通过 RenderWeftSurface 懒布局首屏,800px 视口 + 250px overscan;结构探针记录实际布局/物化块数 | ~3.2 ms,首屏 6/6 块(全量 ~43.6 ms、330 块) | 500 ms |
 | table48 | 48 行 × 6 列表格,collapse 边框、padding,每 7 行一个 rowspan=2、每 5 行一个 colspan=2 | ~26–28 ms | 500 ms |
 | floatWrap | 10 组左浮动 120×96 假图(`ui.PictureRecorder` 生成)+ 长 CJK 段落逐行环绕 | ~6–9 ms | 500 ms |
 | selection300 | 在 article300 布局结果上取跨 10 段(第 100–110 段)的选区,调用 `selectionRects` | ~0.7–0.9 ms | 500 ms |
@@ -114,6 +115,8 @@ flutter test test/perf_gate_test.dart --no-pub --timeout 120s     # CI 门禁
 命中裁剪(ADR 0020)按同一方法落地:hitAnchor*/hitLinkArticle 的计时体恰为一次 `anchorAt`/`linkAt` 调用,基准与门禁均以预热建好命中索引后的稳态解析为测量对象。裁剪只允许改变执行方式,不允许改变结果:裁剪路径与全量扫描的逐点一致(含块间隙空点、chrome 散落文本、负 margin 跨块重叠)由 `test/hit_culling_test.dart` 固化。
 
 流式增量布局(ADR 0023)保留 appendArticle300Full 作为永久全量对照;Incremental 的旧 300 段布局在计时外准备,每次运行使用独立 previous,避免所有权转移后重复消费。`test/incremental_layout_test.dart` 固化连续快照、尾段增长、失效回退、dispose 生命周期及与全量结果的几何/命中/选区/像素等价;`test/chunked_rendering_test.dart` 另行断言未变前缀 Picture 不重录。
+
+布局虚拟化(ADR 0025)的验收分两层:计时对比 lazy 首屏与 full article300,结构计数则断言首屏只布局/物化连续可见前缀,且必须远小于全文块数。`test/lazy_layout_test.dart` 覆盖精确前缀、冷跳收敛、结构化内容与 canonical 等价;`weft_view_lazy_test.dart` 覆盖滚动、默认/强制 eager、底部校正、流式、Float 回退、selection 与 Semantics 升级。
 
 ## Runtime 安全测试
 

@@ -91,6 +91,23 @@ void main() {
     // production paint path (partition, picture cache, culling). The warm-up
     // run builds the picture cache, so the timed runs measure steady-state
     // painting.
+    final lazyProbe = RenderWeftSurface(
+      document: article,
+      enableLazyLayout: true,
+      viewportHeight: _paintWindowHeight,
+    );
+    lazyProbe.layout(const BoxConstraints.tightFor(width: _viewportWidth));
+    // ignore: invalid_use_of_visible_for_testing_member
+    final lazyProbeLayout = lazyProbe.debugLayout!;
+    // ignore: avoid_print
+    print(
+      'lazyFirstViewport structure: laidOut='
+      '${lazyProbeLayout.debugLaidOutBlockCount} '
+      'materialized=${lazyProbeLayout.debugMaterializedBlockCount} '
+      'commands=${lazyProbeLayout.commands.length}',
+    );
+    lazyProbe.dispose();
+
     final paintSurface = RenderWeftSurface(
       document: article,
       textScaler: TextScaler.noScaling,
@@ -111,6 +128,15 @@ void main() {
       },
       'appendArticle300Full': () {
         engine.layout(appendedArticle, width: _viewportWidth).dispose();
+      },
+      'lazyArticle300FirstViewport': () {
+        final surface = RenderWeftSurface(
+          document: article,
+          enableLazyLayout: true,
+          viewportHeight: _paintWindowHeight,
+        );
+        surface.layout(const BoxConstraints.tightFor(width: _viewportWidth));
+        surface.dispose();
       },
       'appendArticle300Incremental': () {
         final previous = appendPreviousLayouts[appendRun++];

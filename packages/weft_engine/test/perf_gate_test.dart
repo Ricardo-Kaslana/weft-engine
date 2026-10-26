@@ -26,6 +26,7 @@ import 'package:weft_engine/weft_engine.dart';
 // regressions; the real comparison lives in docs/testing-strategy.md.
 const int _article300CapMs = 600; // 10x ~55 ms, rounded up to a hundred.
 const int _appendArticle300CapMs = 500; // 10x ~37 ms: floor cap.
+const int _lazyArticle300CapMs = 500; // Median < 50 ms: floor cap.
 const int _table48CapMs = 500; // Median < 50 ms: floor cap.
 const int _floatWrapCapMs = 500; // Median < 50 ms: floor cap.
 const int _selection300CapMs = 500; // Median < 50 ms: floor cap.
@@ -88,6 +89,20 @@ void main() {
       );
       old.dispose();
       current.dispose();
+    });
+  });
+
+  test('perf gate: lazyArticle300FirstViewport under $_lazyArticle300CapMs ms',
+      () {
+    final document = _normalize(_articleHtml(), 'gate-article');
+    _runUnderCap(_lazyArticle300CapMs, 'lazyArticle300FirstViewport', () {
+      final surface = RenderWeftSurface(
+        document: document,
+        enableLazyLayout: true,
+        viewportHeight: _paintWindowHeight,
+      );
+      surface.layout(const BoxConstraints.tightFor(width: _viewportWidth));
+      surface.dispose();
     });
   });
 

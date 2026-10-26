@@ -55,7 +55,7 @@ typedef WeftImageResolver =
 
 解析器返回 `null` 时布局显示 `alt`；返回的 `ImageProvider` 由渲染表面监听解码并触发失效。宿主必须在解析器中执行自己的 URL 白名单、认证、缓存和大小策略，引擎不自动请求网络。
 
-当前 `WeftView` 使用外部 `SingleChildScrollView`。这是阶段 1A 的临时滚动方案，后续将被内部视口和可见区绘制替代。
+`WeftView` 使用内部 `SingleChildScrollView`，`scrollController` 可注入读取/驱动偏移；`primary:false` 保持不变。`enableLazyLayout` 默认 true：简单文档只物化可见块并允许估算滚动高度，复杂文档及 selection/Semantics 会升级为完整布局。standalone `WeftSurface` 默认完整布局。
 
 ## 已建立：规范化与样式
 
@@ -93,7 +93,7 @@ final layout = const WeftLayoutEngine().layout(
 
 布局结果拥有 `TextPainter`，调用方必须 `dispose()`。`RenderWeftSurface` 在重新布局和销毁时负责释放旧结果，缓存当前链接区域供点击测试使用，并管理图片 `ImageInfo` 的监听与释放。
 
-布局直接执行 Block/Inline/Table 流，没有通用 Fragment 行盒树；ADR 0023 可复用 body 顶层前缀块，ADR 0024 从文档与布局结果派生 Semantics。Float 只覆盖图片，使用共享排除区和逐行文本布局；链接命中覆盖字形行盒，不包含行间空白。
+布局直接执行 Block/Inline/Table 流，没有通用 Fragment 行盒树；ADR 0023 可复用 body 顶层前缀块，ADR 0025 在 WeftView 内部渐进测量可见窗口，ADR 0024 从文档与布局结果派生 Semantics。Float 只覆盖图片，使用共享排除区和逐行文本布局；链接命中覆盖字形行盒，不包含行间空白。
 
 ## 已建立：Runtime
 

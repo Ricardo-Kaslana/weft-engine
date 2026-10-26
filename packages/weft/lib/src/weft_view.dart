@@ -46,6 +46,7 @@ class WeftView extends StatefulWidget {
     this.onLinkTap,
     this.onSelectionChanged,
     this.imageResolver,
+    this.enableLazyLayout = true,
     this.showSelectionHandles = true,
     this.showCaret = true,
     this.showCopyButton = true,
@@ -71,6 +72,10 @@ class WeftView extends StatefulWidget {
   final ValueChanged<WeftSelectionInfo?>? onSelectionChanged;
 
   final WeftImageResolver? imageResolver;
+
+  /// Whether simple documents lazily materialize only the visible block
+  /// window. Selection and Semantics still upgrade to a complete layout.
+  final bool enableLazyLayout;
 
   /// Whether drag handles overlay the current selection. Forwarded to the
   /// surface's geometry query and used to gate the overlay widgets here.
@@ -98,6 +103,43 @@ class WeftView extends StatefulWidget {
 /// with the weft layer; the engine never writes to the system clipboard.
 class WeftViewState extends State<WeftView> {
   final _surfaceKey = GlobalKey();
+  final _internalScrollController = ScrollController();
+
+  ScrollController get _scrollController =>
+      widget.scrollController ?? _internalScrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_handleScroll);
+  }
+
+  @override
+  void didUpdateWidget(WeftView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.scrollController != widget.scrollController) {
+      (oldWidget.scrollController ?? _internalScrollController)
+          .removeListener(_handleScroll);
+      _scrollController.addListener(_handleScroll);
+    }
+  }
+
+  void _handleScroll() {
+    _surfaceRenderObject?.setViewportPixels(_scrollController.offset);
+  }
+
+  void _correctLazyExtent(double delta) {
+    if (_scrollController.hasClients) {
+      _scrollController.position.correctBy(delta);
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_handleScroll);
+    _internalScrollController.dispose();
+    super.dispose();
+  }
 
   /// Where the long press started, recorded on pointer down so the word
   /// selection is taken from the touch origin even if the start callback
@@ -350,50 +392,54 @@ class WeftViewState extends State<WeftView> {
 
         final textScaler =
             MediaQuery.maybeTextScalerOf(context) ?? TextScaler.noScaling;
-        final surface = WeftSurface(
-          key: _surfaceKey,
-          document: document,
-          selection: widget.controller.selection,
-          textScaler: textScaler,
-          imageResolver: widget.imageResolver,
-          onSemanticsLinkTap: widget.onLinkTap,
-          showSelectionHandles: widget.showSelectionHandles,
-          showCaret: widget.showCaret,
-          showCopyButton: widget.showCopyButton,
-          copyButtonLabel: widget.copyButtonLabel,
-        );
-        // The view owns the content gesture surface: tap resolves links and
-        // places the caret through the render object itself, so link taps,
-        // caret placement and selection clearing share one tap handler and
-        // WeftSurface builds without its own detector. Handle and copy
-        // button chrome sits in the Stack above; its opaque gesture
-        // detectors win the arena before this handler ever sees a pointer.
-        final content = GestureDetector(
-          behavior: HitTestBehavior.deferToChild,
-          excludeFromSemantics: true,
-          onTapUp: _handleTapUp,
-          onLongPressDown: _handleLongPressDown,
-          onLongPressStart: _handleLongPressStart,
-          onLongPressMoveUpdate: _handleLongPressMoveUpdate,
-          child: surface,
-        );
-        _scheduleOverlaySyncIfNeeded();
-        // The view owns vertical scrolling: the surface is laid out at the
-        // full document height and the scroll view clips and offsets it.
-        // primary: false keeps this scroll view detached from the
-        // PrimaryScrollController even when no [WeftView.scrollController]
-        // is injected. Overlay positions are surface-local and the Stack
-        // wraps the content one-to-one inside the scroll view, so the chrome
-        // scrolls with the document without any viewport bookkeeping.
-        return SingleChildScrollView(
-          controller: widget.scrollController,
-          primary: false,
-          child: Stack(
-            children: [
-              content,
-              ..._buildSelectionOverlays(),
-            ],
-          ),
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final surface = WeftSurface(
+              key: _surfaceKey,
+              document: document,
+              selection: widget.controller.selection,
+              textScaler: textScaler,
+              imageResolver: widget.imageResolver,
+              onSemanticsLinkTap: widget.onLinkTap,
+              enableLazyLayout: widget.enableLazyLayout,
+              viewportHeight:
+                  constraints.hasBoundedHeight ? constraints.maxHeight : null,
+              onLazyExtentCorrection: _correctLazyExtent,
+              showSelectionHandles: widget.showSelectionHandles,
+              showCaret: widget.showCaret,
+              showCopyButton: widget.showCopyButton,
+              copyButtonLabel: widget.copyButtonLabel,
+            );
+            // The view owns the content gesture surface: tap resolves links and
+            // places the caret through the render object itself, so link taps,
+            // caret placement and selection clearing share one tap handler and
+            // WeftSurface builds without its own detector. Handle and copy
+            // button chrome sits in the Stack above; its opaque gesture
+            // detectors win the arena before this handler ever sees a pointer.
+            final content = GestureDetector(
+              behavior: HitTestBehavior.deferToChild,
+              excludeFromSemantics: true,
+              onTapUp: _handleTapUp,
+              onLongPressDown: _handleLongPressDown,
+              onLongPressStart: _handleLongPressStart,
+              onLongPressMoveUpdate: _handleLongPressMoveUpdate,
+              child: surface,
+            );
+            _scheduleOverlaySyncIfNeeded();
+            // The surface reports an estimated or exact document extent. Its
+            // block window follows this controller, while selection chrome
+            // keeps the same document-local coordinates as the content.
+            return SingleChildScrollView(
+              controller: _scrollController,
+              primary: false,
+              child: Stack(
+                children: [
+                  content,
+                  ..._buildSelectionOverlays(),
+                ],
+              ),
+            );
+          },
         );
       },
     );

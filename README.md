@@ -25,22 +25,25 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - 选择 chrome（ADR 0019）：折叠选区绘制 caret；选择把手可拖拽移动选区端点；复制按钮写入剪贴板并保留选区（`copyButtonLabel` 可配）；`WeftView.onSelectionChanged` 向宿主上报选区文本；把手/复制按钮可用 `showSelectionHandles`/`showCopyButton` 关闭。
 - CJK 禁则（ADR 0016）：可配置行首/行尾禁则表（默认覆盖常用中日标点），逐行分行路径显式执行禁则；整段路径经 ICU 对照零违规。
 - 分块渲染（ADR 0017）：绘制命令按 body 顶层子节点分块缓存为 `ui.Picture`，绘制时按可见窗口裁剪、只重绘相交块；选区矩形独立缓存，选区变化不重建 Picture。
-- 性能门禁：布局/绘制/命中 11 场景基准工具与 10 倍宽上限的 CI 稳定门禁（见 docs/testing-strategy.md）；命中解析经分块索引裁剪（ADR 0020），`WeftView.scrollController` 可注入。
+- 流式增量布局（ADR 0023）：同 id 追加复用未变顶层前缀与 TextPainter；未变前缀 Picture 也跨快照保留。
+- 可访问性语义（ADR 0024）：单表面文本、链接、图片与选区 Semantics，支持链接语义 tap 和屏外 showOnScreen。
+- 渐进式布局虚拟化（ADR 0025）：WeftView 简单长文只物化可见块，首屏不创建全文 TextPainter；selection/Semantics/复杂文档回退 full。
+- 性能门禁：布局/绘制/命中 14 场景基准工具与 10 倍宽上限的 CI 稳定门禁（见 docs/testing-strategy.md）；命中解析经分块索引裁剪（ADR 0020），`WeftView.scrollController` 可注入。
 - `float_image` 一致性案例：Chrome 生成的浏览器几何基线（块、图片、逐行词盒误差 ≤ 0.5px）与 Flutter 像素黄金双重门禁；图片按 1:1 对齐整像素绘制。
 - `table_basic`/`table_cols` 一致性案例：表格浏览器几何基线（单元格 ≤ 1.5px、行/列结构精确断言），覆盖 collapse/separate、跨列跨行、caption 与 colgroup/col 列宽。
 - 单一 `RenderObject` 渲染表面、可滚动公开视图和真实文本/背景/图片绘制指令。
 - 中英文内容、窄宽度换行及 300 段长文档的布局烟测。
 - 六类代表性内容语料，以及 Chrome/Edge 诊断参考截图生成器。
 - Apache 2.0 Roboto/Roboto Mono 固定字体、三个 Flutter 像素黄金基线（含图片/浮动案例）、确定性 PNG 图片资产和 Windows CI 门禁。
-- Dart Pub workspace、173 项常规自动测试、3 项像素测试、浏览器几何基线测试和 GitHub Actions CI。
+- Dart Pub workspace、250+ 项常规自动测试、3 项像素测试、浏览器几何基线测试和 GitHub Actions CI。
 
 尚未实现：
 
 
 - CJK 像素字体与跨引擎像素预算达标。
 - 表格的嵌套表格（触发回退）与浏览器级 auto 列宽分配精度。
-- 选择工具条（完整菜单）、chrome 动画打磨和可访问性语义。
-- 布局级视口虚拟化（命中与绘制已按视口裁剪）与引擎内部滚动容器。
+- 选择工具条（完整菜单）、chrome 动画打磨和语义角色/live region 增强。
+- 懒布局的异步分帧、Float checkpoint、精确随机跳转，以及表内行与图片解码资源虚拟化。
 - QuickJS 原生库、FFI 绑定和真实脚本执行。
 - 状态、事件、网络能力包的具体实现。
 

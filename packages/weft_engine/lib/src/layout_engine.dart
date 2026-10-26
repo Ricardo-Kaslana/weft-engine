@@ -27,6 +27,48 @@ final class WeftLayoutEngine {
     WeftLineBreakRules lineBreakRules = const WeftLineBreakRules(),
     WeftLayoutResult? previous,
   }) {
+    return _layoutDocument(
+      document,
+      width: width,
+      textScaler: textScaler,
+      images: images,
+      lineBreakRules: lineBreakRules,
+      previous: previous,
+    );
+  }
+
+  WeftLayoutResult layoutViewport(
+    WeftDocumentSnapshot document, {
+    required double width,
+    required double viewportStart,
+    required double viewportEnd,
+    TextScaler textScaler = TextScaler.noScaling,
+    Map<int, ui.Image> images = const {},
+    WeftLineBreakRules lineBreakRules = const WeftLineBreakRules(),
+    WeftLayoutResult? previous,
+  }) {
+    return _layoutDocument(
+      document,
+      width: width,
+      textScaler: textScaler,
+      images: images,
+      lineBreakRules: lineBreakRules,
+      previous: previous,
+      viewportStart: viewportStart,
+      viewportEnd: viewportEnd,
+    );
+  }
+
+  WeftLayoutResult _layoutDocument(
+    WeftDocumentSnapshot document, {
+    required double width,
+    TextScaler textScaler = TextScaler.noScaling,
+    Map<int, ui.Image> images = const {},
+    WeftLineBreakRules lineBreakRules = const WeftLineBreakRules(),
+    WeftLayoutResult? previous,
+    double? viewportStart,
+    double? viewportEnd,
+  }) {
     if (!width.isFinite || width <= 0) {
       return WeftLayoutResult(
         size: Size.zero,
@@ -46,6 +88,14 @@ final class WeftLayoutEngine {
       );
     }
 
+    final styleResolver = WeftStyleResolver(document.styleSheet);
+    final lazy = viewportStart != null &&
+        viewportEnd != null &&
+        _supportsLazyLayout(
+          document: document,
+          styleResolver: styleResolver,
+          images: images,
+        );
     final reusableBlocks = _reusableLayoutBlocks(
       document: document,
       previous: previous,
@@ -53,14 +103,17 @@ final class WeftLayoutEngine {
       textScaler: textScaler,
       images: images,
       lineBreakRules: lineBreakRules,
+      allowLazy: lazy,
     );
     final context = _LayoutContext(
-      styleResolver: WeftStyleResolver(document.styleSheet),
+      styleResolver: styleResolver,
       textScaler: textScaler,
       images: images,
       lineBreakRules: lineBreakRules,
       body: body,
       reusableBlocks: reusableBlocks,
+      viewportStart: lazy ? viewportStart : null,
+      viewportEnd: lazy ? viewportEnd : null,
     );
     final textIndex = WeftTextIndex.build(
       document: document,
@@ -98,10 +151,29 @@ final class WeftLayoutEngine {
       links: context.links,
       textIndex: textIndex,
       debugReusedBlockCount: context.reusedBlockCount,
+      debugLaidOutBlockCount:
+          lazy ? context.laidOutBlockCount : context.topLevelBlocks.length,
+      debugMaterializedBlockCount:
+          lazy ? context.materializedBlockCount : context.topLevelBlocks.length,
+      debugIsLazy: lazy,
     );
+    if (lazy && (!context.topLevelCacheEligible || floats.hasExclusions)) {
+      if (context.reusedCommands.isNotEmpty) {
+        previous?.transferCommands(context.reusedCommands);
+      }
+      result.dispose();
+      return _layoutDocument(
+        document,
+        width: width,
+        textScaler: textScaler,
+        images: images,
+        lineBreakRules: lineBreakRules,
+        previous: previous,
+      );
+    }
     if (context.topLevelCacheEligible &&
         !floats.hasExclusions &&
-        context.topLevelBlocks.length == body.children.length) {
+        (lazy || context.topLevelBlocks.length == body.children.length)) {
       result.incrementalCache = WeftIncrementalLayoutCache(
         document: document,
         width: width,
@@ -109,6 +181,9 @@ final class WeftLayoutEngine {
         images: images,
         lineBreakRules: lineBreakRules,
         blocks: context.topLevelBlocks,
+        measuredPrefixLength: context.topLevelBlocks.length,
+        isLazy: lazy,
+        estimatedExtent: result.size.height,
       );
     }
     if (context.reusedCommands.isNotEmpty) {
@@ -125,11 +200,13 @@ Map<int, WeftCachedLayoutBlock> _reusableLayoutBlocks({
   required TextScaler textScaler,
   required Map<int, ui.Image> images,
   required WeftLineBreakRules lineBreakRules,
+  bool allowLazy = false,
 }) {
   final cache = previous?.incrementalCache;
   final oldBody = cache?.document.body;
   final newBody = document.body;
   if (cache == null ||
+      (cache.isLazy && !allowLazy) ||
       oldBody == null ||
       newBody == null ||
       cache.document.id != document.id ||
@@ -146,12 +223,13 @@ Map<int, WeftCachedLayoutBlock> _reusableLayoutBlocks({
         cache.lineBreakRules.lineEndProhibited,
         lineBreakRules.lineEndProhibited,
       ) ||
-      cache.blocks.length != oldBody.children.length) {
+      cache.blocks.length != cache.measuredPrefixLength ||
+      (!allowLazy && cache.blocks.length != oldBody.children.length)) {
     return const <int, WeftCachedLayoutBlock>{};
   }
 
   final result = <int, WeftCachedLayoutBlock>{};
-  final count = math.min(oldBody.children.length, newBody.children.length);
+  final count = math.min(cache.blocks.length, newBody.children.length);
   for (var i = 0; i < count; i++) {
     final oldChild = oldBody.children[i];
     final newChild = newBody.children[i];
@@ -241,6 +319,48 @@ String _styleSheetSignature(WeftStyleSheet sheet) {
   return result.toString();
 }
 
+bool _supportsLazyLayout({
+  required WeftDocumentSnapshot document,
+  required WeftStyleResolver styleResolver,
+  required Map<int, ui.Image> images,
+}) {
+  final body = document.body;
+  if (body == null) return false;
+
+  bool visit(
+    WeftElement element,
+    WeftComputedStyle parent,
+    List<WeftElement> ancestors,
+  ) {
+    final style = styleResolver.resolve(
+      element,
+      parent: parent,
+      ancestors: ancestors,
+    );
+    if (style.display == WeftDisplay.none || style.float != WeftFloat.none) {
+      return false;
+    }
+    if (element.tag == 'img' && images[element.id] == null) return false;
+    final childAncestors = <WeftElement>[...ancestors, element];
+    for (final child in element.children) {
+      if (child is WeftText && identical(element, body)) return false;
+      if (child is! WeftElement) continue;
+      if (identical(element, body)) {
+        final childStyle = styleResolver.resolve(
+          child,
+          parent: style,
+          ancestors: childAncestors,
+        );
+        if (childStyle.display == WeftDisplay.inline) return false;
+      }
+      if (!visit(child, style, childAncestors)) return false;
+    }
+    return true;
+  }
+
+  return visit(body, WeftComputedStyle.initial, const []);
+}
+
 final class _LayoutContext {
   _LayoutContext({
     required this.styleResolver,
@@ -248,14 +368,22 @@ final class _LayoutContext {
     required this.images,
     required this.body,
     required this.reusableBlocks,
+    this.viewportStart,
+    this.viewportEnd,
     this.lineBreakRules = const WeftLineBreakRules(),
-  });
+  }) {
+    for (final block in reusableBlocks.values) {
+      _recordHeightSample(block.element, block.height);
+    }
+  }
 
   final WeftStyleResolver styleResolver;
   final TextScaler textScaler;
   final Map<int, ui.Image> images;
   final WeftElement body;
   final Map<int, WeftCachedLayoutBlock> reusableBlocks;
+  final double? viewportStart;
+  final double? viewportEnd;
 
   /// Kinsoku tables applied by the line-by-line inline layout path.
   final WeftLineBreakRules lineBreakRules;
@@ -267,6 +395,11 @@ final class _LayoutContext {
   bool topLevelCacheEligible = true;
   bool reuseStopped = false;
   int reusedBlockCount = 0;
+  int laidOutBlockCount = 0;
+  int materializedBlockCount = 0;
+  final Map<String, List<double>> heightSamples = <String, List<double>>{};
+
+  bool get isLazy => viewportStart != null && viewportEnd != null;
 
   (int, int, int)? _startTopLevelBlock(WeftElement parent) {
     if (!identical(parent, body)) return null;
@@ -282,15 +415,37 @@ final class _LayoutContext {
     required (int, int, int)? start,
   }) {
     if (start == null) return;
+    if (isLazy) laidOutBlockCount += 1;
+    _recordHeightSample(child, height);
+    final blockCommands = commands.sublist(start.$1);
+    final blockBoxes = boxes.sublist(start.$2);
+    final blockLinks = links.sublist(start.$3);
+    final paintBounds = _commandsPaintBounds(blockCommands);
+    final materialize = _shouldMaterialize(
+      top: top,
+      height: height,
+      paintBounds: paintBounds,
+    );
+    if (!materialize) {
+      for (final command in blockCommands) {
+        command.dispose();
+      }
+      commands.removeRange(start.$1, commands.length);
+      boxes.removeRange(start.$2, boxes.length);
+      links.removeRange(start.$3, links.length);
+    } else if (isLazy) {
+      materializedBlockCount += 1;
+    }
     topLevelBlocks.add(
       WeftCachedLayoutBlock(
         element: child,
         left: left,
         top: top,
         height: height,
-        boxes: boxes.sublist(start.$2),
-        commands: commands.sublist(start.$1),
-        links: links.sublist(start.$3),
+        paintBounds: paintBounds,
+        boxes: materialize ? blockBoxes : const [],
+        commands: materialize ? blockCommands : const [],
+        links: materialize ? blockLinks : const [],
       ),
     );
   }
@@ -308,23 +463,88 @@ final class _LayoutContext {
       reuseStopped = true;
       return null;
     }
-    commands.addAll(block.commands);
-    boxes.addAll(block.boxes);
-    links.addAll(block.links);
+    final materialize = _shouldMaterialize(
+      top: block.top,
+      height: block.height,
+      paintBounds: block.paintBounds,
+    );
+    if (isLazy && materialize && block.commands.isEmpty) return null;
+    final blockCommands =
+        materialize ? block.commands : const <WeftPaintCommand>[];
+    final blockBoxes = materialize ? block.boxes : const <WeftLayoutBox>[];
+    final blockLinks = materialize ? block.links : const <WeftLinkRegion>[];
+    commands.addAll(blockCommands);
+    boxes.addAll(blockBoxes);
+    links.addAll(blockLinks);
     topLevelBlocks.add(
       WeftCachedLayoutBlock(
         element: child,
         left: block.left,
         top: block.top,
         height: block.height,
-        boxes: block.boxes,
-        commands: block.commands,
-        links: block.links,
+        paintBounds: block.paintBounds,
+        boxes: blockBoxes,
+        commands: blockCommands,
+        links: blockLinks,
       ),
     );
-    reusedCommands.addAll(block.commands);
+    reusedCommands.addAll(blockCommands);
     reusedBlockCount += 1;
+    if (isLazy && materialize) materializedBlockCount += 1;
     return block.height;
+  }
+
+  bool _shouldMaterialize({
+    required double top,
+    required double height,
+    required ui.Rect paintBounds,
+  }) {
+    if (!isLazy) return true;
+    final start = viewportStart!;
+    final end = viewportEnd!;
+    return (top < end && top + height > start) ||
+        (paintBounds.top < end && paintBounds.bottom > start);
+  }
+
+  bool _shouldEstimateTopLevel(WeftElement parent, double cursor) {
+    return isLazy && identical(parent, body) && cursor >= viewportEnd!;
+  }
+
+  double _estimateHeight(WeftElement child, WeftComputedStyle style) {
+    final explicitHeight = style.height;
+    if (explicitHeight != null) {
+      return style.boxSizing == WeftBoxSizing.borderBox
+          ? explicitHeight
+          : explicitHeight + style.verticalBorder + style.verticalPadding;
+    }
+    final samples = heightSamples[child.tag];
+    if (samples != null && samples.isNotEmpty) {
+      final sorted = samples.toList()..sort();
+      return sorted[sorted.length ~/ 2];
+    }
+    return switch (child.tag) {
+      'table' => 240.0,
+      'img' => 96.0,
+      'h1' || 'h2' || 'h3' => 48.0,
+      _ => 48.0,
+    };
+  }
+
+  void _recordHeightSample(WeftElement child, double height) {
+    if (!height.isFinite || height <= 0) return;
+    final samples = heightSamples.putIfAbsent(child.tag, () => <double>[]);
+    samples.add(height);
+    if (samples.length > 16) samples.removeAt(0);
+  }
+
+  ui.Rect _commandsPaintBounds(Iterable<WeftPaintCommand> commands) {
+    var bounds = ui.Rect.zero;
+    var first = true;
+    for (final command in commands) {
+      bounds = first ? command.bounds : bounds.expandToInclude(command.bounds);
+      first = false;
+    }
+    return bounds;
   }
 
   void _disableTopLevelCache(WeftElement parent) {
@@ -670,6 +890,13 @@ final class _LayoutContext {
           trailingCollapses =
               style.borderBottom.width == 0 && style.paddingBottom == 0;
 
+          if (_shouldEstimateTopLevel(element, cursor) &&
+              !reusableBlocks.containsKey(child.id)) {
+            cursor += _estimateHeight(child, childStyle);
+            pendingMargin = outerBottom;
+            hasPendingMargin = true;
+            continue;
+          }
           final reusedHeight = _reuseTopLevelBlock(
             parent: element,
             child: child,
@@ -742,6 +969,13 @@ final class _LayoutContext {
         trailingCollapses =
             style.borderBottom.width == 0 && style.paddingBottom == 0;
 
+        if (_shouldEstimateTopLevel(element, cursor) &&
+            !reusableBlocks.containsKey(child.id)) {
+          cursor += _estimateHeight(child, childStyle);
+          pendingMargin = outerBottom;
+          hasPendingMargin = true;
+          continue;
+        }
         final reusedHeight = _reuseTopLevelBlock(
           parent: element,
           child: child,
@@ -830,6 +1064,13 @@ final class _LayoutContext {
         childStyle: childStyle,
         orderedItem: orderedItem,
       );
+      if (_shouldEstimateTopLevel(element, cursor) &&
+          !reusableBlocks.containsKey(child.id)) {
+        cursor += _estimateHeight(child, childStyle);
+        pendingMargin = outerBottom;
+        hasPendingMargin = true;
+        continue;
+      }
       final reusedHeight = _reuseTopLevelBlock(
         parent: element,
         child: child,

@@ -45,7 +45,7 @@ flowchart TB
 
 当前复用 Dart `html`、`csslib` 的解析能力，但仅存在于适配层。内部节点使用稳定 `NodeId`，生成不可变 `WeftElement`/`WeftText` 树和结构化 `WeftStyleSheet`，外部不暴露完整 DOM。
 
-阶段 1A 已实现规范化、节点树、结构化 CSS、计算样式和基础静态布局。当前尚未引入独立盒树与通用 Fragment 层；布局直接遍历不可变节点并生成绘制命令。图片 Float 通过共享排除区和逐行文本测量交付（ADR 0011），表格采用整体两遍布局；流式追加会缓存 body 顶层块输出并复用未变前缀（ADR 0023），但不等同于通用 Fragment 树。分块 `ui.Picture`、命中索引和单表面 Semantics 树均已实现（ADR 0024）。
+阶段 1A 已实现规范化、节点树、结构化 CSS、计算样式和基础静态布局。当前尚未引入独立盒树与通用 Fragment 层；布局直接遍历不可变节点并生成绘制命令。图片 Float 通过共享排除区和逐行文本测量交付（ADR 0011），表格采用整体两遍布局；流式追加会缓存 body 顶层块输出并复用未变前缀（ADR 0023），但不等同于通用 Fragment 树。分块 `ui.Picture`、命中索引和单表面 Semantics 树均已实现（ADR 0024）；WeftView 的简单文档使用连续前缀测量与可见块物化，未测后缀仅估算滚动高度（ADR 0025）。
 
 ## 4. 布局与渲染
 
@@ -69,10 +69,10 @@ flowchart TB
 - Float 使用共享的 `_FloatContext` 保存排除矩形。每个行盒按当前 `y` 查询左右可用边界，空间不足时下移到最近浮动底部；`clear` 将后续块级元素推到对应浮动下方。
 - Float 环绕走逐行分行路径，每行单独生成 `TextPainter` 和链接矩形；无浮动内容仍使用整段文本布局，避免改变已验收的静态路径。
 - 表格用槽位网格实现（ADR 0012）：`colspan/rowspan` 占位、两遍 min/max-content 列宽、行槽拉伸与中心线折叠边框；单元格通过强制宽度的 `layoutBlock` 复用全部块级行为。
-- `WeftView` 当前使用外部 `SingleChildScrollView` 提供滚动；后续将替换为引擎内部视口和分块缓存。
+- `WeftView` 使用内部 `SingleChildScrollView`；在简单文档中把 250px overscan 视窗传给 RenderWeftSurface，只物化可见顶层块，复杂文档和需要完整几何的 selection/Semantics 走 canonical full。
 - 文本缩放来自 `MediaQuery`，背景和文本命令在单一表面内按顺序绘制。
 
-当前是全量布局和全量绘制命令生成，尚未实现懒布局、视口命中、分块 Picture 或选择覆盖层。因此阶段 1A 只用于受控内容实验，长文档性能仍需后续门禁验证。
+绘制、命中、选择和 Semantics 已按各自契约实现；WeftView lazy 路径对简单块流按窗口物化，复杂块流回退完整布局。未测滚动高度是渐进估算，冷跳底部仍需顺序测量中间块，超高顶层块与 Float 暂不虚拟化。
 
 ## 5. 选择模型
 

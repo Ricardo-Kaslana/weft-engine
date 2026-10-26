@@ -120,7 +120,18 @@
 - 复用仍经过原块流的 margin collapse、列表计数和 cursor 计算；普通块、表格和块级图片以整个顶层块为单位，连续多轮快照可持续命中。
 - 几何与命令实例完全未变的前缀 chunk 保留 ui.Picture；同 id/src 的已解析图片跨快照保留。文本索引每轮重建，命中索引随新快照更新。
 
-边界与限制：样式表、宽度、textScaler、换行规则或图片输入变化会全量回退；旧结果含 Float、body 直属 loose inline/text、空块折叠或未解析图片时不作为复用来源。尚不支持 Float checkpoint、后缀平移、行级复用和布局级视口虚拟化。
+边界与限制：样式表、宽度、textScaler、换行规则或图片输入变化会全量回退；旧结果含 Float、body 直属 loose inline/text、空块折叠或未解析图片时不作为复用来源。尚不支持 Float checkpoint、后缀平移或行级复用。
+
+## 渐进式布局虚拟化
+
+当前能力（ADR 0025）：
+
+- `WeftView.enableLazyLayout` 默认开启：简单文档只精确测量并物化可见顶层块（含 250px overscan），未测后缀以同类块高度估算滚动 extent。
+- 已测前缀坐标与 canonical 一致；滚出窗口的 TextPainter/commands 会释放，重新进入时在原块流中重建。表格整块处理，不做表内虚拟化。
+- 跳到估算底部后随 extent 校正使用 ScrollPosition.correctBy 跟随；同 id 流式尾部追加继续保留未变可见资源。
+- 非空 selection、Semantics、全局 Float、未解析图片、body loose inline 或复杂结构会升级/回退完整布局；升级按 document.id 粘滞。
+
+边界与限制：滚动条长度在未测完时是估算值；冷跳底部仍需顺序测量中间块，不做 O(1) 随机定位或异步分帧；一个超高顶层块、Float 和图片解码资源仍未虚拟化。
 
 ## 当前明确限制
 
@@ -132,7 +143,7 @@
 - 浮动图片自身的 `margin`、`padding` 和边框参与排除区；`clear` 作用于后续块级元素。
 - 宽度和边框只作用到块级盒；行内边框、百分比宽度、`auto` margin、CSS 高度和圆角尚未实现。
 - 边框只支持 `solid` 简写；`dashed/dotted/double` 等当前按无边框处理。
-- `WeftView` 依赖外部滚动，布局和绘制命令覆盖完整文档。
+- `WeftView` 自带内部滚动；lazy 路径的布局命令只覆盖当前物化窗口，复杂文档和完整几何查询仍使用全文。
 - 固定字体下块级几何与 Chromium 误差小于 0.5px；`float_image` 案例的全部块/图片几何实测误差 ≤ 0.16px，逐行词盒由浏览器几何基线测试覆盖，但跨引擎像素差异仍高于 1% advisory 预算，主要来自字形抗锯齿。
 - 1:1 图片绘制目标在绘制时对齐整像素（浏览器同款行为）；缩放绘制仍按 FilterQuality.medium 重采样。
 - CJK 尚无固定可分发的像素字体，中文只有结构测试，没有像素基线。

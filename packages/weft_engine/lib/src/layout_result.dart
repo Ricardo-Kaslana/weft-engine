@@ -547,23 +547,36 @@ final class _HitIndex {
   }
 }
 
+ui.Rect _paintBoundsFor(Iterable<WeftPaintCommand> commands) {
+  var bounds = ui.Rect.zero;
+  var first = true;
+  for (final command in commands) {
+    bounds = first ? command.bounds : bounds.expandToInclude(command.bounds);
+    first = false;
+  }
+  return bounds;
+}
+
 final class WeftCachedLayoutBlock {
   WeftCachedLayoutBlock({
     required this.element,
     required this.left,
     required this.top,
     required this.height,
+    ui.Rect? paintBounds,
     required Iterable<WeftLayoutBox> boxes,
     required Iterable<WeftPaintCommand> commands,
     required Iterable<WeftLinkRegion> links,
   })  : boxes = List<WeftLayoutBox>.unmodifiable(boxes),
         commands = List<WeftPaintCommand>.unmodifiable(commands),
-        links = List<WeftLinkRegion>.unmodifiable(links);
+        links = List<WeftLinkRegion>.unmodifiable(links),
+        paintBounds = paintBounds ?? _paintBoundsFor(commands);
 
   final WeftElement element;
   final double left;
   final double top;
   final double height;
+  final ui.Rect paintBounds;
   final List<WeftLayoutBox> boxes;
   final List<WeftPaintCommand> commands;
   final List<WeftLinkRegion> links;
@@ -577,6 +590,9 @@ final class WeftIncrementalLayoutCache {
     required Map<int, ui.Image> images,
     required WeftLineBreakRules lineBreakRules,
     required Iterable<WeftCachedLayoutBlock> blocks,
+    required this.measuredPrefixLength,
+    required this.isLazy,
+    required this.estimatedExtent,
   })  : images = Map<int, ui.Image>.unmodifiable(images),
         lineBreakRules = WeftLineBreakRules(
           lineStartProhibited: Set<int>.unmodifiable(
@@ -594,6 +610,9 @@ final class WeftIncrementalLayoutCache {
   final Map<int, ui.Image> images;
   final WeftLineBreakRules lineBreakRules;
   final List<WeftCachedLayoutBlock> blocks;
+  final int measuredPrefixLength;
+  final bool isLazy;
+  final double estimatedExtent;
 }
 
 final class WeftLayoutResult {
@@ -604,6 +623,9 @@ final class WeftLayoutResult {
     required Iterable<WeftLinkRegion> links,
     this.textIndex,
     this.debugReusedBlockCount = 0,
+    this.debugLaidOutBlockCount = 0,
+    this.debugMaterializedBlockCount = 0,
+    this.debugIsLazy = false,
   })  : boxes = List<WeftLayoutBox>.unmodifiable(boxes),
         commands = List<WeftPaintCommand>.unmodifiable(commands),
         links = List<WeftLinkRegion>.unmodifiable(links);
@@ -613,6 +635,9 @@ final class WeftLayoutResult {
   final List<WeftPaintCommand> commands;
   final List<WeftLinkRegion> links;
   final int debugReusedBlockCount;
+  final int debugLaidOutBlockCount;
+  final int debugMaterializedBlockCount;
+  final bool debugIsLazy;
   WeftIncrementalLayoutCache? incrementalCache;
 
   /// The logical text model for this layout, used to resolve selection
