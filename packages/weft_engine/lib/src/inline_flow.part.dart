@@ -32,6 +32,34 @@ final class _FloatContext {
     return bottom;
   }
 
+  int get exclusionCount => exclusions.length;
+
+  List<WeftFloatExclusion> snapshotFrom(int start) {
+    if (start >= exclusions.length) return const [];
+    return [
+      for (final exclusion in exclusions.skip(start))
+        WeftFloatExclusion(
+          side: exclusion.side == WeftFloat.left
+              ? WeftFloatExclusionSide.left
+              : WeftFloatExclusionSide.right,
+          rect: exclusion.rect,
+        ),
+    ];
+  }
+
+  void addExclusions(Iterable<WeftFloatExclusion> values) {
+    for (final exclusion in values) {
+      exclusions.add(
+        _FloatExclusion(
+          side: exclusion.side == WeftFloatExclusionSide.left
+              ? WeftFloat.left
+              : WeftFloat.right,
+          rect: exclusion.rect,
+        ),
+      );
+    }
+  }
+
   void add(_FloatExclusion exclusion) {
     exclusions.add(exclusion);
   }

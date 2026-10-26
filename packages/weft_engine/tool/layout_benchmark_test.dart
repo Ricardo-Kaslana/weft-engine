@@ -44,6 +44,11 @@ void main() {
       }
     });
     var appendRun = 0;
+    final floatingArticle = _normalize(
+      _floatingArticleHtml(),
+      'bench-floating-article',
+    );
+    final floatingArticleImages = _imagesFor(floatingArticle, floatImage);
     final table = _normalize(_tableHtml(), 'bench-table');
     final floatDocument = _normalize(_floatHtml(), 'bench-float');
     final floatImages = _imagesFor(floatDocument, floatImage);
@@ -137,6 +142,17 @@ void main() {
         );
         surface.layout(const BoxConstraints.tightFor(width: _viewportWidth));
         surface.dispose();
+      },
+      'lazyFloatArticle300FirstViewport': () {
+        engine
+            .layoutViewport(
+              floatingArticle,
+              width: _viewportWidth,
+              viewportStart: 0,
+              viewportEnd: 1050,
+              images: floatingArticleImages,
+            )
+            .dispose();
       },
       'appendArticle300Incremental': () {
         final previous = appendPreviousLayouts[appendRun++];
@@ -268,6 +284,19 @@ String _articleParagraphHtml(int i) {
       'fixed 360px viewport, exercising line breaking, <em>强调文本 $i</em> '
       'and <a href="https://example.com/a$i">inline links 第 $i 段</a> so the '
       'paragraph wraps onto several lines deterministically.</p>';
+}
+
+String _floatingArticleHtml() {
+  final buffer = StringBuffer();
+  for (var i = 0; i < 300; i++) {
+    buffer.write(
+      '<p><img src="asset:bench-float.png" style="float:left" '
+      'width="48" height="48">第 $i 段。Weft lazily lays out paragraphs '
+      'around nested floating images with enough text to wrap '
+      'deterministically across several lines.</p>',
+    );
+  }
+  return buffer.toString();
 }
 
 /// A 48-row, 6-column collapsed-border table with header cells, cell

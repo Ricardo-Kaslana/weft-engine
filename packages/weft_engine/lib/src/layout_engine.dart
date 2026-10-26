@@ -157,7 +157,7 @@ final class WeftLayoutEngine {
           lazy ? context.materializedBlockCount : context.topLevelBlocks.length,
       debugIsLazy: lazy,
     );
-    if (lazy && (!context.topLevelCacheEligible || floats.hasExclusions)) {
+    if (lazy && !context.topLevelCacheEligible) {
       if (context.reusedCommands.isNotEmpty) {
         previous?.transferCommands(context.reusedCommands);
       }
@@ -172,8 +172,15 @@ final class WeftLayoutEngine {
       );
     }
     if (context.topLevelCacheEligible &&
-        !floats.hasExclusions &&
+        (lazy || !floats.hasExclusions) &&
         (lazy || context.topLevelBlocks.length == body.children.length)) {
+      if (lazy) {
+        final checkpointCount = context.topLevelBlocks.fold<int>(
+          0,
+          (count, block) => count + block.floatExclusions.length,
+        );
+        assert(checkpointCount == floats.exclusionCount);
+      }
       result.incrementalCache = WeftIncrementalLayoutCache(
         document: document,
         width: width,
@@ -331,17 +338,28 @@ bool _supportsLazyLayout({
     WeftElement element,
     WeftComputedStyle parent,
     List<WeftElement> ancestors,
+    bool underInlineAncestor,
   ) {
     final style = styleResolver.resolve(
       element,
       parent: parent,
       ancestors: ancestors,
     );
-    if (style.display == WeftDisplay.none || style.float != WeftFloat.none) {
-      return false;
+    if (style.display == WeftDisplay.none) return false;
+    if (style.float != WeftFloat.none) {
+      final parentIsBody =
+          ancestors.isNotEmpty && identical(ancestors.last, body);
+      if (element.tag != 'img' ||
+          images[element.id] == null ||
+          parentIsBody ||
+          underInlineAncestor) {
+        return false;
+      }
     }
     if (element.tag == 'img' && images[element.id] == null) return false;
     final childAncestors = <WeftElement>[...ancestors, element];
+    final childrenUnderInline =
+        underInlineAncestor || style.display == WeftDisplay.inline;
     for (final child in element.children) {
       if (child is WeftText && identical(element, body)) return false;
       if (child is! WeftElement) continue;
@@ -353,12 +371,14 @@ bool _supportsLazyLayout({
         );
         if (childStyle.display == WeftDisplay.inline) return false;
       }
-      if (!visit(child, style, childAncestors)) return false;
+      if (!visit(child, style, childAncestors, childrenUnderInline)) {
+        return false;
+      }
     }
     return true;
   }
 
-  return visit(body, WeftComputedStyle.initial, const []);
+  return visit(body, WeftComputedStyle.initial, const [], false);
 }
 
 final class _LayoutContext {
@@ -401,9 +421,17 @@ final class _LayoutContext {
 
   bool get isLazy => viewportStart != null && viewportEnd != null;
 
-  (int, int, int)? _startTopLevelBlock(WeftElement parent) {
+  (int, int, int, int)? _startTopLevelBlock(
+    WeftElement parent,
+    _FloatContext floats,
+  ) {
     if (!identical(parent, body)) return null;
-    return (commands.length, boxes.length, links.length);
+    return (
+      commands.length,
+      boxes.length,
+      links.length,
+      floats.exclusionCount,
+    );
   }
 
   void _cacheTopLevelBlock({
@@ -412,7 +440,8 @@ final class _LayoutContext {
     required double left,
     required double top,
     required double height,
-    required (int, int, int)? start,
+    required _FloatContext floats,
+    required (int, int, int, int)? start,
   }) {
     if (start == null) return;
     if (isLazy) laidOutBlockCount += 1;
@@ -420,6 +449,7 @@ final class _LayoutContext {
     final blockCommands = commands.sublist(start.$1);
     final blockBoxes = boxes.sublist(start.$2);
     final blockLinks = links.sublist(start.$3);
+    final blockExclusions = floats.snapshotFrom(start.$4);
     final paintBounds = _commandsPaintBounds(blockCommands);
     final materialize = _shouldMaterialize(
       top: top,
@@ -447,6 +477,7 @@ final class _LayoutContext {
         boxes: materialize ? blockBoxes : const [],
         commands: materialize ? blockCommands : const [],
         links: materialize ? blockLinks : const [],
+        floatExclusions: blockExclusions,
       ),
     );
   }
@@ -456,6 +487,7 @@ final class _LayoutContext {
     required WeftElement child,
     required double left,
     required double top,
+    required _FloatContext floats,
   }) {
     if (!identical(parent, body) || reuseStopped) return null;
     final block = reusableBlocks[child.id];
@@ -470,6 +502,7 @@ final class _LayoutContext {
       paintBounds: block.paintBounds,
     );
     if (isLazy && materialize && !block.materialized) return null;
+    floats.addExclusions(block.floatExclusions);
     final blockCommands =
         materialize ? block.commands : const <WeftPaintCommand>[];
     final blockBoxes = materialize ? block.boxes : const <WeftLayoutBox>[];
@@ -488,6 +521,7 @@ final class _LayoutContext {
         boxes: blockBoxes,
         commands: blockCommands,
         links: blockLinks,
+        floatExclusions: block.floatExclusions,
       ),
     );
     reusedCommands.addAll(blockCommands);
@@ -855,6 +889,7 @@ final class _LayoutContext {
         if (image != null) {
           if (childStyle.float != WeftFloat.none) {
             flushInline();
+            _disableTopLevelCache(element);
             _placeFloatImage(
               element: child,
               style: childStyle,
@@ -904,11 +939,12 @@ final class _LayoutContext {
             child: child,
             left: contentX,
             top: cursor,
+            floats: floats,
           );
           if (reusedHeight != null) {
             cursor += reusedHeight;
           } else {
-            final start = _startTopLevelBlock(element);
+            final start = _startTopLevelBlock(element, floats);
             final metrics = _layoutImageBlock(
               element: child,
               style: childStyle,
@@ -925,6 +961,7 @@ final class _LayoutContext {
                 left: contentX,
                 top: cursor - metrics.boxHeight,
                 height: metrics.boxHeight,
+                floats: floats,
                 start: start,
               );
             } else {
@@ -983,11 +1020,12 @@ final class _LayoutContext {
           child: child,
           left: contentX,
           top: cursor,
+          floats: floats,
         );
         if (reusedHeight != null) {
           cursor += reusedHeight;
         } else {
-          final start = _startTopLevelBlock(element);
+          final start = _startTopLevelBlock(element, floats);
           final result = layoutTable(
             element: child,
             style: childStyle,
@@ -1003,6 +1041,7 @@ final class _LayoutContext {
             left: contentX,
             top: cursor - result.height,
             height: result.height,
+            floats: floats,
             start: start,
           );
         }
@@ -1078,11 +1117,12 @@ final class _LayoutContext {
         child: child,
         left: contentX,
         top: cursor,
+        floats: floats,
       );
       if (reusedHeight != null) {
         cursor += reusedHeight;
       } else {
-        final start = _startTopLevelBlock(element);
+        final start = _startTopLevelBlock(element, floats);
         final result = layoutBlock(
           element: child,
           style: childStyle,
@@ -1100,6 +1140,7 @@ final class _LayoutContext {
           left: contentX,
           top: cursor - result.height,
           height: result.height,
+          floats: floats,
           start: start,
         );
       }

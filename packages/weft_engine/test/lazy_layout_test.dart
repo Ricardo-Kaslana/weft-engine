@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/rendering.dart' show BoxConstraints;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weft_document/weft_document.dart';
@@ -216,6 +218,158 @@ void main() {
     }
   });
 
+  test('nested resolved Float checkpoints survive lazy round trips', () async {
+    final image = await _createImage(80, 200);
+    addTearDown(image.dispose);
+    const engine = WeftLayoutEngine();
+    final document = _floatingArticle();
+    final images = _imagesFor(document, image);
+    const offsets = [0.0, 600.0, 3000.0, 600.0];
+    var current = engine.layoutViewport(
+      document,
+      width: 360,
+      viewportStart: 0,
+      viewportEnd: 650,
+      images: images,
+    );
+    addTearDown(() => current.dispose());
+    expect(current.debugIsLazy, isTrue);
+    expect(current.incrementalCache!.blocks.first.floatExclusions, isNotEmpty);
+
+    for (final offset in offsets.skip(1)) {
+      final next = engine.layoutViewport(
+        document,
+        width: 360,
+        viewportStart: offset,
+        viewportEnd: offset + 650,
+        images: images,
+        previous: current,
+      );
+      final fresh = engine.layoutViewport(
+        document,
+        width: 360,
+        viewportStart: offset,
+        viewportEnd: offset + 650,
+        images: images,
+      );
+      expect(next.debugIsLazy, isTrue);
+      expect(next.commands, hasLength(fresh.commands.length));
+      for (var i = 0; i < next.commands.length; i++) {
+        expect(next.commands[i].nodeId, fresh.commands[i].nodeId);
+        expect(next.commands[i].bounds, fresh.commands[i].bounds);
+        if (next.commands[i] is WeftTextPaintCommand) {
+          final actual = next.commands[i] as WeftTextPaintCommand;
+          final expected = fresh.commands[i] as WeftTextPaintCommand;
+          expect(
+            actual.painter.text?.toPlainText(),
+            expected.painter.text?.toPlainText(),
+          );
+          expect(actual.offset, expected.offset);
+        }
+      }
+      if (offset == 600) {
+        final floatBlock = next.incrementalCache!.blocks.first;
+        expect(floatBlock.materialized, isFalse);
+        expect(floatBlock.floatExclusions, isNotEmpty);
+      }
+      fresh.dispose();
+      current.dispose();
+      current = next;
+    }
+  });
+
+  test('non-materialized Float still contributes document extent', () async {
+    final image = await _createImage(80, 800);
+    addTearDown(image.dispose);
+    const engine = WeftLayoutEngine();
+    final document = const WeftNormalizer().normalize(
+      '<div><img src="asset:float" width="80" height="800" '
+      'style="float:left"></div>',
+      id: 'lazy-float-extent',
+    );
+    final images = _imagesFor(document, image);
+    final first = engine.layoutViewport(
+      document,
+      width: 360,
+      viewportStart: 0,
+      viewportEnd: 900,
+      images: images,
+    );
+    final second = engine.layoutViewport(
+      document,
+      width: 360,
+      viewportStart: 1200,
+      viewportEnd: 1500,
+      images: images,
+      previous: first,
+    );
+    addTearDown(first.dispose);
+    addTearDown(second.dispose);
+
+    expect(second.debugIsLazy, isTrue);
+    expect(second.size.height, 800);
+    final floatBlock = second.incrementalCache!.blocks.first;
+    expect(floatBlock.materialized, isFalse);
+    expect(floatBlock.floatExclusions, isNotEmpty);
+  });
+
+  test('lazy Float admission is limited to nested resolved images', () async {
+    final image = await _createImage(40, 40);
+    addTearDown(image.dispose);
+    const engine = WeftLayoutEngine();
+    final nested = const WeftNormalizer().normalize(
+      '<p><img src="asset:float" width="40" height="40" style="float:left">'
+      'Wrapping text</p>',
+      id: 'lazy-nested-float',
+    );
+    final bodyDirect = const WeftNormalizer().normalize(
+      '<img src="asset:float" width="40" height="40" style="float:left">',
+      id: 'full-body-float',
+    );
+    final nonImage = const WeftNormalizer().normalize(
+      '<div style="float:left">Not an image</div>',
+      id: 'full-block-float',
+    );
+    final inlineAncestor = const WeftNormalizer().normalize(
+      '<p><span><img src="asset:float" width="40" height="40" '
+      'style="float:left"></span>Wrapping</p>',
+      id: 'full-inline-float',
+    );
+    final unresolved = const WeftNormalizer().normalize(
+      '<p><img src="asset:float" width="40" height="40" '
+      'style="float:left">Wrapping</p>',
+      id: 'full-unresolved-float',
+    );
+    final layouts = <WeftLayoutResult>[];
+    for (final document in [
+      nested,
+      bodyDirect,
+      nonImage,
+      inlineAncestor,
+      unresolved,
+    ]) {
+      layouts.add(
+        engine.layoutViewport(
+          document,
+          width: 320,
+          viewportStart: 0,
+          viewportEnd: 650,
+          images: identical(document, unresolved)
+              ? const <int, ui.Image>{}
+              : _imagesFor(document, image),
+        ),
+      );
+    }
+    addTearDown(() {
+      for (final layout in layouts) {
+        layout.dispose();
+      }
+    });
+
+    expect(layouts[0].debugIsLazy, isTrue);
+    expect(layouts.skip(1).every((layout) => !layout.debugIsLazy), isTrue);
+  });
+
   test('surface enables lazy layout when a viewport is supplied', () {
     final render = RenderWeftSurface(
       document: _article(120),
@@ -228,6 +382,46 @@ void main() {
     expect(render.debugLayout!.debugIsLazy, isTrue);
     expect(render.debugLayout!.debugLaidOutBlockCount, lessThan(120));
   });
+}
+
+WeftDocumentSnapshot _floatingArticle() {
+  final html = StringBuffer(
+    '<div><img src="asset:float" width="80" height="200" '
+    'style="float:left"></div>',
+  );
+  html.write('<p>${'Text wrapping around the float. ' * 60}</p>');
+  for (var i = 0; i < 12; i++) {
+    html.write('<p>Tail paragraph $i with enough text to extend the page.</p>');
+  }
+  return const WeftNormalizer().normalize(
+    html.toString(),
+    id: 'lazy-float-roundtrip',
+  );
+}
+
+Map<int, ui.Image> _imagesFor(WeftDocumentSnapshot document, ui.Image image) {
+  final result = <int, ui.Image>{};
+  void visit(WeftNode node) {
+    if (node is! WeftElement) return;
+    if (node.tag == 'img') result[node.id] = image;
+    for (final child in node.children) {
+      visit(child);
+    }
+  }
+
+  visit(document.body!);
+  return result;
+}
+
+Future<ui.Image> _createImage(int width, int height) {
+  final recorder = ui.PictureRecorder();
+  final canvas = ui.Canvas(recorder);
+  canvas.drawRect(
+    ui.Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
+    ui.Paint()..color = const ui.Color(0xFF3366CC),
+  );
+  final picture = recorder.endRecording();
+  return picture.toImage(width, height).whenComplete(picture.dispose);
 }
 
 WeftDocumentSnapshot _article(

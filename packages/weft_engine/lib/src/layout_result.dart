@@ -557,6 +557,15 @@ ui.Rect _paintBoundsFor(Iterable<WeftPaintCommand> commands) {
   return bounds;
 }
 
+enum WeftFloatExclusionSide { left, right }
+
+final class WeftFloatExclusion {
+  const WeftFloatExclusion({required this.side, required this.rect});
+
+  final WeftFloatExclusionSide side;
+  final ui.Rect rect;
+}
+
 final class WeftCachedLayoutBlock {
   WeftCachedLayoutBlock({
     required this.element,
@@ -568,9 +577,12 @@ final class WeftCachedLayoutBlock {
     required Iterable<WeftLayoutBox> boxes,
     required Iterable<WeftPaintCommand> commands,
     required Iterable<WeftLinkRegion> links,
+    Iterable<WeftFloatExclusion> floatExclusions = const [],
   })  : boxes = List<WeftLayoutBox>.unmodifiable(boxes),
         commands = List<WeftPaintCommand>.unmodifiable(commands),
         links = List<WeftLinkRegion>.unmodifiable(links),
+        floatExclusions =
+            List<WeftFloatExclusion>.unmodifiable(floatExclusions),
         paintBounds = paintBounds ?? _paintBoundsFor(commands);
 
   final WeftElement element;
@@ -585,6 +597,7 @@ final class WeftCachedLayoutBlock {
   final List<WeftLayoutBox> boxes;
   final List<WeftPaintCommand> commands;
   final List<WeftLinkRegion> links;
+  final List<WeftFloatExclusion> floatExclusions;
 }
 
 final class WeftIncrementalLayoutCache {
