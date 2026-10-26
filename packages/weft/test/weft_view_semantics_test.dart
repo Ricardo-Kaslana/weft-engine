@@ -40,6 +40,34 @@ void main() {
     semantics.dispose();
   });
 
+  testWidgets('WeftView exposes ordered list markers in semantics', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final controller = WeftController()
+      ..loadDocument(
+        const WeftNormalizer().normalize(
+          '<ol><li>First item</li><li>Second item</li></ol>',
+          id: 'semantic-list-view',
+        ),
+      );
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: SizedBox(
+          width: 320,
+          height: 240,
+          child: WeftView(controller: controller),
+        ),
+      ),
+    );
+
+    expect(find.semantics.byLabel('1. First item'), findsOneWidget);
+    expect(find.semantics.byLabel('2. Second item'), findsOneWidget);
+    controller.dispose();
+    semantics.dispose();
+  });
+
   testWidgets('semantic copy uses the WeftView clipboard policy', (
     tester,
   ) async {

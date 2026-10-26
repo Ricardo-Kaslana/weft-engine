@@ -757,7 +757,7 @@ class RenderWeftSurface extends RenderBox {
         ..value = fragment.value
         ..isImage = fragment.isImage
         ..isSelected = fragment.isSelected
-        ..isHeader = fragment.headingLevel > 0
+        ..isHeader = fragment.isHeader
         ..isLink = fragment.link != null;
       final link = fragment.link;
       if (link != null && _onSemanticsLinkTap != null) {
@@ -1318,6 +1318,7 @@ final class _WeftSemanticFragment {
     this.isImage = false,
     this.isSelected = false,
     this.isSelection = false,
+    this.isHeader = false,
     this.headingLevel = 0,
     this.link,
     this.globalStart,
@@ -1331,6 +1332,7 @@ final class _WeftSemanticFragment {
   final bool isImage;
   final bool isSelected;
   final bool isSelection;
+  final bool isHeader;
   final int headingLevel;
   final WeftLinkRegion? link;
   final int? globalStart;
@@ -1358,7 +1360,9 @@ List<_WeftSemanticFragment> _buildContentSemantics({
     int nodeId,
     String text,
     WeftLinkRegion? link,
-    int headingLevel, {
+    int headingLevel,
+    bool isHeader,
+    List<String?>? prefixBox, {
     int? entryGlobalStart,
   }) {
     var start = 0;
@@ -1382,6 +1386,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
               !previous.isImage &&
               !previous.isSelected &&
               previous.link?.nodeId == link?.nodeId &&
+              previous.isHeader == isHeader &&
               previous.headingLevel == headingLevel &&
               previous.globalEnd != null &&
               previous.globalEnd == globalStart;
@@ -1391,17 +1396,21 @@ List<_WeftSemanticFragment> _buildContentSemantics({
               rect: previous.rect.expandToInclude(rect),
               label: previous.label + text.substring(start, i),
               link: previous.link,
+              isHeader: previous.isHeader,
               headingLevel: previous.headingLevel,
               globalStart: previous.globalStart,
               globalEnd: globalEnd,
             );
           } else {
+            final prefix = prefixBox?[0] ?? '';
+            if (prefix.isNotEmpty) prefixBox![0] = null;
             fragments.add(
               _WeftSemanticFragment(
                 key: key,
                 rect: rect,
-                label: text.substring(start, i),
+                label: '$prefix${text.substring(start, i)}',
                 link: link,
+                isHeader: isHeader,
                 headingLevel: headingLevel,
                 globalStart: globalStart,
                 globalEnd: globalEnd,
@@ -1418,6 +1427,8 @@ List<_WeftSemanticFragment> _buildContentSemantics({
     WeftNode node,
     WeftLinkRegion? currentLink,
     int headingLevel,
+    bool isHeader,
+    List<String?>? prefixBox,
   ) {
     if (node is WeftText) {
       final entry = textIndex.entryByNode[node.id];
@@ -1427,6 +1438,8 @@ List<_WeftSemanticFragment> _buildContentSemantics({
           entry.text,
           currentLink,
           headingLevel,
+          isHeader,
+          prefixBox,
           entryGlobalStart: entry.globalStart,
         );
       }
@@ -1439,18 +1452,28 @@ List<_WeftSemanticFragment> _buildContentSemantics({
       if (image != null) {
         final rect = _clippedSemanticsRect(image.destination, bounds);
         if (alt.isNotEmpty && rect != null) {
+          final prefix = prefixBox?[0] ?? '';
+          if (prefix.isNotEmpty) prefixBox![0] = null;
           fragments.add(
             _WeftSemanticFragment(
               key: ValueKey<String>('image:${node.id}'),
               rect: rect,
-              label: alt,
+              label: '$prefix$alt',
               isImage: true,
+              isHeader: isHeader,
               headingLevel: headingLevel,
             ),
           );
         }
       } else if (alt.isNotEmpty) {
-        addText(node.id, alt, currentLink, headingLevel);
+        addText(
+          node.id,
+          alt,
+          currentLink,
+          headingLevel,
+          isHeader,
+          prefixBox,
+        );
       }
       return;
     }
@@ -1464,13 +1487,35 @@ List<_WeftSemanticFragment> _buildContentSemantics({
       'h6' => 6,
       _ => headingLevel,
     };
+    final childHeader = isHeader ||
+        node.tag == 'th' ||
+        node.tag == 'h1' ||
+        node.tag == 'h2' ||
+        node.tag == 'h3' ||
+        node.tag == 'h4' ||
+        node.tag == 'h5' ||
+        node.tag == 'h6';
+    if (node.tag == 'ul' || node.tag == 'ol') {
+      var itemIndex = 0;
+      for (final child in node.children) {
+        List<String?>? childPrefix;
+        if (child is WeftElement && child.tag == 'li') {
+          itemIndex += 1;
+          childPrefix = <String?>[
+            node.tag == 'ol' ? '$itemIndex. ' : '• ',
+          ];
+        }
+        visit(child, link, childHeading, childHeader, childPrefix);
+      }
+      return;
+    }
     for (final child in node.children) {
-      visit(child, link, childHeading);
+      visit(child, link, childHeading, childHeader, prefixBox);
     }
   }
 
   for (final child in body.children) {
-    visit(child, null, 0);
+    visit(child, null, 0, false, null);
   }
   return fragments;
 }

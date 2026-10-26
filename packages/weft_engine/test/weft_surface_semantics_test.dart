@@ -57,7 +57,8 @@ void main() {
     final semantics = tester.ensureSemantics();
     final document = _normalize(
       '<h1>Main <a href="https://example.com">link</a></h1>'
-      '<p>Body text</p><h3><em>Subheading</em></h3>',
+      '<p>Body text</p><h3><em>Subheading</em></h3>'
+      '<table><tr><th>Header cell</th><td>Data cell</td></tr></table>',
     );
     await tester.pumpWidget(_wrap(WeftSurface(document: document)));
 
@@ -77,6 +78,45 @@ void main() {
       _node(find.semantics.byLabel('Body text')),
       containsSemantics(isHeader: false),
     );
+    expect(
+      _node(find.semantics.byLabel('Header cell')),
+      containsSemantics(isHeader: true),
+    );
+    expect(
+      _node(find.semantics.byLabel('Data cell')),
+      containsSemantics(isHeader: false),
+    );
+    semantics.dispose();
+  });
+
+  testWidgets('list items expose ordered and unordered markers once', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final document = _normalize(
+      '<ol><li>First <em>item</em></li>'
+      '<li><a href="https://example.com">Second item</a></li></ol>'
+      '<ul><li>Bullet item</li></ul>'
+      '<ol><li>Outer<ul><li>Nested</li></ul></li></ol>',
+    );
+    final probe = const WeftLayoutEngine().layout(document, width: 320);
+    final entries = probe.textIndex!.entries;
+    final selectionText = probe.selectionText(
+      TextSelectionRange(
+        anchor: TextAnchor(entries.first.nodeId, 0),
+        extent: TextAnchor(entries.last.nodeId, 1),
+      ),
+    );
+    probe.dispose();
+    expect(selectionText, isNot(contains('1. ')));
+    expect(selectionText, isNot(contains('• ')));
+
+    await tester.pumpWidget(_wrap(WeftSurface(document: document)));
+    expect(find.semantics.byLabel('1. First item'), findsOneWidget);
+    expect(find.semantics.byLabel('2. Second item'), findsOneWidget);
+    expect(find.semantics.byLabel('• Bullet item'), findsOneWidget);
+    expect(find.semantics.byLabel('1. Outer'), findsOneWidget);
+    expect(find.semantics.byLabel('• Nested'), findsOneWidget);
     semantics.dispose();
   });
 
