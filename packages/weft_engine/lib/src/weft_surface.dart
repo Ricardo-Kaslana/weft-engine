@@ -296,6 +296,7 @@ class RenderWeftSurface extends RenderBox {
   bool _lazyCorrectionScheduled = false;
   double _pendingLazyCorrection = 0;
   int _lazyGeneration = 0;
+  int _anchorMeasureGeneration = 0;
   ImageConfiguration _imageConfiguration;
   bool _showSelectionHandles;
   bool _showCaret;
@@ -418,6 +419,7 @@ class RenderWeftSurface extends RenderBox {
       _debugFullLayoutReason = reason;
     }
     _exitLazyMode();
+    _anchorMeasureGeneration += 1;
   }
 
   void _requireFullLayout(String reason) {
@@ -988,6 +990,74 @@ class RenderWeftSurface extends RenderBox {
     return rect;
   }
 
+  Future<ui.Rect?> measureAnchorAsync(
+    TextAnchor anchor, {
+    int maxNewBlocks = 32,
+  }) async {
+    assert(maxNewBlocks > 0);
+    if (maxNewBlocks <= 0 || !hasSize || size.width <= 0) return null;
+    var layout = _layout;
+    final entry = layout?.textIndex?.entryByNode[anchor.nodeId];
+    if (layout == null ||
+        entry == null ||
+        anchor.offset < 0 ||
+        anchor.offset >= entry.text.length) {
+      return null;
+    }
+    ui.Rect? available() => _unionRects(
+          layout!.textRectsForNode(
+            anchor.nodeId,
+            anchor.offset,
+            anchor.offset + 1,
+          ),
+        );
+    final immediate = available();
+    if (immediate != null) return immediate;
+    if (!layout.debugIsLazy || _fullLayoutRequired) return null;
+    final viewportHeight = _viewportHeight;
+    if (!_enableLazyLayout || viewportHeight == null || viewportHeight <= 0) {
+      return null;
+    }
+
+    final generation = ++_anchorMeasureGeneration;
+    while (attached && generation == _anchorMeasureGeneration) {
+      final previous = _layout;
+      if (previous?.debugIsLazy != true) return null;
+      final previousPrefix =
+          previous!.incrementalCache?.measuredPrefixLength ?? 0;
+      _exitLazyMode();
+      final focused = _layoutEngine.layoutViewport(
+        _document,
+        width: size.width,
+        viewportStart: math.max(0, _viewportPixels - 250),
+        viewportEnd: _viewportPixels + viewportHeight + 250,
+        focusNodeId: anchor.nodeId,
+        maxNewBlocks: maxNewBlocks,
+        textScaler: _textScaler,
+        images: _resolvedImages,
+        previous: previous,
+      );
+      focused.attachDocument(_document);
+      _layout = focused;
+      layout = focused;
+      previous.dispose();
+      if (!focused.debugIsLazy) {
+        _markFullLayoutRequired('engine-fallback');
+        return null;
+      }
+      markNeedsLayout();
+      final rect = available();
+      if (rect != null) return rect;
+      if ((focused.incrementalCache?.measuredPrefixLength ?? 0) <=
+          previousPrefix) {
+        return null;
+      }
+      SchedulerBinding.instance.scheduleFrame();
+      await SchedulerBinding.instance.endOfFrame;
+    }
+    return null;
+  }
+
   /// Touch targets and suggested placements for the selection chrome
   /// overlays — drag handles and the copy button — in surface-local
   /// coordinates, or null when there is nothing to show.
@@ -1300,6 +1370,7 @@ class RenderWeftSurface extends RenderBox {
 
   @override
   void dispose() {
+    _anchorMeasureGeneration += 1;
     _exitLazyMode();
     _discardPaintCache();
     _layout?.dispose();

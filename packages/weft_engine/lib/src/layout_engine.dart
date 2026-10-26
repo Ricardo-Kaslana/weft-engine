@@ -43,6 +43,7 @@ final class WeftLayoutEngine {
     required double viewportStart,
     required double viewportEnd,
     NodeId? focusNodeId,
+    int? maxNewBlocks,
     TextScaler textScaler = TextScaler.noScaling,
     Map<int, ui.Image> images = const {},
     WeftLineBreakRules lineBreakRules = const WeftLineBreakRules(),
@@ -58,6 +59,7 @@ final class WeftLayoutEngine {
       viewportStart: viewportStart,
       viewportEnd: viewportEnd,
       focusNodeId: focusNodeId,
+      maxNewBlocks: maxNewBlocks,
     );
   }
 
@@ -71,6 +73,7 @@ final class WeftLayoutEngine {
     double? viewportStart,
     double? viewportEnd,
     NodeId? focusNodeId,
+    int? maxNewBlocks,
   }) {
     if (!width.isFinite || width <= 0) {
       return WeftLayoutResult(
@@ -120,6 +123,7 @@ final class WeftLayoutEngine {
       focusOrdinal: lazy && focusNodeId != null
           ? WeftChunk.topLevelOrdinalForNode(document, focusNodeId)
           : null,
+      maxNewBlocks: lazy ? maxNewBlocks : null,
     );
     final textIndex = WeftTextIndex.build(
       document: document,
@@ -397,6 +401,7 @@ final class _LayoutContext {
     this.viewportStart,
     this.viewportEnd,
     this.focusOrdinal,
+    this.maxNewBlocks,
     this.lineBreakRules = const WeftLineBreakRules(),
   }) {
     for (final block in reusableBlocks.values) {
@@ -412,6 +417,7 @@ final class _LayoutContext {
   final double? viewportStart;
   final double? viewportEnd;
   final int? focusOrdinal;
+  final int? maxNewBlocks;
 
   /// Kinsoku tables applied by the line-by-line inline layout path.
   final WeftLineBreakRules lineBreakRules;
@@ -562,10 +568,12 @@ final class _LayoutContext {
     int? ordinal,
   ) {
     final focus = focusOrdinal;
+    final budget = maxNewBlocks;
+    final budgetExhausted = budget != null && laidOutBlockCount >= budget;
     return isLazy &&
         identical(parent, body) &&
-        cursor >= viewportEnd! &&
-        (focus == null || ordinal! > focus);
+        (budgetExhausted ||
+            (cursor >= viewportEnd! && (focus == null || ordinal! > focus)));
   }
 
   double _estimateHeight(WeftElement child, WeftComputedStyle style) {

@@ -380,6 +380,55 @@ class WeftViewState extends State<WeftView> {
     return true;
   }
 
+  /// Resolves [anchor] across animation frames, then scrolls to it.
+  ///
+  /// Returns false when the anchor is invalid or the request is superseded
+  /// by another navigation, a document change, or widget disposal.
+  Future<bool> scrollToAnchorAsync(
+    TextAnchor anchor, {
+    double alignment = 0.0,
+    int maxNewBlocks = 32,
+  }) async {
+    assert(
+      alignment.isFinite && alignment >= 0 && alignment <= 1,
+      'alignment must be finite and between 0 and 1',
+    );
+    if (!alignment.isFinite || alignment < 0 || alignment > 1) return false;
+    final surface = _surfaceRenderObject;
+    final controller = _scrollController;
+    if (surface == null || !controller.hasClients) return false;
+    final generation = ++_anchorScrollGeneration;
+    final document = widget.controller.document;
+    final documentId = document?.id;
+    final revision = document?.revision;
+    final rect = await surface.measureAnchorAsync(
+      anchor,
+      maxNewBlocks: maxNewBlocks,
+    );
+    if (!mounted ||
+        generation != _anchorScrollGeneration ||
+        rect == null ||
+        widget.controller.document?.id != documentId ||
+        widget.controller.document?.revision != revision) {
+      return false;
+    }
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || generation != _anchorScrollGeneration) return;
+      final currentController = _scrollController;
+      if (!currentController.hasClients) return;
+      final position = currentController.position;
+      final target = rect.top -
+          alignment * math.max(0, position.viewportDimension - rect.height);
+      position.jumpTo(
+        target
+            .clamp(position.minScrollExtent, position.maxScrollExtent)
+            .toDouble(),
+      );
+    });
+    SchedulerBinding.instance.scheduleFrame();
+    return true;
+  }
+
   /// Positions the selection chrome overlays from the render object's
   /// geometry query.
   ///
