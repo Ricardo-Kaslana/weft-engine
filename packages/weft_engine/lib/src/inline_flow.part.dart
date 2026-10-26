@@ -492,7 +492,7 @@ final class _InlineAccumulator {
       if (child is WeftText) {
         addText(child, style, link: activeLink);
       } else if (child is WeftElement) {
-        final childStyle = context.styleResolver.resolve(
+        final childStyle = context.styleFor(
           child,
           parent: style,
           ancestors: childAncestors,

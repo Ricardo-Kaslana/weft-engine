@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/painting.dart';
 import 'package:weft_document/weft_document.dart';
 
+import 'computed_style.dart';
 import 'line_break_rules.dart';
 import 'text_index.dart';
 
@@ -618,6 +619,7 @@ final class WeftIncrementalLayoutCache {
     required this.measuredPrefixLength,
     required this.isLazy,
     required this.estimatedExtent,
+    Map<WeftElement, WeftComputedStyle>? styleCache,
   })  : images = Map<int, ui.Image>.unmodifiable(images),
         lineBreakRules = WeftLineBreakRules(
           lineStartProhibited: Set<int>.unmodifiable(
@@ -627,7 +629,8 @@ final class WeftIncrementalLayoutCache {
             lineBreakRules.lineEndProhibited,
           ),
         ),
-        blocks = List<WeftCachedLayoutBlock>.unmodifiable(blocks);
+        blocks = List<WeftCachedLayoutBlock>.unmodifiable(blocks),
+        styleCache = styleCache ?? <WeftElement, WeftComputedStyle>{};
 
   final WeftDocumentSnapshot document;
   final double width;
@@ -638,6 +641,13 @@ final class WeftIncrementalLayoutCache {
   final int measuredPrefixLength;
   final bool isLazy;
   final double estimatedExtent;
+
+  /// Computed styles keyed by element identity, filled by layout passes and
+  /// reused while [document] stays the same instance. Valid because computed
+  /// styles derive only from the snapshot; width, text scaling and images do
+  /// not participate. The layout engine mutates the map while relayouting
+  /// this snapshot and reads previous entries for unchanged elements.
+  final Map<WeftElement, WeftComputedStyle> styleCache;
 }
 
 final class WeftLayoutResult {

@@ -21,12 +21,13 @@
 - 可访问性语义（ADR 0024/0026/0028/0030）：单表面文本/链接/图片/选区、标题与表头 header、列表标记、list/table 嵌套角色、链接 tap、选区 copy、稳定节点 id 与屏外 showOnScreen。
 - 渐进式布局虚拟化（ADR 0025）：WeftView 只物化可见顶层块，估算后缀 extent，复杂文档/选区/Semantics 回退 full。
 - 锚点导航（ADR 0027/0029）：`scrollToAnchor` 同步 focus 定位，`scrollToAnchorAsync` 逐帧测量深链前缀并保持当前内容；无效/取消安全返回 false。
+- 懒布局异步分帧与同快照复用（ADR 0031）：非锚点深跳/深 seed 每帧至多新测 32 个顶层块并逐帧收敛，消除冷跳底部单帧全量测量；同快照 relayout 跳过节点 diff、复用跨帧样式缓存与文本索引实例。
 - 选择交互（ADR 0019）：长按选词/拖拽扩展/把手微调/复制按钮/tap 放 caret。
 - 图片/Float 与表格的浏览器几何基线（Chrome 参考固化在 conformance/reference/）。
 
 请继续下一个切片，优先级如下：
-1. 懒布局进阶：基于块 metrics 的 O(1)/O(log N) 随机定位，以及非锚点路径的异步分帧；当前 anchor async 已分帧，但冷跳底部仍可能完整测量前缀。
-2. 语义增强：按产品需要补 heading/table/list 角色、语言/RTL 或 live region；保持 ADR 0024 的单表面所有权。
+1. 懒布局进阶：基于块 metrics 的窗口直物化（O(log N) 随机定位），设计约束见 ADR 0031 的后续小节（负 margin/溢出破坏 top 单调性、body chrome 重算、后缀 extent 增量缓存）；以及超高顶层块/表内行/图片解码资源虚拟化。
+2. 语义增强：按产品需要补 headingLevel、语言/RTL 或 live region；保持 ADR 0024 的单表面所有权。
 3. 增量布局扩展：继续缩小 O(块数) diff/样式解析，探索行级复用；保持 ADR 0023/0025 的全量等价门禁。
 
 硬性约束：
@@ -47,10 +48,10 @@
 - 分支：`main`
 - 最新提交：见 `git log`（本节只保证指南有效，不追踪哈希）
 - Flutter：3.35.5 stable；Dart：3.9.2
-- 常规测试 270+ 项（weft_engine 222、weft 39）、像素黄金 3 项 + 选区高亮 1 项、性能门禁 14 场景（7 布局 + 3 绘制 + 4 命中）；`dart analyze` 无问题。
+- 常规测试 270+ 项（weft_engine 227、weft 39）、像素黄金 3 项 + 选区高亮 1 项、性能门禁 14 场景（7 布局 + 3 绘制 + 4 命中）；`dart analyze` 无问题。
 - GitHub Actions 使用 Windows 执行像素黄金门禁。
 
-已实现到 ADR 0030：分块渲染与命中裁剪（ADR 0017/0020）、行内图片（ADR 0018）、选择 chrome（ADR 0019）、块级盒模型（ADR 0021）、表格列轨道（ADR 0022）、流式顶层前缀复用（ADR 0023）、单表面 Semantics（ADR 0024/0026/0028/0030）、渐进式布局虚拟化（ADR 0025）和同步/异步锚点导航（ADR 0027/0029）。
+已实现到 ADR 0031：分块渲染与命中裁剪（ADR 0017/0020）、行内图片（ADR 0018）、选择 chrome（ADR 0019）、块级盒模型（ADR 0021）、表格列轨道（ADR 0022）、流式顶层前缀复用（ADR 0023）、单表面 Semantics（ADR 0024/0026/0028/0030）、渐进式布局虚拟化（ADR 0025）、同步/异步锚点导航（ADR 0027/0029）和懒布局异步分帧与同快照复用（ADR 0031）。
 
 ## 包结构
 
@@ -89,16 +90,16 @@ docs/adr/               架构决策记录
 - 流式增量（ADR 0023）：公共顶层前缀按规范化子树与全局输入键复用，在原块流中跳过递归排版并保留 TextPainter；连续快照重新绑定缓存节点。旧结果含 Float、全局输入变化等情况全量回退；文本索引仍全量重建，未变前缀 Picture 跨布局保留。
 - Semantics（ADR 0024/0026）：RenderWeftSurface 手动组装阅读顺序文本、链接、图片和选区节点；标题子树带 header flag，链接语义 tap 与选区 copy 走独立回调入口，WeftView pointer/剪贴板职责不变。节点 key 对齐 NodeId，流式更新保留身份；屏外节点可 showOnScreen，选区仅暴露 value/selected/rect/copy，不伪装 text field。
 - 布局虚拟化（ADR 0025）：`layoutViewport` 在原块流中连续测量精确前缀，只物化 viewport+250px 窗口；未测后缀按同类块中位数估算 extent。隐藏块释放 commands/painter，previous/current 继续单 owner 转移；跳到估算底部用 correctBy 跟随。顶层块内及 body 直属的已解析图片 Float 都以块级排除区 checkpoint 跨离屏复用；非图片/inline 祖先 Float、非空 selection（含首帧）、Semantics、未解析图片/loose inline 回退或粘滞 full。full 退出会递增 generation 并清除陈旧校正，初始 ScrollController offset 会 seed 首帧物化窗口。
+- 懒布局异步分帧与同快照复用（ADR 0031）：视口末端距已测前缀超过一屏或首帧 seed 深于 overscan 时，每帧至多新测 32 个顶层块，post-frame 续帧按 `_needsLazyRelayout` 收敛，`_lazyGeneration` 取消；同快照 relayout 跳过节点 diff 与样式表比对，元素级样式缓存随增量缓存跨帧存活（宽度/缩放/图片不参与计算样式），文本索引实例直接复用。300 块冷跳底部从 124.8ms 单帧降为 10 帧 × 中位 5.8ms。
 - 测试：规范化、布局、margin、盒模型、图片、浮动、表格（17 项）、选择（13 项）、CJK、长文档、公开层、像素基线和两个浏览器几何基线。
 
 ## 明确未实现
 
-- 非锚点路径的异步分帧、基于块索引的 O(1)/O(log N) 随机跳转，以及超高顶层块/表内行/图片解码资源虚拟化；当前异步锚点仍需顺序测量目标前缀。
+- 基于块 metrics 的窗口直物化与精确 O(1)/O(log N) 随机跳转（设计约束见 ADR 0031 后续小节），以及超高顶层块/表内行/图片解码资源虚拟化；锚点异步测量仍需顺序测量目标前缀。
 - 非图片 Float 与表格局部 Float 的 checkpoint；增量布局的后缀平移与行级复用；行内原子的 margin 参与行框与 top/bottom 对齐。
 - CJK 像素基线与跨引擎像素预算达标。
 - 表格：嵌套表格（触发回退）、浏览器级 auto 列宽分配精度、`col` 的 min/max 语义。
 - Semantics 的 headingLevel、跨行跨列语义索引、CSS 列表样式/起始序号、可编辑 selection/caret 动作、RTL/语言属性、live region 与语义虚拟化。
-- QuickJS 原生执行、状态/事件/网络能力包。
 - QuickJS 原生执行、状态/事件/网络能力包。
 
 ## 关键约束
@@ -144,9 +145,9 @@ python tool/generate_assets.py
 
 ### A. 懒布局进阶
 
-目标：降低冷跳底部的同步测量停顿，并让更多文档形态受益。
+目标：基于块 metrics 的窗口直物化（真正的 O(log N) 随机定位），让更多文档形态受益。
 
-注意：先画像；候选是异步分帧连续测量、基于块 metrics 的 O(1)/O(log N) 随机定位、更广的 Float/块流 checkpoint，以及超高顶层块/表内行或图片资源虚拟化。继续保留 canonical full 与结构计数门禁。
+注意：异步分帧与同快照复用已由 ADR 0031 交付（深跳/深 seed 每帧 ≤ 32 块、同快照跳过 diff/样式解析/文本索引重建）；窗口直物化的三个前置问题（负 margin/溢出破坏 top 单调性、body chrome 重算、后缀 extent 增量缓存）记录在 ADR 0031 的后续小节。先画像再动手；继续保留 canonical full 与结构计数门禁。
 
 ### B. 语义增强
 
@@ -172,4 +173,5 @@ python tool/generate_assets.py
 - 不要让两个布局结果共同持有同一个 TextPainter；ADR 0023 会转移复用命令所有权并使 previous 的增量缓存失效，成功复用过的 previous 不得再次作为复用来源。
 - 不要用 MergeSemantics 推导单画布内容，也不要同时暴露块全文和相同链接/图片子节点；语义数据必须跟随当前 document/layout，不能按可见 Picture 裁剪。
 - 不要把未测后缀的估算高度当作精确块位置，也不要在 lazy 窗口外伪造命中、选择或 Semantics；需要完整几何时先升级 canonical full。
+- 分帧续推的停机条件是 `_needsLazyRelayout()`（窗口被前缀覆盖即停），不是 `measuredPrefixLength == body.children.length`：窗口末端之外的最后若干块会一直保持估算，拿前缀长度对块数做循环条件会永不终止。
 - 浏览器几何基线重新生成后必须人工审查 diff，不允许盲目覆盖。

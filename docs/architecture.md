@@ -72,7 +72,7 @@ flowchart TB
 - `WeftView` 使用内部 `SingleChildScrollView`；在简单文档中把 250px overscan 视窗传给 RenderWeftSurface，只物化可见顶层块，复杂文档和需要完整几何的 selection/Semantics 走 canonical full。
 - 文本缩放来自 `MediaQuery`，背景和文本命令在单一表面内按顺序绘制。
 
-绘制、命中、选择和 Semantics 已按各自契约实现；WeftView lazy 路径对简单块流按窗口物化，复杂块流回退完整布局。未测滚动高度是渐进估算，冷跳底部仍需顺序测量中间块，超高顶层块与 Float 暂不虚拟化。
+绘制、命中、选择和 Semantics 已按各自契约实现；WeftView lazy 路径对简单块流按窗口物化，复杂块流回退完整布局。未测滚动高度是渐进估算；深跳与深 seed 由表面逐帧预算推进（每帧至多新测 32 个顶层块，ADR 0031），窗口外的尾部块保持估算。同快照的滚动 relayout 复用上一结果的节点 diff 结论、跨帧样式缓存与文本索引实例，不重建样式或逻辑文本。超高顶层块与 Float 暂不虚拟化。
 
 ## 5. 选择模型
 

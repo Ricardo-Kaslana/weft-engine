@@ -290,6 +290,13 @@ class RenderWeftSurface extends RenderBox {
 
   static const _layoutEngine = WeftLayoutEngine();
 
+  /// Cap on newly measured top-level blocks per frame when a scroll move
+  /// lands the viewport beyond the measured frontier by more than one screen
+  /// (ADR 0031). Bounds the synchronous relayout of deep jumps and cold seeds;
+  /// the post-frame continuation advances the frontier across frames until
+  /// the window is measured.
+  static const int _lazyMeasureBudget = 32;
+
   WeftDocumentSnapshot _document;
   TextSelectionRange? _selection;
   TextScaler _textScaler;
@@ -308,6 +315,7 @@ class RenderWeftSurface extends RenderBox {
   double _pendingLazyCorrection = 0;
   int _lazyGeneration = 0;
   int _anchorMeasureGeneration = 0;
+  bool _lazyMeasureContinuationScheduled = false;
   ImageConfiguration _imageConfiguration;
   bool _showSelectionHandles;
   bool _showCaret;
@@ -602,12 +610,15 @@ class RenderWeftSurface extends RenderBox {
       _updateLazyBottomFollow();
     }
     final oldHeight = previous?.size.height ?? 0;
+    final measureBudget =
+        useLazy ? _lazyMeasureBudgetFor(previous, viewportHeight) : null;
     final current = useLazy
         ? _layoutEngine.layoutViewport(
             _document,
             width: width,
             viewportStart: math.max(0, _viewportPixels - _lazyOverscan),
             viewportEnd: _viewportPixels + viewportHeight + _lazyOverscan,
+            maxNewBlocks: measureBudget,
             textScaler: _textScaler,
             images: _resolvedImages,
             previous: previous,
@@ -622,6 +633,9 @@ class RenderWeftSurface extends RenderBox {
     if (useLazy && !current.debugIsLazy) {
       _markFullLayoutRequired('engine-fallback');
     }
+    if (measureBudget != null && current.debugIsLazy) {
+      _scheduleLazyMeasureContinuation();
+    }
     // Hand the laid-out snapshot to the result so hit queries can build
     // their chunk index (ADR 0020); without it they fall back to full scans.
     current.attachDocument(_document);
@@ -631,6 +645,56 @@ class RenderWeftSurface extends RenderBox {
     if (current.debugIsLazy) {
       _scheduleLazyExtentCorrection(oldHeight, current.size.height);
     }
+  }
+
+  /// The block measurement budget for this lazy pass, or null when the pass
+  /// should measure everything it needs synchronously.
+  ///
+  /// Two situations would otherwise measure an unbounded contiguous prefix in
+  /// one frame: a scroll move whose viewport end lies more than one screen
+  /// past the measured frontier, and the first layout for a document when the
+  /// seeded scroll offset starts deep. Both get [_lazyMeasureBudget] new
+  /// blocks per pass and converge through the post-frame continuation; small
+  /// scrolls near the frontier keep the previous single-pass behavior.
+  int? _lazyMeasureBudgetFor(
+      WeftLayoutResult? previous, double viewportHeight) {
+    final cache = previous?.incrementalCache;
+    if (cache != null &&
+        cache.isLazy &&
+        cache.document.id == _document.id &&
+        cache.blocks.isNotEmpty) {
+      final bodyChildren = _document.body?.children.length ?? 0;
+      if (cache.measuredPrefixLength >= bodyChildren) return null;
+      final last = cache.blocks.last;
+      final end = _viewportPixels + viewportHeight + _lazyOverscan;
+      if (end > last.top + last.height + viewportHeight) {
+        return _lazyMeasureBudget;
+      }
+      return null;
+    }
+    if (math.max(0.0, _viewportPixels - _lazyOverscan) > 0) {
+      return _lazyMeasureBudget;
+    }
+    return null;
+  }
+
+  /// Keeps advancing the measured frontier across frames after a budgeted
+  /// pass: each post-frame callback schedules one more budgeted layout until
+  /// [_needsLazyRelayout] reports nothing pending. The lazy generation
+  /// cancels the loop on full upgrades, document changes and mode exits.
+  void _scheduleLazyMeasureContinuation() {
+    if (_lazyMeasureContinuationScheduled) return;
+    _lazyMeasureContinuationScheduled = true;
+    final generation = _lazyGeneration;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _lazyMeasureContinuationScheduled = false;
+      if (!attached || generation != _lazyGeneration || _fullLayoutRequired) {
+        return;
+      }
+      if (_layout?.debugIsLazy != true || !_needsLazyRelayout()) return;
+      markNeedsLayout();
+    });
+    SchedulerBinding.instance.scheduleFrame();
   }
 
   bool _needsLazyRelayout() {

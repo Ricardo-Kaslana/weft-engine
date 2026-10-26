@@ -1,6 +1,6 @@
 import 'dart:ui' as ui;
 
-import 'package:flutter/rendering.dart' show BoxConstraints;
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weft_document/weft_document.dart';
 import 'package:weft_engine/weft_engine.dart';
@@ -464,6 +464,250 @@ void main() {
     expect(render.debugFullLayoutRequired, isFalse);
     expect(render.debugLayout!.debugIsLazy, isTrue);
     expect(render.debugLayout!.debugLaidOutBlockCount, lessThan(120));
+  });
+
+  test('identical snapshot relayouts reuse the whole measured prefix', () {
+    const engine = WeftLayoutEngine();
+    final document = _article(60);
+    final canonical = engine.layout(document, width: 360);
+    final first = engine.layoutViewport(
+      document,
+      width: 360,
+      viewportStart: 0,
+      viewportEnd: 1050,
+    );
+    addTearDown(canonical.dispose);
+    addTearDown(first.dispose);
+
+    final prefix = first.incrementalCache!.measuredPrefixLength;
+    expect(prefix, greaterThan(0));
+    final firstCache = first.incrementalCache!;
+    final firstTextIndex = first.textIndex;
+    final second = engine.layoutViewport(
+      document,
+      width: 360,
+      viewportStart: 1000,
+      viewportEnd: 2050,
+      previous: first,
+    );
+    addTearDown(second.dispose);
+    expect(second.debugReusedBlockCount, prefix);
+    expect(second.incrementalCache!.measuredPrefixLength, greaterThan(prefix));
+    // ADR 0031: an unchanged snapshot instance carries its logical text index
+    // and style cache across relayouts instead of rebuilding them.
+    expect(identical(second.textIndex, firstTextIndex), isTrue);
+    expect(
+      identical(second.incrementalCache!.styleCache, firstCache.styleCache),
+      isTrue,
+    );
+
+    // A full relayout reusing a complete full-layout cache reuses every
+    // top-level block and stays canonical. (Lazy results are never a reuse
+    // source for full layouts — ADR 0025.)
+    final again = engine.layout(document, width: 360, previous: canonical);
+    addTearDown(again.dispose);
+    expect(again.debugReusedBlockCount, document.body!.children.length);
+    expect(again.size, canonical.size);
+    expect(again.commands, hasLength(canonical.commands.length));
+    for (var i = 0; i < again.commands.length; i++) {
+      expect(again.commands[i].nodeId, canonical.commands[i].nodeId);
+      expect(again.commands[i].bounds, canonical.commands[i].bounds);
+    }
+  });
+
+  test('cross-frame style cache keeps selector-matched styles exact', () {
+    const engine = WeftLayoutEngine();
+    const html = '<style>'
+        'p { margin: 8px 0; }'
+        'div p { margin-left: 12px; }'
+        'div.highlight p { background-color: #FFEE88; }'
+        'ul li { margin: 4px 0; }'
+        '</style>'
+        '<p>Plain paragraph text.</p>'
+        '<div><p>Nested paragraph inside a plain div.</p></div>'
+        '<div class="highlight"><p>Highlighted paragraph.</p>'
+        '<ul><li>Item one</li><li>Item two</li></ul></div>'
+        '<p style="margin-top: 32px">Inline styled tail paragraph.</p>';
+    final document = const WeftNormalizer().normalize(
+      html,
+      id: 'style-cache',
+    );
+    final canonical = engine.layout(document, width: 360);
+    addTearDown(canonical.dispose);
+    final first = engine.layoutViewport(
+      document,
+      width: 360,
+      viewportStart: 0,
+      viewportEnd: 400,
+    );
+    final second = engine.layoutViewport(
+      document,
+      width: 360,
+      viewportStart: 30,
+      viewportEnd: 100000,
+      previous: first,
+    );
+    addTearDown(first.dispose);
+    addTearDown(second.dispose);
+
+    expect(second.debugIsLazy, isTrue);
+    expect(
+      second.incrementalCache!.measuredPrefixLength,
+      document.body!.children.length,
+    );
+    expect(second.size, canonical.size);
+    expect(second.commands, hasLength(canonical.commands.length));
+    for (var i = 0; i < second.commands.length; i++) {
+      expect(second.commands[i].nodeId, canonical.commands[i].nodeId);
+      expect(second.commands[i].bounds, canonical.commands[i].bounds);
+    }
+    expect(second.links, hasLength(canonical.links.length));
+    expect(second.textIndex!.text, canonical.textIndex!.text);
+  });
+
+  testWidgets('deep scroll jumps measure within a per-frame block budget',
+      (tester) async {
+    const engine = WeftLayoutEngine();
+    final document = _article(300);
+    final canonical = engine.layout(document, width: 360);
+    addTearDown(canonical.dispose);
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+          child: SizedBox(
+            width: 360,
+            height: 800,
+            child: WeftSurface(
+              document: document,
+              enableLazyLayout: true,
+              viewportHeight: 800,
+            ),
+          ),
+        ),
+      ),
+    );
+    final render = tester.renderObject<RenderWeftSurface>(
+      find.byType(WeftSurface),
+    );
+    expect(render.debugLayout!.debugIsLazy, isTrue);
+    final childCount = document.body!.children.length;
+
+    // Jumping to the estimated bottom must not measure the whole prefix in
+    // one frame (ADR 0031): each pass adds at most the block budget and the
+    // post-frame continuation advances the rest across frames.
+    render.setViewportPixels(canonical.size.height - 800);
+    await tester.pump();
+    expect(render.debugLayout!.debugIsLazy, isTrue);
+    expect(render.debugLayout!.debugLaidOutBlockCount, lessThanOrEqualTo(32));
+    expect(
+      render.debugLayout!.incrementalCache!.measuredPrefixLength,
+      lessThan(childCount),
+    );
+
+    var passes = 1;
+    while (render.debugLayout!.incrementalCache!.measuredPrefixLength <
+        childCount) {
+      await tester.pump();
+      passes += 1;
+      expect(render.debugLayout!.debugIsLazy, isTrue);
+      expect(render.debugLayout!.debugLaidOutBlockCount, lessThanOrEqualTo(32));
+      expect(passes, lessThan(childCount));
+    }
+    expect(render.debugLayout!.size, canonical.size);
+    // The surface materializes its overscan window; a fresh layout over the
+    // same window must produce identical commands.
+    final freshWindow = engine.layoutViewport(
+      document,
+      width: 360,
+      viewportStart: canonical.size.height - 1050,
+      viewportEnd: canonical.size.height + 250,
+    );
+    addTearDown(freshWindow.dispose);
+    expect(
+      render.debugLayout!.commands,
+      hasLength(freshWindow.commands.length),
+    );
+    for (var i = 0; i < render.debugLayout!.commands.length; i++) {
+      expect(render.debugLayout!.commands[i].nodeId,
+          freshWindow.commands[i].nodeId);
+      expect(
+        render.debugLayout!.commands[i].bounds,
+        freshWindow.commands[i].bounds,
+      );
+    }
+  }, semanticsEnabled: false);
+
+  testWidgets('deep initial offsets seed through budgeted passes',
+      (tester) async {
+    const engine = WeftLayoutEngine();
+    final document = _article(200);
+    final canonical = engine.layout(document, width: 360);
+    addTearDown(canonical.dispose);
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+          child: SizedBox(
+            width: 360,
+            height: 800,
+            child: WeftSurface(
+              document: document,
+              enableLazyLayout: true,
+              viewportHeight: 800,
+              initialViewportPixels: canonical.size.height - 800,
+            ),
+          ),
+        ),
+      ),
+    );
+    final render = tester.renderObject<RenderWeftSurface>(
+      find.byType(WeftSurface),
+    );
+    expect(render.debugLayout!.debugIsLazy, isTrue);
+    expect(render.debugLayout!.debugLaidOutBlockCount, lessThanOrEqualTo(32));
+    final childCount = document.body!.children.length;
+    var passes = 1;
+    while (render.debugLayout!.incrementalCache!.measuredPrefixLength <
+        childCount) {
+      await tester.pump();
+      passes += 1;
+      expect(render.debugLayout!.debugLaidOutBlockCount, lessThanOrEqualTo(32));
+      expect(passes, lessThan(childCount));
+    }
+    expect(render.debugLayout!.size, canonical.size);
+  }, semanticsEnabled: false);
+
+  test('scrolls near the frontier still measure synchronously', () {
+    const engine = WeftLayoutEngine();
+    final document = _article(120);
+    final render = RenderWeftSurface(
+      document: document,
+      enableLazyLayout: true,
+      viewportHeight: 800,
+    );
+    addTearDown(render.dispose);
+    render.layout(const BoxConstraints.tightFor(width: 360));
+    final prefix = render.debugLayout!.incrementalCache!.measuredPrefixLength;
+
+    // The new window lies within one screenful of measured content, so one
+    // synchronous pass covers it without the budget.
+    render.setViewportPixels(800);
+    render.layout(const BoxConstraints.tightFor(width: 360));
+    final cache = render.debugLayout!.incrementalCache!;
+    expect(cache.measuredPrefixLength, greaterThan(prefix));
+    final fresh = engine.layoutViewport(
+      document,
+      width: 360,
+      viewportStart: 550,
+      viewportEnd: 1850,
+    );
+    addTearDown(fresh.dispose);
+    expect(render.debugLayout!.commands, hasLength(fresh.commands.length));
+    for (var i = 0; i < render.debugLayout!.commands.length; i++) {
+      expect(render.debugLayout!.commands[i].nodeId, fresh.commands[i].nodeId);
+      expect(render.debugLayout!.commands[i].bounds, fresh.commands[i].bounds);
+    }
   });
 }
 

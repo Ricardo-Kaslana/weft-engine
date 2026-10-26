@@ -94,6 +94,17 @@ final class WeftLayoutEngine {
       );
     }
 
+    // Computed styles and the logical text index depend only on the snapshot
+    // (its stylesheet and text are part of it), never on width, text scaling
+    // or images. When the snapshot instance is unchanged, the previous
+    // result's caches stay valid and the relayout skips their O(document)
+    // rebuilds; a new snapshot invalidates both.
+    final previousCache = previous?.incrementalCache;
+    final sameSnapshot =
+        previousCache != null && identical(previousCache.document, document);
+    final styleCache = sameSnapshot
+        ? previousCache.styleCache
+        : <WeftElement, WeftComputedStyle>{};
     final styleResolver = WeftStyleResolver(document.styleSheet);
     final lazy = viewportStart != null &&
         viewportEnd != null &&
@@ -101,6 +112,7 @@ final class WeftLayoutEngine {
           document: document,
           styleResolver: styleResolver,
           images: images,
+          styleCache: styleCache,
         );
     final reusableBlocks = _reusableLayoutBlocks(
       document: document,
@@ -124,12 +136,15 @@ final class WeftLayoutEngine {
           ? WeftChunk.topLevelOrdinalForNode(document, focusNodeId)
           : null,
       maxNewBlocks: lazy ? maxNewBlocks : null,
+      styleCache: styleCache,
     );
-    final textIndex = WeftTextIndex.build(
-      document: document,
-      styleResolver: context.styleResolver,
-    );
-    final bodyStyle = context.styleResolver.resolve(
+    final reusedTextIndex = sameSnapshot ? previous?.textIndex : null;
+    final textIndex = reusedTextIndex ??
+        WeftTextIndex.build(
+          document: document,
+          styleResolver: context.styleResolver,
+        );
+    final bodyStyle = context.styleFor(
       body,
       parent: WeftComputedStyle.initial,
       ancestors: const [],
@@ -201,6 +216,7 @@ final class WeftLayoutEngine {
         measuredPrefixLength: context.topLevelBlocks.length,
         isLazy: lazy,
         estimatedExtent: result.size.height,
+        styleCache: context.styleCache,
       );
     }
     if (context.reusedCommands.isNotEmpty) {
@@ -222,6 +238,11 @@ Map<int, WeftCachedLayoutBlock> _reusableLayoutBlocks({
   final cache = previous?.incrementalCache;
   final oldBody = cache?.document.body;
   final newBody = document.body;
+  // An unchanged snapshot instance carries its stylesheet and body, so the
+  // recursive node diff and the stylesheet signature comparison are trivially
+  // satisfied and skipped. A new snapshot (streaming update) still pays for
+  // the full comparison.
+  final sameSnapshot = cache != null && identical(cache.document, document);
   if (cache == null ||
       (cache.isLazy && !allowLazy) ||
       oldBody == null ||
@@ -229,8 +250,9 @@ Map<int, WeftCachedLayoutBlock> _reusableLayoutBlocks({
       cache.document.id != document.id ||
       cache.width != width ||
       cache.textScaler != textScaler ||
-      !_sameStyleSheet(cache.document.styleSheet, document.styleSheet) ||
-      !_sameNodeShell(oldBody, newBody) ||
+      (!sameSnapshot &&
+          !_sameStyleSheet(cache.document.styleSheet, document.styleSheet)) ||
+      (!sameSnapshot && !_sameNodeShell(oldBody, newBody)) ||
       !_sameImages(cache.images, images) ||
       !_sameInts(
         cache.lineBreakRules.lineStartProhibited,
@@ -251,10 +273,12 @@ Map<int, WeftCachedLayoutBlock> _reusableLayoutBlocks({
     final oldChild = oldBody.children[i];
     final newChild = newBody.children[i];
     final block = cache.blocks[i];
-    if (oldChild is! WeftElement ||
-        newChild is! WeftElement ||
-        !_sameNode(oldChild, newChild) ||
-        !identical(block.element, oldChild)) {
+    if (oldChild is! WeftElement || newChild is! WeftElement) {
+      break;
+    }
+    if (!sameSnapshot &&
+        (!_sameNode(oldChild, newChild) ||
+            !identical(block.element, oldChild))) {
       break;
     }
     result[newChild.id] = block;
@@ -340,9 +364,26 @@ bool _supportsLazyLayout({
   required WeftDocumentSnapshot document,
   required WeftStyleResolver styleResolver,
   required Map<int, ui.Image> images,
+  required Map<WeftElement, WeftComputedStyle> styleCache,
 }) {
   final body = document.body;
   if (body == null) return false;
+
+  WeftComputedStyle resolve(
+    WeftElement element, {
+    required WeftComputedStyle parent,
+    required List<WeftElement> ancestors,
+  }) {
+    final cached = styleCache[element];
+    if (cached != null) return cached;
+    final style = styleResolver.resolve(
+      element,
+      parent: parent,
+      ancestors: ancestors,
+    );
+    styleCache[element] = style;
+    return style;
+  }
 
   bool visit(
     WeftElement element,
@@ -350,7 +391,7 @@ bool _supportsLazyLayout({
     List<WeftElement> ancestors,
     bool underInlineAncestor,
   ) {
-    final style = styleResolver.resolve(
+    final style = resolve(
       element,
       parent: parent,
       ancestors: ancestors,
@@ -371,7 +412,7 @@ bool _supportsLazyLayout({
       if (child is WeftText && identical(element, body)) return false;
       if (child is! WeftElement) continue;
       if (identical(element, body)) {
-        final childStyle = styleResolver.resolve(
+        final childStyle = resolve(
           child,
           parent: style,
           ancestors: childAncestors,
@@ -403,6 +444,7 @@ final class _LayoutContext {
     this.focusOrdinal,
     this.maxNewBlocks,
     this.lineBreakRules = const WeftLineBreakRules(),
+    required this.styleCache,
   }) {
     for (final block in reusableBlocks.values) {
       _recordHeightSample(block.element, block.height);
@@ -421,6 +463,12 @@ final class _LayoutContext {
 
   /// Kinsoku tables applied by the line-by-line inline layout path.
   final WeftLineBreakRules lineBreakRules;
+
+  /// Computed styles per element, shared across relayouts of one unchanged
+  /// snapshot (owned by the incremental cache). Within a layout every element
+  /// resolves once; across scroll frames the map makes the block walk reuse
+  /// the previous pass's styles instead of re-matching selectors.
+  final Map<WeftElement, WeftComputedStyle> styleCache;
   final List<WeftLayoutBox> boxes = <WeftLayoutBox>[];
   final List<WeftPaintCommand> commands = <WeftPaintCommand>[];
   final List<WeftLinkRegion> links = <WeftLinkRegion>[];
@@ -434,6 +482,27 @@ final class _LayoutContext {
   final Map<String, List<double>> heightSamples = <String, List<double>>{};
 
   bool get isLazy => viewportStart != null && viewportEnd != null;
+
+  /// Resolves [element]'s computed style through [styleCache]. An element has
+  /// exactly one parent in the immutable snapshot, so its inputs — parent
+  /// style and ancestor chain — are fully determined by the tree and the
+  /// result is stable for the layout's lifetime and any relayout of the same
+  /// snapshot instance.
+  WeftComputedStyle styleFor(
+    WeftElement element, {
+    required WeftComputedStyle parent,
+    required List<WeftElement> ancestors,
+  }) {
+    final cached = styleCache[element];
+    if (cached != null) return cached;
+    final style = styleResolver.resolve(
+      element,
+      parent: parent,
+      ancestors: ancestors,
+    );
+    styleCache[element] = style;
+    return style;
+  }
 
   (int, int, int, int)? _startTopLevelBlock(
     WeftElement parent,
@@ -907,7 +976,7 @@ final class _LayoutContext {
       }
       if (child is! WeftElement) continue;
 
-      final childStyle = styleResolver.resolve(
+      final childStyle = styleFor(
         child,
         parent: style,
         ancestors: childAncestors,
@@ -1583,7 +1652,7 @@ final class _LayoutContext {
         return null;
       }
       if (child is! WeftElement) continue;
-      final style = styleResolver.resolve(
+      final style = styleFor(
         child,
         parent: parentStyle,
         ancestors: childAncestors,
@@ -1611,7 +1680,7 @@ final class _LayoutContext {
         return null;
       }
       if (child is! WeftElement) continue;
-      final style = styleResolver.resolve(
+      final style = styleFor(
         child,
         parent: parentStyle,
         ancestors: childAncestors,
@@ -1661,7 +1730,7 @@ final class _LayoutContext {
         continue;
       }
       if (child is! WeftElement) continue;
-      final childStyle = styleResolver.resolve(
+      final childStyle = styleFor(
         child,
         parent: style,
         ancestors: childAncestors,
@@ -1703,7 +1772,7 @@ final class _LayoutContext {
       }
       if (child is! WeftElement) continue;
       if (child.tag == 'br') return false;
-      final childStyle = styleResolver.resolve(
+      final childStyle = styleFor(
         child,
         parent: style,
         ancestors: childAncestors,

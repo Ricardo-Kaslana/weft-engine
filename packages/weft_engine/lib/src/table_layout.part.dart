@@ -51,7 +51,7 @@ extension _TableLayoutMethods on _LayoutContext {
       for (final child in tr.children) {
         if (child is! WeftElement) continue;
         if (child.tag != 'td' && child.tag != 'th') continue;
-        final cellStyle = styleResolver.resolve(
+        final cellStyle = styleFor(
           child,
           parent: style,
           ancestors: cellAncestors,
@@ -115,7 +115,7 @@ extension _TableLayoutMethods on _LayoutContext {
       var contentHeight = 0.0;
       final captionElement = caption;
       if (captionElement != null) {
-        final captionStyle = styleResolver.resolve(
+        final captionStyle = styleFor(
           captionElement,
           parent: style,
           ancestors: tableAncestors,
@@ -430,7 +430,7 @@ extension _TableLayoutMethods on _LayoutContext {
     var captionHeight = 0.0;
     final captionElement = caption;
     if (captionElement != null) {
-      final captionStyle = styleResolver.resolve(
+      final captionStyle = styleFor(
         captionElement,
         parent: style,
         ancestors: tableAncestors,
@@ -894,7 +894,7 @@ extension _TableLayoutMethods on _LayoutContext {
         continue;
       }
       if (child is! WeftElement) continue;
-      final childStyle = styleResolver.resolve(
+      final childStyle = styleFor(
         child,
         parent: style,
         ancestors: childAncestors,
@@ -1040,7 +1040,7 @@ extension _TableLayoutMethods on _LayoutContext {
   }) {
     final tracks = <_ColumnTrack>[];
     void addCol(WeftElement col) {
-      final colStyle = styleResolver.resolve(
+      final colStyle = styleFor(
         col,
         parent: style,
         ancestors: ancestors,

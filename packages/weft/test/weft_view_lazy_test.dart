@@ -39,12 +39,28 @@ void main() {
     await tester.pump();
     final scrolled = render.debugLayout!;
     expect(scrolled.debugIsLazy, isTrue);
-    expect(scrolled.debugMaterializedBlockCount, greaterThan(0));
-    expect(scrolled.commands, isNotEmpty);
+    // ADR 0031: a deep jump measures at most a block budget per frame, so the
+    // first frame may not cover the new window yet; the post-frame
+    // continuation fills it over subsequent frames instead of stalling one
+    // long frame.
+    expect(scrolled.commands, isEmpty);
+    for (var i = 0; i < 12 && render.debugLayout!.commands.isEmpty; i++) {
+      await tester.pump();
+    }
+    final settled = render.debugLayout!;
+    expect(settled.debugIsLazy, isTrue);
+    expect(settled.commands, isNotEmpty);
     expect(
-      scrolled.commands.map((command) => command.nodeId).toSet(),
+      settled.commands.map((command) => command.nodeId).toSet(),
       isNot(equals(firstNodes)),
     );
+    // The converged extent matches a canonical full layout of the document.
+    final canonical = const WeftLayoutEngine().layout(
+      controller.document!,
+      width: 320,
+    );
+    addTearDown(canonical.dispose);
+    expect(settled.size, canonical.size);
 
     scroll.dispose();
     controller.dispose();

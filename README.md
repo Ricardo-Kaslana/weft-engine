@@ -28,6 +28,7 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - 流式增量布局（ADR 0023）：同 id 追加复用未变顶层前缀与 TextPainter；未变前缀 Picture 也跨快照保留。
 - 可访问性语义（ADR 0024/0026/0028/0030）：单表面文本、链接、图片与选区 Semantics，支持标题/表头 header、列表标记、list/table 嵌套角色与 indexInParent、链接语义 tap、选区 copy 和屏外 showOnScreen。
 - 渐进式布局虚拟化（ADR 0025）：WeftView 简单长文只物化可见块，首屏不创建全文 TextPainter；`lazyOverscan` 可调预取窗口，顶层块内及 body 直属图片 Float 通过排除区 checkpoint 参与 lazy，selection/Semantics/复杂文档回退 full。
+- 懒布局异步分帧与同快照复用（ADR 0031）：深跳/深 seed 每帧至多新测 32 个顶层块并逐帧收敛，消除冷跳底部的单帧全量测量停顿；同快照滚动 relayout 跳过节点 diff、复用跨帧样式缓存与文本索引。
 - 锚点导航（ADR 0027/0029）：`scrollToAnchor` / `scrollToNode` 精确定位，异步版本逐帧测量深链前缀并保持当前内容；无效或取消请求安全返回 false。
 - 性能门禁：布局/绘制/命中 14 场景基准工具与 10 倍宽上限的 CI 稳定门禁（见 docs/testing-strategy.md）；命中解析经分块索引裁剪（ADR 0020），`WeftView.scrollController` 可注入。
 - `float_image` 一致性案例：Chrome 生成的浏览器几何基线（块、图片、逐行词盒误差 ≤ 0.5px）与 Flutter 像素黄金双重门禁；图片按 1:1 对齐整像素绘制。
@@ -44,7 +45,7 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - CJK 像素字体与跨引擎像素预算达标。
 - 表格的嵌套表格（触发回退）与浏览器级 auto 列宽分配精度。
 - 选择工具条（完整菜单）、chrome 动画打磨和语义角色/live region 增强。
-- 懒布局的异步分帧、精确随机跳转，以及 body 直属 Float/表内行/图片解码资源虚拟化。
+- 基于块 metrics 的窗口直物化与精确 O(1)/O(log N) 随机跳转，以及 body 直属 Float/表内行/图片解码资源虚拟化。
 - QuickJS 原生库、FFI 绑定和真实脚本执行。
 - 状态、事件、网络能力包的具体实现。
 
