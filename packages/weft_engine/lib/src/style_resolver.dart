@@ -5,6 +5,14 @@ import 'package:weft_document/weft_document.dart';
 
 import 'computed_style.dart';
 
+final RegExp _whitespaceSplit = RegExp(r'\s+');
+final RegExp _borderStyleSolid = RegExp(r'(?:^|\s)solid(?:\s|$)');
+final RegExp _borderStyleThin = RegExp(r'(?:^|\s)thin(?:\s|$)');
+final RegExp _borderStyleMedium = RegExp(r'(?:^|\s)medium(?:\s|$)');
+final RegExp _borderStyleThick = RegExp(r'(?:^|\s)thick(?:\s|$)');
+final RegExp _borderStyleZero = RegExp(r'(?:^|\s)0(?:\s|$)');
+final RegExp _borderWidthLength = RegExp(r'(\d+(?:\.\d+)?)(px|em|rem)');
+
 final class WeftStyleResolver {
   const WeftStyleResolver(this.styleSheet);
 
@@ -63,7 +71,7 @@ final class WeftStyleResolver {
       } else if (property == 'margin' || property == 'padding') {
         final parts = value
             .trim()
-            .split(RegExp(r'\s+'))
+            .split(_whitespaceSplit)
             .where((part) => part.isNotEmpty)
             .toList();
         if (parts.isEmpty || parts.length > 4) continue;
@@ -447,7 +455,7 @@ final class _StyleBuilder {
     if (spacingValue != null) {
       final parts = spacingValue
           .trim()
-          .split(RegExp(r'\s+'))
+          .split(_whitespaceSplit)
           .map((part) => _length(part, fontSize))
           .toList();
       if (parts.length == 1 && parts[0] != null) {
@@ -586,21 +594,21 @@ final class _StyleBuilder {
     final value = raw.trim().toLowerCase();
     if (value.isEmpty) return null;
     if (value == 'none' || value == '0') return WeftBorderSide.none;
-    if (!RegExp(r'(?:^|\s)solid(?:\s|$)').hasMatch(value)) {
+    if (!_borderStyleSolid.hasMatch(value)) {
       return WeftBorderSide.none;
     }
 
     var width = 3.0;
-    if (RegExp(r'(?:^|\s)thin(?:\s|$)').hasMatch(value)) {
+    if (_borderStyleThin.hasMatch(value)) {
       width = 1;
-    } else if (RegExp(r'(?:^|\s)medium(?:\s|$)').hasMatch(value)) {
+    } else if (_borderStyleMedium.hasMatch(value)) {
       width = 3;
-    } else if (RegExp(r'(?:^|\s)thick(?:\s|$)').hasMatch(value)) {
+    } else if (_borderStyleThick.hasMatch(value)) {
       width = 5;
-    } else if (RegExp(r'(?:^|\s)0(?:\s|$)').hasMatch(value)) {
+    } else if (_borderStyleZero.hasMatch(value)) {
       width = 0;
     } else {
-      final match = RegExp(r'(\d+(?:\.\d+)?)(px|em|rem)').firstMatch(value);
+      final match = _borderWidthLength.firstMatch(value);
       if (match != null) {
         final number = double.tryParse(match.group(1)!);
         if (number != null) {
@@ -614,7 +622,7 @@ final class _StyleBuilder {
     }
 
     final cleaned = value
-        .replaceAll(RegExp(r'(\d+(?:\.\d+)?)(px|em|rem)'), ' ')
+        .replaceAll(_borderWidthLength, ' ')
         .replaceAll(RegExp(r'(?:thin|medium|thick)'), ' ')
         .replaceAll(RegExp(r'(?:solid|none)'), ' ')
         .trim();

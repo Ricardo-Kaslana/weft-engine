@@ -29,6 +29,7 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - 可访问性语义（ADR 0024/0026/0028/0030）：单表面文本、链接、图片与选区 Semantics，支持标题/表头 header、列表标记、list/table 嵌套角色与 indexInParent、链接语义 tap、选区 copy 和屏外 showOnScreen。
 - 渐进式布局虚拟化（ADR 0025）：WeftView 简单长文只物化可见块，首屏不创建全文 TextPainter；`lazyOverscan` 可调预取窗口，顶层块内及 body 直属图片 Float 通过排除区 checkpoint 参与 lazy，selection/Semantics/复杂文档回退 full。
 - 懒布局异步分帧与同快照复用（ADR 0031）：深跳/深 seed 每帧至多新测 32 个顶层块并逐帧收敛，消除冷跳底部的单帧全量测量停顿；同快照滚动 relayout 跳过节点 diff、复用跨帧样式缓存与文本索引。
+- 阶段 0–3 验收证据（ADR 0032）：商品/帮助文档语料的无丢失/无重叠/无越界结构断言、敌意输入诊断扫描、10 万字符随机跨段选区与复制（代理对安全）、流式选区重映射/安全清除、滚动缓存预算稳定、晚解码 Float 等价，以及"标签→Widget"基线与滚动帧耗时两个基准工具。
 - 锚点导航（ADR 0027/0029）：`scrollToAnchor` / `scrollToNode` 精确定位，异步版本逐帧测量深链前缀并保持当前内容；无效或取消请求安全返回 false。
 - 性能门禁：布局/绘制/命中 14 场景基准工具与 10 倍宽上限的 CI 稳定门禁（见 docs/testing-strategy.md）；命中解析经分块索引裁剪（ADR 0020），`WeftView.scrollController` 可注入。
 - `float_image` 一致性案例：Chrome 生成的浏览器几何基线（块、图片、逐行词盒误差 ≤ 0.5px）与 Flutter 像素黄金双重门禁；图片按 1:1 对齐整像素绘制。
@@ -37,12 +38,12 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - 中英文内容、窄宽度换行及 300 段长文档的布局烟测。
 - 六类代表性内容语料，以及 Chrome/Edge 诊断参考截图生成器。
 - Apache 2.0 Roboto/Roboto Mono 固定字体、三个 Flutter 像素黄金基线（含图片/浮动案例）、确定性 PNG 图片资产和 Windows CI 门禁。
-- Dart Pub workspace、270+ 项常规自动测试、3 项像素测试、浏览器几何基线测试和 GitHub Actions CI。
+- Dart Pub workspace、270+ 项常规自动测试（weft_engine 234、weft 39）、3 项像素测试、浏览器几何基线测试和 GitHub Actions CI。
 
 尚未实现：
 
 
-- CJK 像素字体与跨引擎像素预算达标。
+- CJK 像素基线（无可分发 CJK 像素字体，跨引擎像素验收已按 ADR 0032 重定界为结构几何门禁）。
 - 表格的嵌套表格（触发回退）与浏览器级 auto 列宽分配精度。
 - 选择工具条（完整菜单）、chrome 动画打磨和语义角色/live region 增强。
 - 基于块 metrics 的窗口直物化与精确 O(1)/O(log N) 随机跳转，以及 body 直属 Float/表内行/图片解码资源虚拟化。

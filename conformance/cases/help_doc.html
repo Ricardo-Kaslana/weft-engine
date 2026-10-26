@@ -1,0 +1,21 @@
+<h1>账户与同步帮助</h1>
+<p>本文介绍如何在不同设备间同步笔记,以及修复常见的同步失败。</p>
+<h2>开启同步</h2>
+<ol>
+  <li>打开设置,进入 <strong>账户</strong> 页面。</li>
+  <li>选择 <em>同步</em>,打开开关。</li>
+  <li>等待首次上传完成,保持网络连接。</li>
+</ol>
+<h2>命令行诊断</h2>
+<pre><code>weft sync --status
+weft sync --retry</code></pre>
+<blockquote>注意:同步失败不会丢失本地数据。</blockquote>
+<h3>冲突处理</h3>
+<p>同一笔记在两台设备上都被修改时,系统保留两个副本,你可以在
+<a href="https://example.com/help/conflicts">冲突解决器</a> 中合并内容。</p>
+<hr>
+<table>
+  <tr><th>错误码</th><th>含义</th></tr>
+  <tr><td>E401</td><td>登录过期,请重新登录</td></tr>
+  <tr><td>E507</td><td>云端存储空间不足</td></tr>
+</table>

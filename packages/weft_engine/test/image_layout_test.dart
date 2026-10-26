@@ -364,6 +364,105 @@ void main() {
     expect(first.rect.top, bodyTop);
     expect(second.rect.top, greaterThanOrEqualTo(first.rect.bottom));
   });
+
+  test('late image decode converges to the resolved-image layout', () {
+    final document = const WeftNormalizer().normalize(
+      '<img id="pic" src="asset:pic.png" style="float: left" '
+      'width="120" height="120">'
+      '<p>alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu '
+      'nu xi omicron pi rho sigma tau upsilon phi chi psi omega alpha beta '
+      'gamma delta epsilon zeta eta theta iota kappa</p>',
+      id: 'float-late-decode',
+    );
+    const engine = WeftLayoutEngine();
+    final imageId = _findById(document.body!, 'pic').id;
+
+    // Before the resolver delivers the image, the float falls back to alt
+    // text; the engine has no resolved float to admit.
+    final withoutImage = engine.layout(document, width: 360);
+    addTearDown(withoutImage.dispose);
+    expect(
+      withoutImage.commands.whereType<WeftImagePaintCommand>(),
+      isEmpty,
+    );
+
+    // When the decode lands, the next layout (previous = the fallback result)
+    // must converge exactly to a fresh layout that always had the image.
+    final lateDecode = engine.layout(
+      document,
+      width: 360,
+      images: {imageId: square},
+      previous: withoutImage,
+    );
+    addTearDown(lateDecode.dispose);
+    final fresh = engine.layout(
+      document,
+      width: 360,
+      images: {imageId: square},
+    );
+    addTearDown(fresh.dispose);
+    expect(lateDecode.size, fresh.size);
+    expect(lateDecode.commands, hasLength(fresh.commands.length));
+    for (var i = 0; i < lateDecode.commands.length; i++) {
+      expect(lateDecode.commands[i].nodeId, fresh.commands[i].nodeId);
+      expect(lateDecode.commands[i].bounds, fresh.commands[i].bounds);
+    }
+    expect(
+      lateDecode.commands.whereType<WeftImagePaintCommand>(),
+      isNotEmpty,
+    );
+  });
+
+  test('float wrapping stays structural at multiple widths', () {
+    final document = const WeftNormalizer().normalize(
+      '<img id="pic" src="asset:pic.png" style="float: left" '
+      'width="80" height="80">'
+      '<p>alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu '
+      'nu xi omicron pi rho sigma tau upsilon phi chi psi omega</p>'
+      '<p style="clear: left">cleared tail paragraph after the float.</p>',
+      id: 'float-widths',
+    );
+    const engine = WeftLayoutEngine();
+    final imageId = _findById(document.body!, 'pic').id;
+
+    for (final width in <double>[280, 360, 480]) {
+      final layout = engine.layout(
+        document,
+        width: width,
+        images: {imageId: square},
+      );
+      addTearDown(layout.dispose);
+      expect(layout.size.width, width);
+
+      // Every command stays inside its width; text lines never overlap.
+      for (final command in layout.commands) {
+        expect(command.bounds.right, lessThanOrEqualTo(width + 0.5),
+            reason: 'width $width command escaped right');
+      }
+      final textRects = layout.commands
+          .whereType<WeftTextPaintCommand>()
+          .map((command) => command.bounds)
+          .toList(growable: false);
+      for (var i = 0; i < textRects.length; i++) {
+        for (var j = i + 1; j < textRects.length; j++) {
+          expect(
+            textRects[i].intersect(textRects[j]).isEmpty,
+            isTrue,
+            reason: 'width $width text commands $i/$j overlap',
+          );
+        }
+      }
+
+      // The float shortens lines: some text line must sit right of the
+      // 80px float, and the cleared tail must start below it.
+      final textLines = layout.commands.whereType<WeftTextPaintCommand>();
+      expect(
+        textLines.any((command) => command.bounds.left >= 78),
+        isTrue,
+        reason: 'width $width: no line wrapped beside the float',
+      );
+    }
+  });
 }
 
 Future<ui.Image> _createImage(int width, int height, Color color) async {

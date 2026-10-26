@@ -115,7 +115,34 @@
       "minBoxes": 10,
       "linkHrefs": [],
       "pixel": false,
-      "geometry": true
+      "geometry": true,
+      "maxOverflowX": 1.5
+    },
+    {
+      "id": "product_description",
+      "file": "cases/product_description.html",
+      "width": 360,
+      "height": 900,
+      "minHeight": 400,
+      "minTextCommands": 10,
+      "minBoxes": 8,
+      "linkHrefs": [
+        "https://example.com/k380-guide"
+      ],
+      "pixel": false
+    },
+    {
+      "id": "help_doc",
+      "file": "cases/help_doc.html",
+      "width": 360,
+      "height": 900,
+      "minHeight": 450,
+      "minTextCommands": 12,
+      "minBoxes": 10,
+      "linkHrefs": [
+        "https://example.com/help/conflicts"
+      ],
+      "pixel": false
     }
   ]
 }

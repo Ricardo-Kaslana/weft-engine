@@ -1,5 +1,8 @@
 part of 'layout_engine.dart';
 
+final RegExp _collapsibleWhitespace = RegExp(r'\s+');
+final RegExp _trailingCollapsibleWhitespace = RegExp(r'\s+$');
+
 final class _FloatExclusion {
   const _FloatExclusion({required this.side, required this.rect});
 
@@ -380,7 +383,7 @@ final class _InlineAccumulator {
   }) {
     if (node.text.isEmpty) return;
     if (style.whiteSpace == WeftWhiteSpace.normal) {
-      var text = node.text.replaceAll(RegExp(r'\s+'), ' ');
+      var text = node.text.replaceAll(_collapsibleWhitespace, ' ');
       if (_lastWasSpace && text.startsWith(' ')) {
         text = text.substring(1);
       }
@@ -1045,7 +1048,8 @@ final class _InlineAccumulator {
     while (_runs.isNotEmpty) {
       final last = _runs.last;
       if (last.style.whiteSpace != WeftWhiteSpace.normal) return;
-      final trimmed = last.text.replaceFirst(RegExp(r'\s+$'), '');
+      final trimmed =
+          last.text.replaceFirst(_trailingCollapsibleWhitespace, '');
       if (trimmed.isEmpty) {
         _runs.removeLast();
         continue;

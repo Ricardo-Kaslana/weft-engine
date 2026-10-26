@@ -3,6 +3,10 @@ import 'package:weft_document/weft_document.dart';
 import 'computed_style.dart';
 import 'style_resolver.dart';
 
+final RegExp _collapsibleWhitespace = RegExp(r'\s+');
+final RegExp _leadingCollapsibleWhitespace = RegExp(r'^\s+');
+final RegExp _trailingCollapsibleWhitespace = RegExp(r'\s+$');
+
 /// One text node in the logical text stream, with the node's painted text
 /// (whitespace collapsed for `white-space: normal`, raw otherwise).
 final class WeftTextEntry {
@@ -64,7 +68,7 @@ final class WeftTextIndex {
         // line boxes paint it. Trailing whitespace is removed after the
         // walk.
         if (atLeadingEdge || lastEmittedBreak) {
-          painted = painted.replaceFirst(RegExp(r'^\s+'), '');
+          painted = painted.replaceFirst(_leadingCollapsibleWhitespace, '');
         }
         if (painted.isEmpty) {
           // Pure whitespace before any content; the breaks stay pending.
@@ -95,7 +99,7 @@ final class WeftTextIndex {
     ) {
       if (node is WeftText) {
         final painted = style.whiteSpace == WeftWhiteSpace.normal
-            ? node.text.replaceAll(RegExp(r'\s+'), ' ')
+            ? node.text.replaceAll(_collapsibleWhitespace, ' ')
             : node.text;
         emit(painted, node.id);
         return;
@@ -144,7 +148,8 @@ final class WeftTextIndex {
     // paint it as the seam between runs.
     if (entries.isNotEmpty) {
       final last = entries.last;
-      final trimmed = last.text.replaceFirst(RegExp(r'\s+$'), '');
+      final trimmed =
+          last.text.replaceFirst(_trailingCollapsibleWhitespace, '');
       if (trimmed.isEmpty) {
         entries.removeLast();
       } else if (trimmed.length != last.text.length) {

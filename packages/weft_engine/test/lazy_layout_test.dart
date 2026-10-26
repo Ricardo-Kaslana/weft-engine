@@ -709,6 +709,59 @@ void main() {
       expect(render.debugLayout!.commands[i].bounds, fresh.commands[i].bounds);
     }
   });
+
+  testWidgets('scroll round trips keep caches in a stable budget',
+      (tester) async {
+    final document = _article(120);
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+          child: SizedBox(
+            width: 360,
+            height: 800,
+            child: WeftSurface(
+              document: document,
+              enableLazyLayout: true,
+              viewportHeight: 800,
+            ),
+          ),
+        ),
+      ),
+    );
+    final render = tester.renderObject<RenderWeftSurface>(
+      find.byType(WeftSurface),
+    );
+    final childCount = document.body!.children.length;
+
+    // Multiple full down-and-up round trips. Picture cache, materialized
+    // commands and the incremental cache must stay bounded by the document,
+    // not grow with the number of scroll rounds (phase 3 acceptance).
+    for (var round = 0; round < 4; round++) {
+      render.setViewportPixels(6000);
+      await tester.pump();
+      render.setViewportPixels(0);
+      await tester.pump();
+      render.setViewportPixels(3000);
+      await tester.pump();
+
+      final pictures = render.debugCachedChunkPictureCount;
+      // The picture cache only holds the current layout's chunks: bounded by
+      // the document size, never by the number of scroll rounds. (A tight
+      // inter-round equality is timing dependent — post-frame extent
+      // corrections can shift the window by a pump under load.)
+      expect(
+        pictures,
+        lessThanOrEqualTo(childCount),
+        reason: 'round $round held $pictures chunk pictures',
+      );
+      expect(
+        render.debugLayout!.incrementalCache!.blocks.length,
+        lessThanOrEqualTo(childCount),
+        reason: 'round $round cache grows with rounds, not the document',
+      );
+    }
+  }, semanticsEnabled: false);
 }
 
 WeftDocumentSnapshot _floatingArticle() {

@@ -48,10 +48,10 @@
 - 分支：`main`
 - 最新提交：见 `git log`（本节只保证指南有效，不追踪哈希）
 - Flutter：3.35.5 stable；Dart：3.9.2
-- 常规测试 270+ 项（weft_engine 227、weft 39）、像素黄金 3 项 + 选区高亮 1 项、性能门禁 14 场景（7 布局 + 3 绘制 + 4 命中）；`dart analyze` 无问题。
+- 常规测试 273 项（weft_engine 234、weft 39）、像素黄金 3 项 + 选区高亮 1 项、性能门禁 14 场景（7 布局 + 3 绘制 + 4 命中）；`dart analyze` 无问题。开发计划阶段 0–3 已完成（验收证据与重定界见 ADR 0032），阶段 4/5 未开始。
 - GitHub Actions 使用 Windows 执行像素黄金门禁。
 
-已实现到 ADR 0031：分块渲染与命中裁剪（ADR 0017/0020）、行内图片（ADR 0018）、选择 chrome（ADR 0019）、块级盒模型（ADR 0021）、表格列轨道（ADR 0022）、流式顶层前缀复用（ADR 0023）、单表面 Semantics（ADR 0024/0026/0028/0030）、渐进式布局虚拟化（ADR 0025）、同步/异步锚点导航（ADR 0027/0029）和懒布局异步分帧与同快照复用（ADR 0031）。
+已实现到 ADR 0032：分块渲染与命中裁剪（ADR 0017/0020）、行内图片（ADR 0018）、选择 chrome（ADR 0019）、块级盒模型（ADR 0021）、表格列轨道（ADR 0022）、流式顶层前缀复用（ADR 0023）、单表面 Semantics（ADR 0024/0026/0028/0030）、渐进式布局虚拟化（ADR 0025）、同步/异步锚点导航（ADR 0027/0029）懒布局异步分帧与同快照复用（ADR 0031）和阶段 0–3 验收证据与重定界（ADR 0032）。
 
 ## 包结构
 
@@ -91,13 +91,13 @@ docs/adr/               架构决策记录
 - Semantics（ADR 0024/0026）：RenderWeftSurface 手动组装阅读顺序文本、链接、图片和选区节点；标题子树带 header flag，链接语义 tap 与选区 copy 走独立回调入口，WeftView pointer/剪贴板职责不变。节点 key 对齐 NodeId，流式更新保留身份；屏外节点可 showOnScreen，选区仅暴露 value/selected/rect/copy，不伪装 text field。
 - 布局虚拟化（ADR 0025）：`layoutViewport` 在原块流中连续测量精确前缀，只物化 viewport+250px 窗口；未测后缀按同类块中位数估算 extent。隐藏块释放 commands/painter，previous/current 继续单 owner 转移；跳到估算底部用 correctBy 跟随。顶层块内及 body 直属的已解析图片 Float 都以块级排除区 checkpoint 跨离屏复用；非图片/inline 祖先 Float、非空 selection（含首帧）、Semantics、未解析图片/loose inline 回退或粘滞 full。full 退出会递增 generation 并清除陈旧校正，初始 ScrollController offset 会 seed 首帧物化窗口。
 - 懒布局异步分帧与同快照复用（ADR 0031）：视口末端距已测前缀超过一屏或首帧 seed 深于 overscan 时，每帧至多新测 32 个顶层块，post-frame 续帧按 `_needsLazyRelayout` 收敛，`_lazyGeneration` 取消；同快照 relayout 跳过节点 diff 与样式表比对，元素级样式缓存随增量缓存跨帧存活（宽度/缩放/图片不参与计算样式），文本索引实例直接复用。300 块冷跳底部从 124.8ms 单帧降为 10 帧 × 中位 5.8ms。
-- 测试：规范化、布局、margin、盒模型、图片、浮动、表格（17 项）、选择（13 项）、CJK、长文档、公开层、像素基线和两个浏览器几何基线。
+- 测试：规范化、布局、margin、盒模型、图片、浮动、表格（17 项）、选择（15 项，含 10 万字符随机选区与流式重映射）、CJK、长文档、公开层、像素基线、两个浏览器几何基线，以及语料结构断言（无丢失/无重叠/无越界）与敌意输入诊断扫描（ADR 0032）。
 
 ## 明确未实现
 
 - 基于块 metrics 的窗口直物化与精确 O(1)/O(log N) 随机跳转（设计约束见 ADR 0031 后续小节），以及超高顶层块/表内行/图片解码资源虚拟化；锚点异步测量仍需顺序测量目标前缀。
 - 非图片 Float 与表格局部 Float 的 checkpoint；增量布局的后缀平移与行级复用；行内原子的 margin 参与行框与 top/bottom 对齐。
-- CJK 像素基线与跨引擎像素预算达标。
+- CJK 像素基线（跨引擎像素验收已按 ADR 0032 重定界为结构几何门禁；真机帧计时仍以 weft_lab 为准）。
 - 表格：嵌套表格（触发回退）、浏览器级 auto 列宽分配精度、`col` 的 min/max 语义。
 - Semantics 的 headingLevel、跨行跨列语义索引、CSS 列表样式/起始序号、可编辑 selection/caret 动作、RTL/语言属性、live region 与语义虚拟化。
 - QuickJS 原生执行、状态/事件/网络能力包。
@@ -142,6 +142,8 @@ python tool/generate_assets.py
 ```
 
 ## 建议的下一步
+
+开发计划阶段 0–3 已完成；阶段 4（受限 JS 与能力扩展）和阶段 5（回退、硬化与发布）未开始。以下为既有技术路线的延续候选。
 
 ### A. 懒布局进阶
 

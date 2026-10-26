@@ -33,6 +33,10 @@ void main() {
         '${root.path}/conformance/${item['file']}',
       ).readAsStringSync();
       final width = (item['width'] as num).toDouble();
+      // Over-constrained declared column widths overflow their container in
+      // browsers too (Chromium paints table_cols 1px past the viewport), so
+      // cases may declare a wider right-edge allowance.
+      final maxOverflowX = ((item['maxOverflowX'] as num?) ?? 0.5).toDouble();
       final snapshot = const WeftNormalizer().normalize(
         source,
         id: 'conformance-$id',
@@ -68,14 +72,68 @@ void main() {
 
       for (final box in layout.boxes) {
         expect(box.rect.left, greaterThanOrEqualTo(-0.5));
-        expect(box.rect.right, lessThanOrEqualTo(width + 0.5));
+        expect(box.rect.right, lessThanOrEqualTo(width + maxOverflowX));
         expect(box.rect.top, greaterThanOrEqualTo(-0.5));
         expect(box.rect.bottom, lessThanOrEqualTo(layout.size.height + 0.5));
       }
       for (final link in layout.links) {
         for (final rect in link.rects) {
           expect(rect.left, greaterThanOrEqualTo(-0.5));
-          expect(rect.right, lessThanOrEqualTo(width + 0.5));
+          expect(rect.right, lessThanOrEqualTo(width + maxOverflowX));
+        }
+      }
+
+      // Nothing may paint outside the document extent: targets must show no
+      // clipped or escaped content (development-plan phase 1/2 acceptance).
+      for (final command in layout.commands) {
+        final bounds = command.bounds;
+        expect(bounds.left, greaterThanOrEqualTo(-0.5),
+            reason: '$id command ${command.nodeId} escaped left');
+        expect(bounds.right, lessThanOrEqualTo(width + maxOverflowX),
+            reason: '$id command ${command.nodeId} escaped right');
+        expect(bounds.top, greaterThanOrEqualTo(-0.5),
+            reason: '$id command ${command.nodeId} escaped top');
+        expect(bounds.bottom, lessThanOrEqualTo(layout.size.height + 0.5),
+            reason: '$id command ${command.nodeId} escaped bottom');
+      }
+
+      // No silent content loss: every non-blank text node of the normalized
+      // document must survive into the logical text index.
+      final index = layout.textIndex;
+      expect(index, isNotNull);
+      void assertPainted(WeftNode node) {
+        if (node is WeftText) {
+          if (node.text.trim().isEmpty) return;
+          expect(
+            index!.entryByNode.containsKey(node.id),
+            isTrue,
+            reason: '$id lost text node ${node.id}: "${node.text}"',
+          );
+          return;
+        }
+        if (node is WeftElement) {
+          for (final child in node.children) {
+            assertPainted(child);
+          }
+        }
+      }
+
+      assertPainted(snapshot.body!);
+
+      // No overlapping text lines: two painted text commands covering the
+      // same area would render doubled glyphs. Line boxes may share edges
+      // (zero-area intersections), which do not count.
+      final textCommands = layout.commands.whereType<WeftTextPaintCommand>();
+      final rects =
+          textCommands.map((command) => command.bounds).toList(growable: false);
+      for (var i = 0; i < rects.length; i++) {
+        for (var j = i + 1; j < rects.length; j++) {
+          final overlap = rects[i].intersect(rects[j]);
+          expect(
+            overlap.isEmpty,
+            isTrue,
+            reason: '$id text commands $i and $j overlap at $overlap',
+          );
         }
       }
     });

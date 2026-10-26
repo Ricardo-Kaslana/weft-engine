@@ -74,4 +74,42 @@ void main() {
     expect(paragraphs, hasLength(300));
     expect(layout.size.height, greaterThan(300 * 24));
   });
+
+  test('hostile inputs produce explicit diagnostics without crashing', () {
+    const engine = WeftLayoutEngine();
+    const cases = <String, String>{
+      'script': '<p>before</p><script>alert(1)</script><p>after</p>',
+      'nested-table': '<table><tr><td><table><tr><td>inner</td></tr></table>'
+          '</td></tr></table>',
+      'unknown-tag': '<marquee>scrolling text</marquee>',
+      'hostile-image-src': '<img src="javascript:alert(1)" alt="broken">',
+      'invalid-attribute': '<p onclick="alert(1)" style="color: red">hi</p>',
+    };
+    cases.forEach((name, source) {
+      final document = const WeftNormalizer().normalize(source, id: name);
+      final report = document.supportReport;
+      expect(
+        report.issues,
+        isNotEmpty,
+        reason: '$name must carry an explicit diagnostic, never silence.',
+      );
+      if (report.canRender) {
+        // Renderable content still lays out; the diagnostics ride along as
+        // warnings for the host to surface.
+        final layout = engine.layout(document, width: 360);
+        addTearDown(layout.dispose);
+        expect(layout.size.height, greaterThan(0));
+      } else {
+        // Unsupported content must demand a fallback instead of rendering a
+        // degraded approximation silently.
+        expect(
+            report.requiresWebView ||
+                report.issues.any(
+                  (issue) => issue.severity == SupportSeverity.error,
+                ),
+            isTrue,
+            reason: '$name rejected without a fallback-grade issue.');
+      }
+    });
+  });
 }
