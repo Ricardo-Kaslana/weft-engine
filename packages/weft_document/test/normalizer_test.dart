@@ -61,6 +61,36 @@ void main() {
     );
   });
 
+  test('tail append preserves node ids throughout the unchanged prefix', () {
+    final first = const WeftNormalizer().normalize(
+      '<p>Hello <em>world</em></p><div>Nested <strong>text</strong></div>',
+      id: 'append-ids',
+    );
+    final appended = const WeftNormalizer().normalize(
+      '<p>Hello <em>world</em></p><div>Nested <strong>text</strong></div>'
+      '<p>New tail</p>',
+      id: 'append-ids',
+      revision: 2,
+    );
+
+    void expectSameIds(WeftNode before, WeftNode after) {
+      expect(after.id, before.id);
+      if (before is! WeftElement) return;
+      final afterChildren = (after as WeftElement).children;
+      expect(afterChildren, hasLength(before.children.length));
+      for (var i = 0; i < before.children.length; i++) {
+        expectSameIds(before.children[i], afterChildren[i]);
+      }
+    }
+
+    final prefix = first.body!.children;
+    final next = appended.body!.children;
+    expect(next, hasLength(prefix.length + 1));
+    for (var i = 0; i < prefix.length; i++) {
+      expectSameIds(prefix[i], next[i]);
+    }
+  });
+
   test('complex content requests an explicit fallback', () {
     const html = '''
       <p>Before</p>

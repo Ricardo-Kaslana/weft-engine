@@ -30,6 +30,20 @@ void main() {
     const engine = WeftLayoutEngine();
 
     final article = _normalize(_articleHtml(), 'bench-article');
+    final appendedArticle = _normalize(
+      '${_articleHtml()}${_articleParagraphHtml(300)}',
+      'bench-article',
+    );
+    final appendPreviousLayouts = List<WeftLayoutResult>.generate(
+      _sampleCount + 1,
+      (_) => engine.layout(article, width: _viewportWidth),
+    );
+    addTearDown(() {
+      for (final layout in appendPreviousLayouts) {
+        layout.dispose();
+      }
+    });
+    var appendRun = 0;
     final table = _normalize(_tableHtml(), 'bench-table');
     final floatDocument = _normalize(_floatHtml(), 'bench-float');
     final floatImages = _imagesFor(floatDocument, floatImage);
@@ -94,6 +108,19 @@ void main() {
     final scenarios = <String, void Function()>{
       'article300': () {
         engine.layout(article, width: _viewportWidth).dispose();
+      },
+      'appendArticle300Full': () {
+        engine.layout(appendedArticle, width: _viewportWidth).dispose();
+      },
+      'appendArticle300Incremental': () {
+        final previous = appendPreviousLayouts[appendRun++];
+        final current = engine.layout(
+          appendedArticle,
+          width: _viewportWidth,
+          previous: previous,
+        );
+        previous.dispose();
+        current.dispose();
       },
       'table48': () {
         engine.layout(table, width: _viewportWidth).dispose();
@@ -205,14 +232,16 @@ String _articleHtml() {
         '<h3>章节 ${i ~/ 10}:中英混排与布局性能基准</h3>',
       );
     }
-    buffer.write(
-      '<p>第 $i 段。Weft engine lays out mixed English and 中文内容 at a '
-      'fixed 360px viewport, exercising line breaking, <em>强调文本 $i</em> '
-      'and <a href="https://example.com/a$i">inline links 第 $i 段</a> so the '
-      'paragraph wraps onto several lines deterministically.</p>',
-    );
+    buffer.write(_articleParagraphHtml(i));
   }
   return buffer.toString();
+}
+
+String _articleParagraphHtml(int i) {
+  return '<p>第 $i 段。Weft engine lays out mixed English and 中文内容 at a '
+      'fixed 360px viewport, exercising line breaking, <em>强调文本 $i</em> '
+      'and <a href="https://example.com/a$i">inline links 第 $i 段</a> so the '
+      'paragraph wraps onto several lines deterministically.</p>';
 }
 
 /// A 48-row, 6-column collapsed-border table with header cells, cell

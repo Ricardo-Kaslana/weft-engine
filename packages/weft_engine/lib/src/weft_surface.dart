@@ -254,9 +254,12 @@ class RenderWeftSurface extends RenderBox {
 
   set document(WeftDocumentSnapshot value) {
     if (identical(_document, value)) return;
+    final documentIdChanged = _document.id != value.id;
     _document = value;
-    _invalidateLayout();
-    _clearImages();
+    _invalidateLayout(preservePrevious: true);
+    if (documentIdChanged) {
+      _clearImages();
+    }
   }
 
   TextSelectionRange? get selection => _selection;
@@ -351,10 +354,14 @@ class RenderWeftSurface extends RenderBox {
   @visibleForTesting
   List<WeftChunk>? get debugChunks => _chunks;
 
-  void _invalidateLayout() {
-    _discardPaintCache();
-    _layout?.dispose();
-    _layout = null;
+  void _invalidateLayout({bool preservePrevious = false}) {
+    if (preservePrevious) {
+      _discardSelectionCache();
+    } else {
+      _discardPaintCache();
+      _layout?.dispose();
+      _layout = null;
+    }
     markNeedsLayout();
   }
 
@@ -365,6 +372,10 @@ class RenderWeftSurface extends RenderBox {
       picture.dispose();
     }
     _chunkPictures.clear();
+    _discardSelectionCache();
+  }
+
+  void _discardSelectionCache() {
     _selectionRectsLayout = null;
     _selectionRectsKey = null;
     _selectionRects = const <ui.Rect>[];
@@ -390,6 +401,7 @@ class RenderWeftSurface extends RenderBox {
       width: width,
       textScaler: _textScaler,
       images: _resolvedImages,
+      previous: previous,
     );
     // Hand the laid-out snapshot to the result so hit queries can build
     // their chunk index (ADR 0020); without it they fall back to full scans.
@@ -718,16 +730,10 @@ class RenderWeftSurface extends RenderBox {
   void debugPaintChunks(ui.Canvas canvas, {ui.Rect? visible}) {
     final layout = _layout;
     if (layout == null) return;
-    if (!identical(_chunksLayout, layout)) {
-      // performLayout can replace the layout without _invalidateLayout when a
-      // parent relays this surface, so key the cache to the layout instance.
-      _discardPaintCache();
-      _chunksLayout = layout;
+    if (!identical(_chunksLayout, layout) || _chunks == null) {
+      _updateChunks(layout);
     }
-    final chunks = _chunks ??= WeftChunk.partition(
-      document: _document,
-      commands: layout.commands,
-    );
+    final chunks = _chunks!;
     for (final chunk in chunks) {
       if (!chunk.isChrome &&
           visible != null &&
@@ -737,6 +743,44 @@ class RenderWeftSurface extends RenderBox {
       canvas.drawPicture(_pictureFor(chunk));
       _debugPaintedChunkCount++;
     }
+  }
+
+  void _updateChunks(WeftLayoutResult layout) {
+    final nextChunks = WeftChunk.partition(
+      document: _document,
+      commands: layout.commands,
+    );
+    final oldChunks = <int, WeftChunk>{
+      for (final chunk in _chunks ?? const <WeftChunk>[]) chunk.key: chunk,
+    };
+    final retained = <int, ui.Picture>{};
+    for (final chunk in nextChunks) {
+      final old = oldChunks[chunk.key];
+      final picture = _chunkPictures[chunk.key];
+      if (old != null && picture != null && _sameChunk(old, chunk)) {
+        retained[chunk.key] = picture;
+      }
+    }
+    for (final entry in _chunkPictures.entries) {
+      if (!identical(retained[entry.key], entry.value)) entry.value.dispose();
+    }
+    _chunkPictures
+      ..clear()
+      ..addAll(retained);
+    _chunks = nextChunks;
+    _chunksLayout = layout;
+    _discardSelectionCache();
+  }
+
+  bool _sameChunk(WeftChunk first, WeftChunk second) {
+    if (first.bounds != second.bounds ||
+        first.commands.length != second.commands.length) {
+      return false;
+    }
+    for (var i = 0; i < first.commands.length; i++) {
+      if (!identical(first.commands[i], second.commands[i])) return false;
+    }
+    return true;
   }
 
   ui.Picture _pictureFor(WeftChunk chunk) {

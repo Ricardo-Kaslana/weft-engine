@@ -16,12 +16,16 @@ part 'table_layout.part.dart';
 final class WeftLayoutEngine {
   const WeftLayoutEngine();
 
+  /// Reuses unchanged top-level blocks from [previous] when all inputs match.
+  /// Dispose [previous] after this call; a result that transferred commands
+  /// cannot seed another incremental layout.
   WeftLayoutResult layout(
     WeftDocumentSnapshot document, {
     required double width,
     TextScaler textScaler = TextScaler.noScaling,
     Map<int, ui.Image> images = const {},
     WeftLineBreakRules lineBreakRules = const WeftLineBreakRules(),
+    WeftLayoutResult? previous,
   }) {
     if (!width.isFinite || width <= 0) {
       return WeftLayoutResult(
@@ -42,11 +46,21 @@ final class WeftLayoutEngine {
       );
     }
 
+    final reusableBlocks = _reusableLayoutBlocks(
+      document: document,
+      previous: previous,
+      width: width,
+      textScaler: textScaler,
+      images: images,
+      lineBreakRules: lineBreakRules,
+    );
     final context = _LayoutContext(
       styleResolver: WeftStyleResolver(document.styleSheet),
       textScaler: textScaler,
       images: images,
       lineBreakRules: lineBreakRules,
+      body: body,
+      reusableBlocks: reusableBlocks,
     );
     final textIndex = WeftTextIndex.build(
       document: document,
@@ -74,7 +88,7 @@ final class WeftLayoutEngine {
     );
     final normalBottom = outerTop + bodyLayout.height + outerBottom;
 
-    return WeftLayoutResult(
+    final result = WeftLayoutResult(
       size: Size(
         width,
         math.max(normalBottom, floats.maxBottom),
@@ -83,8 +97,148 @@ final class WeftLayoutEngine {
       commands: context.commands,
       links: context.links,
       textIndex: textIndex,
+      debugReusedBlockCount: context.reusedBlockCount,
     );
+    if (context.topLevelCacheEligible &&
+        !floats.hasExclusions &&
+        context.topLevelBlocks.length == body.children.length) {
+      result.incrementalCache = WeftIncrementalLayoutCache(
+        document: document,
+        width: width,
+        textScaler: textScaler,
+        images: images,
+        lineBreakRules: lineBreakRules,
+        blocks: context.topLevelBlocks,
+      );
+    }
+    if (context.reusedCommands.isNotEmpty) {
+      previous?.transferCommands(context.reusedCommands);
+    }
+    return result;
   }
+}
+
+Map<int, WeftCachedLayoutBlock> _reusableLayoutBlocks({
+  required WeftDocumentSnapshot document,
+  required WeftLayoutResult? previous,
+  required double width,
+  required TextScaler textScaler,
+  required Map<int, ui.Image> images,
+  required WeftLineBreakRules lineBreakRules,
+}) {
+  final cache = previous?.incrementalCache;
+  final oldBody = cache?.document.body;
+  final newBody = document.body;
+  if (cache == null ||
+      oldBody == null ||
+      newBody == null ||
+      cache.document.id != document.id ||
+      cache.width != width ||
+      cache.textScaler != textScaler ||
+      !_sameStyleSheet(cache.document.styleSheet, document.styleSheet) ||
+      !_sameNodeShell(oldBody, newBody) ||
+      !_sameImages(cache.images, images) ||
+      !_sameInts(
+        cache.lineBreakRules.lineStartProhibited,
+        lineBreakRules.lineStartProhibited,
+      ) ||
+      !_sameInts(
+        cache.lineBreakRules.lineEndProhibited,
+        lineBreakRules.lineEndProhibited,
+      ) ||
+      cache.blocks.length != oldBody.children.length) {
+    return const <int, WeftCachedLayoutBlock>{};
+  }
+
+  final result = <int, WeftCachedLayoutBlock>{};
+  final count = math.min(oldBody.children.length, newBody.children.length);
+  for (var i = 0; i < count; i++) {
+    final oldChild = oldBody.children[i];
+    final newChild = newBody.children[i];
+    final block = cache.blocks[i];
+    if (oldChild is! WeftElement ||
+        newChild is! WeftElement ||
+        !_sameNode(oldChild, newChild) ||
+        !identical(block.element, oldChild)) {
+      break;
+    }
+    result[newChild.id] = block;
+  }
+  return result;
+}
+
+bool _sameNode(WeftNode first, WeftNode second) {
+  if (first.id != second.id) return false;
+  if (first is WeftText && second is WeftText) {
+    return first.text == second.text;
+  }
+  if (first is! WeftElement || second is! WeftElement) return false;
+  if (!_sameNodeShell(first, second) ||
+      first.children.length != second.children.length) {
+    return false;
+  }
+  for (var i = 0; i < first.children.length; i++) {
+    if (!_sameNode(first.children[i], second.children[i])) return false;
+  }
+  return true;
+}
+
+bool _sameNodeShell(WeftElement first, WeftElement second) {
+  return first.id == second.id &&
+      first.tag == second.tag &&
+      _sameStrings(first.attributes, second.attributes) &&
+      _sameStrings(first.inlineStyle, second.inlineStyle);
+}
+
+bool _sameStrings(Map<String, String> first, Map<String, String> second) {
+  if (first.length != second.length) return false;
+  for (final entry in first.entries) {
+    if (second[entry.key] != entry.value) return false;
+  }
+  return true;
+}
+
+bool _sameImages(Map<int, ui.Image> first, Map<int, ui.Image> second) {
+  if (first.length != second.length) return false;
+  for (final entry in first.entries) {
+    final other = second[entry.key];
+    if (!identical(entry.value, other) ||
+        entry.value.width != other?.width ||
+        entry.value.height != other?.height) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool _sameInts(Set<int> first, Set<int> second) {
+  return first.length == second.length && first.containsAll(second);
+}
+
+bool _sameStyleSheet(WeftStyleSheet first, WeftStyleSheet second) {
+  return _styleSheetSignature(first) == _styleSheetSignature(second);
+}
+
+String _styleSheetSignature(WeftStyleSheet sheet) {
+  final result = StringBuffer();
+  for (final rule in sheet.rules) {
+    result.write('${rule.order}{');
+    for (final selector in rule.selectors) {
+      for (var i = 0; i < selector.parts.length; i++) {
+        if (i > 0) result.write(selector.combinators[i - 1].name);
+        final part = selector.parts[i];
+        final classes = part.classes.toList()..sort();
+        result.write('${part.tag}|${part.id}|${classes.join(',')};');
+      }
+      result.write('/');
+    }
+    final keys = rule.declarations.keys.toList()..sort();
+    for (final key in keys) {
+      result.write('$key:${rule.declarations[key]};');
+    }
+    result.write('}');
+  }
+  return result.toString();
 }
 
 final class _LayoutContext {
@@ -92,18 +246,90 @@ final class _LayoutContext {
     required this.styleResolver,
     required this.textScaler,
     required this.images,
+    required this.body,
+    required this.reusableBlocks,
     this.lineBreakRules = const WeftLineBreakRules(),
   });
 
   final WeftStyleResolver styleResolver;
   final TextScaler textScaler;
   final Map<int, ui.Image> images;
+  final WeftElement body;
+  final Map<int, WeftCachedLayoutBlock> reusableBlocks;
 
   /// Kinsoku tables applied by the line-by-line inline layout path.
   final WeftLineBreakRules lineBreakRules;
   final List<WeftLayoutBox> boxes = <WeftLayoutBox>[];
   final List<WeftPaintCommand> commands = <WeftPaintCommand>[];
   final List<WeftLinkRegion> links = <WeftLinkRegion>[];
+  final List<WeftCachedLayoutBlock> topLevelBlocks = <WeftCachedLayoutBlock>[];
+  final Set<WeftPaintCommand> reusedCommands = <WeftPaintCommand>{};
+  bool topLevelCacheEligible = true;
+  bool reuseStopped = false;
+  int reusedBlockCount = 0;
+
+  (int, int, int)? _startTopLevelBlock(WeftElement parent) {
+    if (!identical(parent, body)) return null;
+    return (commands.length, boxes.length, links.length);
+  }
+
+  void _cacheTopLevelBlock({
+    required WeftElement parent,
+    required WeftElement child,
+    required double left,
+    required double top,
+    required double height,
+    required (int, int, int)? start,
+  }) {
+    if (start == null) return;
+    topLevelBlocks.add(
+      WeftCachedLayoutBlock(
+        element: child,
+        left: left,
+        top: top,
+        height: height,
+        boxes: boxes.sublist(start.$2),
+        commands: commands.sublist(start.$1),
+        links: links.sublist(start.$3),
+      ),
+    );
+  }
+
+  double? _reuseTopLevelBlock({
+    required WeftElement parent,
+    required WeftElement child,
+    required double left,
+    required double top,
+  }) {
+    if (!identical(parent, body) || reuseStopped) return null;
+    final block = reusableBlocks[child.id];
+    if (block == null) return null;
+    if (block.left != left || block.top != top) {
+      reuseStopped = true;
+      return null;
+    }
+    commands.addAll(block.commands);
+    boxes.addAll(block.boxes);
+    links.addAll(block.links);
+    topLevelBlocks.add(
+      WeftCachedLayoutBlock(
+        element: child,
+        left: block.left,
+        top: block.top,
+        height: block.height,
+        boxes: block.boxes,
+        commands: block.commands,
+        links: block.links,
+      ),
+    );
+    reusedCommands.addAll(block.commands);
+    reusedBlockCount += 1;
+    return block.height;
+  }
+
+  void _disableTopLevelCache(WeftElement parent) {
+    if (identical(parent, body)) topLevelCacheEligible = false;
+  }
 
   /// Lays out one block-level box. [availableWidth] is the containing block's
   /// content width before this box's own margins are subtracted: percentage
@@ -386,6 +612,7 @@ final class _LayoutContext {
 
     for (final child in element.children) {
       if (child is WeftText) {
+        _disableTopLevelCache(element);
         inline.addText(child, style);
         continue;
       }
@@ -396,7 +623,10 @@ final class _LayoutContext {
         parent: style,
         ancestors: childAncestors,
       );
-      if (childStyle.display == WeftDisplay.none) continue;
+      if (childStyle.display == WeftDisplay.none) {
+        _disableTopLevelCache(element);
+        continue;
+      }
 
       if (child.tag == 'img') {
         final image = images[child.id];
@@ -440,16 +670,37 @@ final class _LayoutContext {
           trailingCollapses =
               style.borderBottom.width == 0 && style.paddingBottom == 0;
 
-          final metrics = _layoutImageBlock(
-            element: child,
-            style: childStyle,
-            image: image,
-            availableWidth: contentWidth,
+          final reusedHeight = _reuseTopLevelBlock(
+            parent: element,
+            child: child,
             left: contentX,
             top: cursor,
           );
-          if (metrics != null) {
-            cursor += metrics.boxHeight;
+          if (reusedHeight != null) {
+            cursor += reusedHeight;
+          } else {
+            final start = _startTopLevelBlock(element);
+            final metrics = _layoutImageBlock(
+              element: child,
+              style: childStyle,
+              image: image,
+              availableWidth: contentWidth,
+              left: contentX,
+              top: cursor,
+            );
+            if (metrics != null) {
+              cursor += metrics.boxHeight;
+              _cacheTopLevelBlock(
+                parent: element,
+                child: child,
+                left: contentX,
+                top: cursor - metrics.boxHeight,
+                height: metrics.boxHeight,
+                start: start,
+              );
+            } else {
+              _disableTopLevelCache(element);
+            }
           }
           pendingMargin = outerBottom;
           hasPendingMargin = true;
@@ -458,6 +709,7 @@ final class _LayoutContext {
 
         // Unresolved images participate as alternative text, matching how a
         // browser keeps content meaningful when a resource is unavailable.
+        _disableTopLevelCache(element);
         final alt = child.attribute('alt')?.trim() ?? '';
         if (alt.isNotEmpty) {
           inline.addText(
@@ -490,21 +742,41 @@ final class _LayoutContext {
         trailingCollapses =
             style.borderBottom.width == 0 && style.paddingBottom == 0;
 
-        final result = layoutTable(
-          element: child,
-          style: childStyle,
-          availableWidth: contentWidth,
+        final reusedHeight = _reuseTopLevelBlock(
+          parent: element,
+          child: child,
           left: contentX,
           top: cursor,
-          ancestors: childAncestors,
         );
-        cursor += result.height;
+        if (reusedHeight != null) {
+          cursor += reusedHeight;
+        } else {
+          final start = _startTopLevelBlock(element);
+          final result = layoutTable(
+            element: child,
+            style: childStyle,
+            availableWidth: contentWidth,
+            left: contentX,
+            top: cursor,
+            ancestors: childAncestors,
+          );
+          cursor += result.height;
+          _cacheTopLevelBlock(
+            parent: element,
+            child: child,
+            left: contentX,
+            top: cursor - result.height,
+            height: result.height,
+            start: start,
+          );
+        }
         pendingMargin = outerBottom;
         hasPendingMargin = true;
         continue;
       }
 
       if (childStyle.display == WeftDisplay.inline) {
+        _disableTopLevelCache(element);
         inline.collectElement(child, childStyle, childAncestors);
         continue;
       }
@@ -523,6 +795,7 @@ final class _LayoutContext {
       );
 
       if (selfCollapsing) {
+        _disableTopLevelCache(element);
         // Collapse-through blocks have no border box to place. Their margins
         // merge with the surrounding margins instead of advancing the cursor.
         pendingMargin = hasPendingMargin
@@ -557,17 +830,36 @@ final class _LayoutContext {
         childStyle: childStyle,
         orderedItem: orderedItem,
       );
-      final result = layoutBlock(
-        element: child,
-        style: childStyle,
-        availableWidth: contentWidth,
+      final reusedHeight = _reuseTopLevelBlock(
+        parent: element,
+        child: child,
         left: contentX,
         top: cursor,
-        ancestors: childAncestors,
-        floats: floats,
-        marker: marker,
       );
-      cursor += result.height;
+      if (reusedHeight != null) {
+        cursor += reusedHeight;
+      } else {
+        final start = _startTopLevelBlock(element);
+        final result = layoutBlock(
+          element: child,
+          style: childStyle,
+          availableWidth: contentWidth,
+          left: contentX,
+          top: cursor,
+          ancestors: childAncestors,
+          floats: floats,
+          marker: marker,
+        );
+        cursor += result.height;
+        _cacheTopLevelBlock(
+          parent: element,
+          child: child,
+          left: contentX,
+          top: cursor - result.height,
+          height: result.height,
+          start: start,
+        );
+      }
       pendingMargin = outerBottom;
       hasPendingMargin = true;
     }

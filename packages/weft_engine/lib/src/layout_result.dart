@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/painting.dart';
 import 'package:weft_document/weft_document.dart';
 
+import 'line_break_rules.dart';
 import 'text_index.dart';
 
 final class WeftLayoutBox {
@@ -546,6 +547,55 @@ final class _HitIndex {
   }
 }
 
+final class WeftCachedLayoutBlock {
+  WeftCachedLayoutBlock({
+    required this.element,
+    required this.left,
+    required this.top,
+    required this.height,
+    required Iterable<WeftLayoutBox> boxes,
+    required Iterable<WeftPaintCommand> commands,
+    required Iterable<WeftLinkRegion> links,
+  })  : boxes = List<WeftLayoutBox>.unmodifiable(boxes),
+        commands = List<WeftPaintCommand>.unmodifiable(commands),
+        links = List<WeftLinkRegion>.unmodifiable(links);
+
+  final WeftElement element;
+  final double left;
+  final double top;
+  final double height;
+  final List<WeftLayoutBox> boxes;
+  final List<WeftPaintCommand> commands;
+  final List<WeftLinkRegion> links;
+}
+
+final class WeftIncrementalLayoutCache {
+  WeftIncrementalLayoutCache({
+    required this.document,
+    required this.width,
+    required this.textScaler,
+    required Map<int, ui.Image> images,
+    required WeftLineBreakRules lineBreakRules,
+    required Iterable<WeftCachedLayoutBlock> blocks,
+  })  : images = Map<int, ui.Image>.unmodifiable(images),
+        lineBreakRules = WeftLineBreakRules(
+          lineStartProhibited: Set<int>.unmodifiable(
+            lineBreakRules.lineStartProhibited,
+          ),
+          lineEndProhibited: Set<int>.unmodifiable(
+            lineBreakRules.lineEndProhibited,
+          ),
+        ),
+        blocks = List<WeftCachedLayoutBlock>.unmodifiable(blocks);
+
+  final WeftDocumentSnapshot document;
+  final double width;
+  final TextScaler textScaler;
+  final Map<int, ui.Image> images;
+  final WeftLineBreakRules lineBreakRules;
+  final List<WeftCachedLayoutBlock> blocks;
+}
+
 final class WeftLayoutResult {
   WeftLayoutResult({
     required this.size,
@@ -553,6 +603,7 @@ final class WeftLayoutResult {
     required Iterable<WeftPaintCommand> commands,
     required Iterable<WeftLinkRegion> links,
     this.textIndex,
+    this.debugReusedBlockCount = 0,
   })  : boxes = List<WeftLayoutBox>.unmodifiable(boxes),
         commands = List<WeftPaintCommand>.unmodifiable(commands),
         links = List<WeftLinkRegion>.unmodifiable(links);
@@ -561,6 +612,8 @@ final class WeftLayoutResult {
   final List<WeftLayoutBox> boxes;
   final List<WeftPaintCommand> commands;
   final List<WeftLinkRegion> links;
+  final int debugReusedBlockCount;
+  WeftIncrementalLayoutCache? incrementalCache;
 
   /// The logical text model for this layout, used to resolve selection
   /// anchors across node boundaries.
@@ -816,12 +869,19 @@ final class WeftLayoutResult {
   }
 
   var _disposed = false;
+  final Set<WeftPaintCommand> _transferredCommands = <WeftPaintCommand>{};
+
+  void transferCommands(Iterable<WeftPaintCommand> commands) {
+    assert(!_disposed);
+    _transferredCommands.addAll(commands);
+    incrementalCache = null;
+  }
 
   void dispose() {
     if (_disposed) return;
     _disposed = true;
     for (final command in commands) {
-      command.dispose();
+      if (!_transferredCommands.contains(command)) command.dispose();
     }
   }
 }

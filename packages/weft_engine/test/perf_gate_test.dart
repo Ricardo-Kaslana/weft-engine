@@ -25,6 +25,7 @@ import 'package:weft_engine/weft_engine.dart';
 // range, so their gates sit at the floor and only catch catastrophic
 // regressions; the real comparison lives in docs/testing-strategy.md.
 const int _article300CapMs = 600; // 10x ~55 ms, rounded up to a hundred.
+const int _appendArticle300CapMs = 500; // 10x ~37 ms: floor cap.
 const int _table48CapMs = 500; // Median < 50 ms: floor cap.
 const int _floatWrapCapMs = 500; // Median < 50 ms: floor cap.
 const int _selection300CapMs = 500; // Median < 50 ms: floor cap.
@@ -45,6 +46,48 @@ void main() {
       const WeftLayoutEngine()
           .layout(document, width: _viewportWidth)
           .dispose();
+    });
+  });
+
+  test('perf gate: appendArticle300Full under $_appendArticle300CapMs ms', () {
+    final document = _normalize(
+      '${_articleHtml()}${_articleParagraphHtml(300)}',
+      'gate-article',
+    );
+    _runUnderCap(_appendArticle300CapMs, 'appendArticle300Full', () {
+      const WeftLayoutEngine()
+          .layout(document, width: _viewportWidth)
+          .dispose();
+    });
+  });
+
+  test(
+      'perf gate: appendArticle300Incremental under $_appendArticle300CapMs ms',
+      () {
+    final first = _normalize(_articleHtml(), 'gate-article');
+    final appended = _normalize(
+      '${_articleHtml()}${_articleParagraphHtml(300)}',
+      'gate-article',
+    );
+    final previous = List<WeftLayoutResult>.generate(
+      2,
+      (_) => const WeftLayoutEngine().layout(first, width: _viewportWidth),
+    );
+    addTearDown(() {
+      for (final layout in previous) {
+        layout.dispose();
+      }
+    });
+    var run = 0;
+    _runUnderCap(_appendArticle300CapMs, 'appendArticle300Incremental', () {
+      final old = previous[run++];
+      final current = const WeftLayoutEngine().layout(
+        appended,
+        width: _viewportWidth,
+        previous: old,
+      );
+      old.dispose();
+      current.dispose();
     });
   });
 
@@ -248,14 +291,16 @@ String _articleHtml() {
         '<h3>章节 ${i ~/ 10}:中英混排与布局性能基准</h3>',
       );
     }
-    buffer.write(
-      '<p>第 $i 段。Weft engine lays out mixed English and 中文内容 at a '
-      'fixed 360px viewport, exercising line breaking, <em>强调文本 $i</em> '
-      'and <a href="https://example.com/a$i">inline links 第 $i 段</a> so the '
-      'paragraph wraps onto several lines deterministically.</p>',
-    );
+    buffer.write(_articleParagraphHtml(i));
   }
   return buffer.toString();
+}
+
+String _articleParagraphHtml(int i) {
+  return '<p>第 $i 段。Weft engine lays out mixed English and 中文内容 at a '
+      'fixed 360px viewport, exercising line breaking, <em>强调文本 $i</em> '
+      'and <a href="https://example.com/a$i">inline links 第 $i 段</a> so the '
+      'paragraph wraps onto several lines deterministically.</p>';
 }
 
 /// A 48-row, 6-column collapsed-border table with header cells, cell

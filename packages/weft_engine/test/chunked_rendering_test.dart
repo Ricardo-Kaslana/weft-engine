@@ -299,6 +299,39 @@ void main() {
     expect(render.debugSelectionRectBuildCount, 2);
   });
 
+  testWidgets('tail append reuses unchanged prefix pictures', (tester) async {
+    final first = _normalize(
+      '<p>Alpha</p><p>Beta</p><p>Gamma</p>',
+      'chunk-append',
+    );
+    final appended = _normalize(
+      '<p>Alpha</p><p>Beta</p><p>Gamma</p><p>Delta</p>',
+      'chunk-append',
+    );
+    Widget wrap(WeftDocumentSnapshot document) {
+      return Directionality(
+        textDirection: TextDirection.ltr,
+        child: SizedBox(
+          width: 280,
+          height: 200,
+          child: WeftSurface(document: document),
+        ),
+      );
+    }
+
+    await tester.pumpWidget(wrap(first));
+    final render = tester.renderObject<RenderWeftSurface>(
+      find.byType(WeftSurface),
+    );
+    final rebuiltForFirst = render.debugRebuiltChunkCount;
+    expect(rebuiltForFirst, 3);
+
+    await tester.pumpWidget(wrap(appended));
+    expect(render.debugLayout!.debugReusedBlockCount, 3);
+    expect(render.debugRebuiltChunkCount, rebuiltForFirst + 1);
+    expect(render.debugCachedChunkPictureCount, 4);
+  });
+
   testWidgets('rebuilds chunk pictures after the layout is invalidated', (
     tester,
   ) async {
