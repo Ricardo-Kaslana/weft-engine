@@ -18,7 +18,7 @@
 - 块级盒模型（ADR 0021）：显式 height（不裁剪溢出）、百分比宽度、水平 auto margin。
 - 表格列轨道（ADR 0022）：colgroup/col 声明 px 固定列、百分比列与 span 轨道。
 - 流式增量布局（ADR 0023）：复用无 Float 的顶层前缀块/TextPainter，尾部重排；未变 Picture 跨快照复用。
-- 可访问性语义（ADR 0024）：单表面 Semantics 文本/链接/图片/选区、链接 tap、稳定节点 id 与屏外 showOnScreen。
+- 可访问性语义（ADR 0024/0026）：单表面文本/链接/图片/选区、标题 header、链接 tap、选区 copy、稳定节点 id 与屏外 showOnScreen。
 - 渐进式布局虚拟化（ADR 0025）：WeftView 只物化可见顶层块，估算后缀 extent，复杂文档/选区/Semantics 回退 full。
 - 选择交互（ADR 0019）：长按选词/拖拽扩展/把手微调/复制按钮/tap 放 caret。
 - 图片/Float 与表格的浏览器几何基线（Chrome 参考固化在 conformance/reference/）。
@@ -34,7 +34,7 @@
 - 图片资源只能由宿主 WeftImageResolver 提供；引擎不得隐式发起网络请求。
 - 每次修改必须运行 `dart format --output=none --set-exit-if-changed .`、`dart analyze`、`dart run tool/verify.dart` 和 `packages/weft_engine/tool/golden_pixel_test.dart`。
 - 新增能力必须附带单元测试；影响布局时必须评估黄金基线与 conformance/reference/ 下的浏览器几何基线。
-- 重要技术取舍写入 docs/adr/（下一个编号为 0026）。
+- 重要技术取舍写入 docs/adr/（下一个编号为 0027）。
 
 先阅读 README.md、docs/architecture.md、docs/supported-subset.md 和 docs/handoff.md，再选择第一个任务并给出计划。
 
@@ -46,10 +46,10 @@
 - 分支：`main`
 - 最新提交：见 `git log`（本节只保证指南有效，不追踪哈希）
 - Flutter：3.35.5 stable；Dart：3.9.2
-- 常规测试 260+ 项（weft_engine 216、weft 30）、像素黄金 3 项 + 选区高亮 1 项、性能门禁 14 场景（7 布局 + 3 绘制 + 4 命中）；`dart analyze` 无问题。
+- 常规测试 260+ 项（weft_engine 218、weft 31）、像素黄金 3 项 + 选区高亮 1 项、性能门禁 14 场景（7 布局 + 3 绘制 + 4 命中）；`dart analyze` 无问题。
 - GitHub Actions 使用 Windows 执行像素黄金门禁。
 
-已实现到 ADR 0025：分块渲染与命中裁剪（ADR 0017/0020）、行内图片（ADR 0018）、选择 chrome（ADR 0019）、块级盒模型（ADR 0021）、表格列轨道（ADR 0022）、流式顶层前缀复用（ADR 0023，同轮 31.8ms→6.7ms）、单表面 Semantics（ADR 0024）和渐进式布局虚拟化（ADR 0025，article300 首屏 43.6ms→3.2ms、330 块→6 块）。
+已实现到 ADR 0026：分块渲染与命中裁剪（ADR 0017/0020）、行内图片（ADR 0018）、选择 chrome（ADR 0019）、块级盒模型（ADR 0021）、表格列轨道（ADR 0022）、流式顶层前缀复用（ADR 0023）、单表面 Semantics（ADR 0024/0026）和渐进式布局虚拟化（ADR 0025，article300 首屏 43.6ms→3.2ms、330 块→6 块）。
 
 ## 包结构
 
@@ -86,7 +86,7 @@ docs/adr/               架构决策记录
 - 命中裁剪（ADR 0020）：`WeftLayoutResult.attachDocument` 后命中查询经分块索引（段 bounds 条带）裁剪，语义与全量倒扫逐点等价；`WeftView.scrollController` 可注入。
 - 列轨道（ADR 0022）：`colgroup/col` 的 px 固定列（min=max=声明值）、百分比列（基数 = 表内容宽）、span 轨道与 colspan 平摊绕过固定列；带轨道 collapse 表采用 Chrome 盒语义。
 - 流式增量（ADR 0023）：公共顶层前缀按规范化子树与全局输入键复用，在原块流中跳过递归排版并保留 TextPainter；连续快照重新绑定缓存节点。旧结果含 Float、全局输入变化等情况全量回退；文本索引仍全量重建，未变前缀 Picture 跨布局保留。
-- Semantics（ADR 0024）：RenderWeftSurface 手动组装阅读顺序文本、链接、图片和选区节点；链接语义 tap 走独立回调入口，WeftView pointer 手势仍单 owner。节点 key 对齐 NodeId，流式更新保留身份；屏外节点可 showOnScreen，选区仅暴露 value/selected/rect，不伪装 text field。
+- Semantics（ADR 0024/0026）：RenderWeftSurface 手动组装阅读顺序文本、链接、图片和选区节点；标题子树带 header flag，链接语义 tap 与选区 copy 走独立回调入口，WeftView pointer/剪贴板职责不变。节点 key 对齐 NodeId，流式更新保留身份；屏外节点可 showOnScreen，选区仅暴露 value/selected/rect/copy，不伪装 text field。
 - 布局虚拟化（ADR 0025）：`layoutViewport` 在原块流中连续测量精确前缀，只物化 viewport+250px 窗口；未测后缀按同类块中位数估算 extent。隐藏块释放 commands/painter，previous/current 继续单 owner 转移；跳到估算底部用 correctBy 跟随。顶层块内已解析图片 Float 以块级排除区 checkpoint 跨离屏复用；body 直属/非图片/inline 祖先 Float、非空 selection（含首帧）、Semantics、未解析图片/loose inline 回退或粘滞 full。full 退出会递增 generation 并清除陈旧校正，初始 ScrollController offset 会 seed 首帧物化窗口。
 - 测试：规范化、布局、margin、盒模型、图片、浮动、表格（17 项）、选择（13 项）、CJK、长文档、公开层、像素基线和两个浏览器几何基线。
 
@@ -96,7 +96,7 @@ docs/adr/               架构决策记录
 - body 直属 Float、非图片 Float 与表格局部 Float 的 checkpoint；增量布局的后缀平移与行级复用；行内原子的 margin 参与行框与 top/bottom 对齐。
 - CJK 像素基线与跨引擎像素预算达标。
 - 表格：嵌套表格（触发回退）、浏览器级 auto 列宽分配精度、`col` 的 min/max 语义。
-- Semantics 的 heading/table/list 角色导航、可编辑 selection/copy/caret 动作、RTL/语言属性、live region 与语义虚拟化。
+- Semantics 的 headingLevel、table/list 角色导航、可编辑 selection/caret 动作、RTL/语言属性、live region 与语义虚拟化。
 - QuickJS 原生执行、状态/事件/网络能力包。
 - QuickJS 原生执行、状态/事件/网络能力包。
 
@@ -149,9 +149,9 @@ python tool/generate_assets.py
 
 ### B. 语义增强
 
-目标：按产品需求补 heading/table/list 角色、语言/RTL、live region 或更细选区动作。
+目标：按产品需求补 headingLevel、table/list 角色、语言/RTL、live region 或更细选区动作。
 
-注意：继续使用 describeSemanticsConfiguration/assembleSemanticsNode 的单表面模型；不要把静态文档伪装成 text field，也不要让语义节点持有旧 TextPainter。lazy 路径在 assemble 前必须升级 full。
+注意：继续使用 describeSemanticsConfiguration/assembleSemanticsNode 的单表面模型；table/list role 需要真正嵌套容器节点并满足 Flutter 的严格父子校验，不要用扁平节点伪装。不要把静态文档伪装成 text field，也不要让语义节点持有旧 TextPainter。lazy 路径在 assemble 前必须升级 full。
 
 ### C. 增量布局扩展
 

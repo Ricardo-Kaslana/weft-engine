@@ -51,6 +51,70 @@ void main() {
     semantics.dispose();
   });
 
+  testWidgets('heading text and inline children expose header semantics', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final document = _normalize(
+      '<h1>Main <a href="https://example.com">link</a></h1>'
+      '<p>Body text</p><h3><em>Subheading</em></h3>',
+    );
+    await tester.pumpWidget(_wrap(WeftSurface(document: document)));
+
+    expect(
+      _node(find.semantics.byLabel('Main ')),
+      containsSemantics(isHeader: true),
+    );
+    expect(
+      _node(find.semantics.byLabel('link')),
+      containsSemantics(isHeader: true, isLink: true),
+    );
+    expect(
+      _node(find.semantics.byLabel('Subheading')),
+      containsSemantics(isHeader: true),
+    );
+    expect(
+      _node(find.semantics.byLabel('Body text')),
+      containsSemantics(isHeader: false),
+    );
+    semantics.dispose();
+  });
+
+  testWidgets('selection copy action forwards the complete selected text', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final document = _normalize('<p>Alpha block</p><p>Beta block</p>');
+    final probe = const WeftLayoutEngine().layout(document, width: 280);
+    final entries = probe.textIndex!.entries;
+    final selection = TextSelectionRange(
+      anchor: TextAnchor(entries[0].nodeId, 2),
+      extent: TextAnchor(entries[1].nodeId, 4),
+    );
+    final selectedText = probe.selectionText(selection)!;
+    probe.dispose();
+    String? copied;
+    await tester.pumpWidget(
+      _wrap(
+        WeftSurface(
+          document: document,
+          selection: selection,
+          onSemanticsCopy: (text) => copied = text,
+        ),
+      ),
+    );
+
+    final selected = find.semantics.byValue(selectedText);
+    expect(selected, findsOneWidget);
+    expect(
+      _node(selected),
+      containsSemantics(isSelected: true, hasCopyAction: true),
+    );
+    tester.semantics.copy(selected);
+    expect(copied, selectedText);
+    semantics.dispose();
+  });
+
   testWidgets('link without a callback has no tap action', (tester) async {
     final semantics = tester.ensureSemantics();
     final document = _normalize(

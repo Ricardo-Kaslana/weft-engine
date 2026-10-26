@@ -15,7 +15,7 @@ Weft 的文本、链接、图片与选区全部绘制在一个 canvas 上，Flut
 - 文本使用 `WeftTextIndex` 与 `textRectsForNode`，相邻普通文本或同一链接下的文本合并；逻辑块边界、换行和图片断开片段。块全文不与链接子节点重复暴露。
 - 链接复用 `WeftLinkRegion`，设置 `isLink`；语义 tap 直接调用当前 region 的宿主回调，不模拟跨行联合矩形中心点击。无回调时不注册 tap action。
 - 已解析图片使用当前 document 的 alt 与 `WeftImagePaintCommand.destination`，设置 `isImage`；空 alt 跳过，U+FFFC 不进入 label。未解析图片 alt 作为文本暴露，不重复生成图片节点。
-- 非折叠选区生成独立 `value + isSelected + rect` 节点，清除、折叠或锚点失效时移除。首版不伪装 text field，不注册 copy、setSelection 或光标动作；复制仍由 WeftView 现有按钮负责。
+- 非折叠选区生成独立 `value + isSelected + rect` 节点，清除、折叠或锚点失效时移除。首版不伪装 text field，不注册 setSelection 或光标动作；后续 ADR 0026 在宿主提供回调时增加语义 copy action。
 - 所有 rect 使用 surface-local 坐标，必须有限、非空并与完整 surface bounds 求交。语义不随绘制视口裁剪，屏外节点仍可供无障碍焦点和滚动使用。
 
 ### 节点身份、缓存与滚动
@@ -42,4 +42,4 @@ Weft 的文本、链接、图片与选区全部绘制在一个 canvas 上，Flut
 
 - 新增 8 项 engine semantics widget 测试与 2 项 WeftView 测试，覆盖文本不重复、链接 action、图片/alt、选区更新、连续快照 id、pre 换行、ExcludeSemantics 和屏外 showOnScreen。weft_engine 常规测试增至 205 项，weft 增至 18 项。
 - 现有 pointer 链接、caret、选择拖拽、复制按钮和滚动行为不变；像素与几何基线不需要调整。
-- 首版限制：不提供 heading/table/list 角色与导航、逐文本节点 selected state、可编辑 selection/copy/caret action、RTL/语言/朗读属性、live region 或语义虚拟化。已解析图片位于链接内时不额外宣称 tap，与当前 pointer 命中能力一致。
+- 首版限制：不提供 table/list 角色与导航、逐文本节点 selected state、可编辑 selection/caret action、RTL/语言/朗读属性、live region 或语义虚拟化。标题 header 与选区 copy 由 ADR 0026 增补。已解析图片位于链接内时不额外宣称 tap，与当前 pointer 命中能力一致。

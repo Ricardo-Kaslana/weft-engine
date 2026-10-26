@@ -317,6 +317,10 @@ class WeftViewState extends State<WeftView> {
   void _handleCopyTap() {
     final text = selectionText();
     if (text == null) return;
+    _copyText(text);
+  }
+
+  void _copyText(String text) {
     // The clipboard write lives in the weft layer; the engine never touches
     // the system clipboard. Copying keeps the selection.
     Clipboard.setData(ClipboardData(text: text));
@@ -422,6 +426,7 @@ class WeftViewState extends State<WeftView> {
               textScaler: textScaler,
               imageResolver: widget.imageResolver,
               onSemanticsLinkTap: widget.onLinkTap,
+              onSemanticsCopy: _copyText,
               enableLazyLayout: widget.enableLazyLayout,
               viewportHeight:
                   constraints.hasBoundedHeight ? constraints.maxHeight : null,

@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weft/weft.dart';
@@ -34,6 +35,69 @@ void main() {
     expect(tapped, hasLength(1));
     expect(tapped.single.href, 'https://example.com/help');
     expect(controller.selection, isNull);
+
+    controller.dispose();
+    semantics.dispose();
+  });
+
+  testWidgets('semantic copy uses the WeftView clipboard policy', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final controller = WeftController()
+      ..loadDocument(
+        const WeftNormalizer().normalize(
+          '<p>alpha bravo</p><p>charlie delta</p>',
+          id: 'semantic-copy-view',
+        ),
+      );
+    final probe = const WeftLayoutEngine().layout(
+      controller.document!,
+      width: 320,
+    );
+    final entry = probe.textIndex!.entries.first;
+    final selection = TextSelectionRange(
+      anchor: TextAnchor(entry.nodeId, 0),
+      extent: TextAnchor(entry.nodeId, 5),
+    );
+    probe.dispose();
+    controller.updateSelection(selection);
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: SizedBox(
+          width: 320,
+          height: 240,
+          child: WeftView(controller: controller),
+        ),
+      ),
+    );
+
+    String? clipboardText;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          clipboardText =
+              (call.arguments as Map<Object?, Object?>)['text'] as String?;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+
+    final selected = find.semantics.byValue('alpha');
+    expect(selected, findsOneWidget);
+    expect(
+      selected.evaluate().single,
+      containsSemantics(hasCopyAction: true, isSelected: true),
+    );
+    tester.semantics.copy(selected);
+    expect(clipboardText, 'alpha');
+    expect(controller.selection, selection);
 
     controller.dispose();
     semantics.dispose();

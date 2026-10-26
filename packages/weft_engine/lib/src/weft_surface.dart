@@ -83,6 +83,7 @@ class WeftSurface extends StatefulWidget {
     this.imageResolver,
     this.onLinkTap,
     this.onSemanticsLinkTap,
+    this.onSemanticsCopy,
     this.enableLazyLayout = false,
     this.viewportHeight,
     this.initialViewportPixels = 0,
@@ -102,6 +103,7 @@ class WeftSurface extends StatefulWidget {
   /// Activates links through assistive technology. Defaults to [onLinkTap];
   /// WeftView supplies this separately so pointer gestures keep one owner.
   final ValueChanged<WeftLinkRegion>? onSemanticsLinkTap;
+  final ValueChanged<String>? onSemanticsCopy;
   final bool enableLazyLayout;
   final double? viewportHeight;
   final double initialViewportPixels;
@@ -147,6 +149,7 @@ class _WeftSurfaceState extends State<WeftSurface> {
       textScaler: widget.textScaler,
       imageResolver: widget.imageResolver,
       onSemanticsLinkTap: widget.onSemanticsLinkTap ?? widget.onLinkTap,
+      onSemanticsCopy: widget.onSemanticsCopy,
       enableLazyLayout: widget.enableLazyLayout,
       viewportHeight: widget.viewportHeight,
       initialViewportPixels: widget.initialViewportPixels,
@@ -173,6 +176,7 @@ class _RawWeftSurface extends LeafRenderObjectWidget {
     this.textScaler = TextScaler.noScaling,
     this.imageResolver,
     this.onSemanticsLinkTap,
+    this.onSemanticsCopy,
     this.enableLazyLayout = false,
     this.viewportHeight,
     this.initialViewportPixels = 0,
@@ -187,6 +191,7 @@ class _RawWeftSurface extends LeafRenderObjectWidget {
   final TextScaler textScaler;
   final WeftImageResolver? imageResolver;
   final ValueChanged<WeftLinkRegion>? onSemanticsLinkTap;
+  final ValueChanged<String>? onSemanticsCopy;
   final bool enableLazyLayout;
   final double? viewportHeight;
   final double initialViewportPixels;
@@ -203,6 +208,7 @@ class _RawWeftSurface extends LeafRenderObjectWidget {
       textScaler: textScaler,
       imageResolver: imageResolver,
       onSemanticsLinkTap: onSemanticsLinkTap,
+      onSemanticsCopy: onSemanticsCopy,
       enableLazyLayout: enableLazyLayout,
       viewportHeight: viewportHeight,
       initialViewportPixels: initialViewportPixels,
@@ -226,6 +232,7 @@ class _RawWeftSurface extends LeafRenderObjectWidget {
       ..imageConfiguration = createLocalImageConfiguration(context)
       ..imageResolver = imageResolver
       ..onSemanticsLinkTap = onSemanticsLinkTap
+      ..onSemanticsCopy = onSemanticsCopy
       ..enableLazyLayout = enableLazyLayout
       ..viewportHeight = viewportHeight
       ..onLazyExtentCorrection = onLazyExtentCorrection
@@ -242,6 +249,7 @@ class RenderWeftSurface extends RenderBox {
     TextScaler textScaler = TextScaler.noScaling,
     WeftImageResolver? imageResolver,
     ValueChanged<WeftLinkRegion>? onSemanticsLinkTap,
+    ValueChanged<String>? onSemanticsCopy,
     bool enableLazyLayout = false,
     double? viewportHeight,
     double initialViewportPixels = 0,
@@ -255,6 +263,7 @@ class RenderWeftSurface extends RenderBox {
         _textScaler = textScaler,
         _imageResolver = imageResolver,
         _onSemanticsLinkTap = onSemanticsLinkTap,
+        _onSemanticsCopy = onSemanticsCopy,
         _enableLazyLayout = enableLazyLayout,
         _viewportHeight = viewportHeight,
         _viewportPixels = initialViewportPixels,
@@ -276,6 +285,7 @@ class RenderWeftSurface extends RenderBox {
   TextScaler _textScaler;
   WeftImageResolver? _imageResolver;
   ValueChanged<WeftLinkRegion>? _onSemanticsLinkTap;
+  ValueChanged<String>? _onSemanticsCopy;
   bool _enableLazyLayout;
   double? _viewportHeight;
   double _viewportPixels;
@@ -354,6 +364,14 @@ class RenderWeftSurface extends RenderBox {
   set onSemanticsLinkTap(ValueChanged<WeftLinkRegion>? value) {
     if (identical(_onSemanticsLinkTap, value)) return;
     _onSemanticsLinkTap = value;
+    markNeedsSemanticsUpdate();
+  }
+
+  ValueChanged<String>? get onSemanticsCopy => _onSemanticsCopy;
+
+  set onSemanticsCopy(ValueChanged<String>? value) {
+    if (identical(_onSemanticsCopy, value)) return;
+    _onSemanticsCopy = value;
     markNeedsSemanticsUpdate();
   }
 
@@ -716,6 +734,7 @@ class RenderWeftSurface extends RenderBox {
               rect: rect,
               value: text,
               isSelected: true,
+              isSelection: true,
             ),
           );
         }
@@ -738,10 +757,14 @@ class RenderWeftSurface extends RenderBox {
         ..value = fragment.value
         ..isImage = fragment.isImage
         ..isSelected = fragment.isSelected
+        ..isHeader = fragment.headingLevel > 0
         ..isLink = fragment.link != null;
       final link = fragment.link;
       if (link != null && _onSemanticsLinkTap != null) {
         childConfig.onTap = () => _onSemanticsLinkTap?.call(link);
+      }
+      if (fragment.isSelection && _onSemanticsCopy != null) {
+        childConfig.onCopy = () => _onSemanticsCopy?.call(fragment.value);
       }
       final parentClip = node.parentPaintClipRect;
       if (parentClip != null) {
@@ -1234,6 +1257,8 @@ final class _WeftSemanticFragment {
     this.value = '',
     this.isImage = false,
     this.isSelected = false,
+    this.isSelection = false,
+    this.headingLevel = 0,
     this.link,
     this.globalStart,
     this.globalEnd,
@@ -1245,6 +1270,8 @@ final class _WeftSemanticFragment {
   final String value;
   final bool isImage;
   final bool isSelected;
+  final bool isSelection;
+  final int headingLevel;
   final WeftLinkRegion? link;
   final int? globalStart;
   final int? globalEnd;
@@ -1270,7 +1297,8 @@ List<_WeftSemanticFragment> _buildContentSemantics({
   void addText(
     int nodeId,
     String text,
-    WeftLinkRegion? link, {
+    WeftLinkRegion? link,
+    int headingLevel, {
     int? entryGlobalStart,
   }) {
     var start = 0;
@@ -1294,6 +1322,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
               !previous.isImage &&
               !previous.isSelected &&
               previous.link?.nodeId == link?.nodeId &&
+              previous.headingLevel == headingLevel &&
               previous.globalEnd != null &&
               previous.globalEnd == globalStart;
           if (canMerge) {
@@ -1302,6 +1331,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
               rect: previous.rect.expandToInclude(rect),
               label: previous.label + text.substring(start, i),
               link: previous.link,
+              headingLevel: previous.headingLevel,
               globalStart: previous.globalStart,
               globalEnd: globalEnd,
             );
@@ -1312,6 +1342,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
                 rect: rect,
                 label: text.substring(start, i),
                 link: link,
+                headingLevel: headingLevel,
                 globalStart: globalStart,
                 globalEnd: globalEnd,
               ),
@@ -1323,7 +1354,11 @@ List<_WeftSemanticFragment> _buildContentSemantics({
     }
   }
 
-  void visit(WeftNode node, WeftLinkRegion? currentLink) {
+  void visit(
+    WeftNode node,
+    WeftLinkRegion? currentLink,
+    int headingLevel,
+  ) {
     if (node is WeftText) {
       final entry = textIndex.entryByNode[node.id];
       if (entry != null) {
@@ -1331,6 +1366,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
           node.id,
           entry.text,
           currentLink,
+          headingLevel,
           entryGlobalStart: entry.globalStart,
         );
       }
@@ -1349,22 +1385,32 @@ List<_WeftSemanticFragment> _buildContentSemantics({
               rect: rect,
               label: alt,
               isImage: true,
+              headingLevel: headingLevel,
             ),
           );
         }
       } else if (alt.isNotEmpty) {
-        addText(node.id, alt, currentLink);
+        addText(node.id, alt, currentLink, headingLevel);
       }
       return;
     }
     final link = node.tag == 'a' ? links[node.id] : currentLink;
+    final childHeading = switch (node.tag) {
+      'h1' => 1,
+      'h2' => 2,
+      'h3' => 3,
+      'h4' => 4,
+      'h5' => 5,
+      'h6' => 6,
+      _ => headingLevel,
+    };
     for (final child in node.children) {
-      visit(child, link);
+      visit(child, link, childHeading);
     }
   }
 
   for (final child in body.children) {
-    visit(child, null);
+    visit(child, null, 0);
   }
   return fragments;
 }

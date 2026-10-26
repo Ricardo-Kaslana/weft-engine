@@ -65,7 +65,7 @@ CJK 结构化布局已有测试，但尚无固定 CJK 字体，因此不提交�
 
 ## 可访问性语义测试
 
-`weft_surface_semantics_test.dart` 与 `weft_view_semantics_test.dart` 使用真实 `SemanticsOwner` 和公开 `find.semantics`/`containsSemantics` API，覆盖阅读顺序、文本不重复、链接 tap、图片 alt、选区更新、流式节点身份、ExcludeSemantics 和屏外 `showOnScreen` 滚动。测试必须显式 dispose `tester.ensureSemantics()` 返回的 handle；不依赖 Flutter SDK 内部 SemanticsTester，也不对无关祖先结构做全树 golden。
+`weft_surface_semantics_test.dart` 与 `weft_view_semantics_test.dart` 使用真实 `SemanticsOwner` 和公开 `find.semantics`/`containsSemantics` API，覆盖阅读顺序、文本不重复、链接 tap、图片 alt、标题 header、选区 copy、流式节点身份、ExcludeSemantics 和屏外 `showOnScreen` 滚动。测试必须显式 dispose `tester.ensureSemantics()` 返回的 handle；不依赖 Flutter SDK 内部 SemanticsTester，也不对无关祖先结构做全树 golden。
 
 ## 性能测量
 
