@@ -89,7 +89,9 @@ void main() {
     );
     final headerNode = _node(find.semantics.byLabel('Header cell'));
     expect(headerNode.parent?.role, SemanticsRole.columnHeader);
+    expect(headerNode.parent?.indexInParent, 0);
     expect(headerNode.parent?.parent?.role, SemanticsRole.row);
+    expect(headerNode.parent?.parent?.indexInParent, 0);
     expect(headerNode.parent?.parent?.parent?.role, SemanticsRole.table);
     semantics.dispose();
   });
@@ -124,7 +126,10 @@ void main() {
     expect(find.semantics.byLabel('• Nested'), findsOneWidget);
     final firstItem = _node(find.semantics.byLabel('1. First item'));
     expect(firstItem.parent?.role, SemanticsRole.listItem);
+    expect(firstItem.parent?.indexInParent, 0);
     expect(firstItem.parent?.parent?.role, SemanticsRole.list);
+    final secondItem = _node(find.semantics.byLabel('2. Second item'));
+    expect(secondItem.parent?.indexInParent, 1);
     final nestedItem = _node(find.semantics.byLabel('• Nested'));
     expect(nestedItem.parent?.role, SemanticsRole.listItem);
     expect(nestedItem.parent?.parent?.role, SemanticsRole.list);

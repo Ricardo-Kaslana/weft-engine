@@ -760,6 +760,9 @@ class RenderWeftSurface extends RenderBox {
         ..sortKey = OrdinalSortKey(index.toDouble());
       if (fragment.role != null) {
         childConfig.role = fragment.role!;
+        if (fragment.indexInParent != null) {
+          childConfig.indexInParent = fragment.indexInParent;
+        }
       } else {
         childConfig
           ..textDirection = TextDirection.ltr
@@ -1447,10 +1450,15 @@ class RenderWeftSurface extends RenderBox {
 }
 
 final class _WeftSemanticContainerSpec {
-  const _WeftSemanticContainerSpec({required this.id, required this.role});
+  const _WeftSemanticContainerSpec({
+    required this.id,
+    required this.role,
+    this.indexInParent,
+  });
 
   final NodeId id;
   final SemanticsRole role;
+  final int? indexInParent;
 }
 
 final class _WeftSemanticFragment {
@@ -1459,6 +1467,7 @@ final class _WeftSemanticFragment {
     required this.rect,
     this.absoluteRect,
     this.role,
+    this.indexInParent,
     this.children = const [],
     this.containers = const [],
     this.label = '',
@@ -1477,6 +1486,7 @@ final class _WeftSemanticFragment {
   final ui.Rect rect;
   final ui.Rect? absoluteRect;
   final SemanticsRole? role;
+  final int? indexInParent;
   final List<_WeftSemanticFragment> children;
   final List<_WeftSemanticContainerSpec> containers;
   ui.Rect get documentRect => absoluteRect ?? rect;
@@ -1570,6 +1580,7 @@ List<_WeftSemanticFragment> _buildSemanticForest(
           rect: absolute.shift(-parentOrigin),
           absoluteRect: absolute,
           role: spec.role,
+          indexInParent: spec.indexInParent,
           children: convert(child, absolute.topLeft),
         ),
       );
@@ -1772,6 +1783,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
             _WeftSemanticContainerSpec(
               id: child.id,
               role: SemanticsRole.listItem,
+              indexInParent: itemIndex - 1,
             ),
           );
           visit(child, link, childHeading, childHeader, childPrefix);
@@ -1792,10 +1804,17 @@ List<_WeftSemanticFragment> _buildContentSemantics({
       activeContainers.add(
         _WeftSemanticContainerSpec(id: node.id, role: SemanticsRole.table),
       );
+      var nextRowIndex = 0;
       void visitRow(WeftElement row) {
+        final rowIndex = nextRowIndex++;
         activeContainers.add(
-          _WeftSemanticContainerSpec(id: row.id, role: SemanticsRole.row),
+          _WeftSemanticContainerSpec(
+            id: row.id,
+            role: SemanticsRole.row,
+            indexInParent: rowIndex,
+          ),
         );
+        var cellIndex = 0;
         for (final cell in row.children) {
           if (cell is! WeftElement || (cell.tag != 'td' && cell.tag != 'th')) {
             continue;
@@ -1806,8 +1825,10 @@ List<_WeftSemanticFragment> _buildContentSemantics({
               role: cell.tag == 'th'
                   ? SemanticsRole.columnHeader
                   : SemanticsRole.cell,
+              indexInParent: cellIndex,
             ),
           );
+          cellIndex += 1;
           visit(cell, link, childHeading, childHeader, null);
           activeContainers.removeLast();
         }

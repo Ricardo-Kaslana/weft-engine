@@ -17,6 +17,7 @@ ADR 0028 已提供列表标记和表头 header flag，但语义节点仍是扁�
 - `caption` 在 table 之前作为普通兄弟片段暴露，不进入 table 子树，避免破坏 table→row 直接父子规则。
 - 空容器不会出现在 forest 中；列表 marker 仍只写首个朗读叶子，不增加重复节点。
 - 容器 key 为 `role + NodeId`，跨流式快照保持稳定；容器不设置 label，避免与子内容重复朗读。
+- listItem、row、cell/columnHeader 设置稳定 `indexInParent`（列表项序、行序、列序，含空 cell 占位），为角色导航提供结构索引。
 
 ### 坐标与组装
 

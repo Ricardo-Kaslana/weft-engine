@@ -97,7 +97,7 @@ docs/adr/               架构决策记录
 - 非图片 Float 与表格局部 Float 的 checkpoint；增量布局的后缀平移与行级复用；行内原子的 margin 参与行框与 top/bottom 对齐。
 - CJK 像素基线与跨引擎像素预算达标。
 - 表格：嵌套表格（触发回退）、浏览器级 auto 列宽分配精度、`col` 的 min/max 语义。
-- Semantics 的 headingLevel、table/list 角色导航索引、CSS 列表样式/起始序号、可编辑 selection/caret 动作、RTL/语言属性、live region 与语义虚拟化。
+- Semantics 的 headingLevel、跨行跨列语义索引、CSS 列表样式/起始序号、可编辑 selection/caret 动作、RTL/语言属性、live region 与语义虚拟化。
 - QuickJS 原生执行、状态/事件/网络能力包。
 - QuickJS 原生执行、状态/事件/网络能力包。
 
