@@ -35,7 +35,7 @@ const WeftDocumentSnapshot({
 - `updateSelection(range)`：只更新逻辑选择。
 - `clear()`：清除文档和选择。
 
-`WeftView` 监听控制器。支持内容进入垂直滚动容器和 `WeftSurface`；不支持内容必须调用 `fallbackBuilder`，未提供时抛出明确 Flutter 错误。`WeftViewState.scrollToAnchor(TextAnchor, {alignment})` 按逻辑文本锚点定位，0 顶部/1 底部；无效锚点返回 false，有效请求在下一帧滚动范围稳定后落地。`scrollToAnchorAsync(..., {maxNewBlocks})` 在 lazy 文档上逐帧测量目标前缀，测量期间保持当前内容，完成后返回是否成功定位。`scrollToNode(NodeId, {alignment})` 定位到元素内首个可朗读文本锚点。
+`WeftView` 监听控制器。支持内容进入垂直滚动容器和 `WeftSurface`；不支持内容必须调用 `fallbackBuilder`，未提供时抛出明确 Flutter 错误。`WeftViewState.scrollToAnchor(TextAnchor, {alignment})` 按逻辑文本锚点定位，0 顶部/1 底部；无效锚点返回 false，有效请求在下一帧滚动范围稳定后落地。`scrollToAnchorAsync(..., {maxNewBlocks})` 在 lazy 文档上逐帧测量目标前缀，测量期间保持当前内容，完成后返回是否成功定位。`scrollToNode(NodeId, {alignment})` 定位到元素内首个可朗读文本锚点，`scrollToNodeAsync` 提供对应逐帧版本。
 
 `WeftView.onLinkTap` 接收命中的 `WeftLinkRegion`，负责把经过清洗的链接交还宿主；pointer 与 Semantics tap 都走这一回调，各由单一入口触发。引擎不自行打开 URL、启动外部应用或执行导航。独立使用 `WeftSurface` 时，`onSemanticsLinkTap` 默认回退到 `onLinkTap`；同时提供两个回调时分别服务辅助技术与 pointer。`WeftSurface.onSemanticsCopy(String)` 为选区注册语义 copy action；WeftView 自动接到与复制按钮相同的 Clipboard 策略，standalone 未提供回调时不暴露 copy。
 

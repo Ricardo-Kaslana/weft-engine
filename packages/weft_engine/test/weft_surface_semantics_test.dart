@@ -1,6 +1,7 @@
 import 'dart:convert';
 
-import 'package:flutter/rendering.dart' show SemanticsFlag, SemanticsNode;
+import 'package:flutter/rendering.dart'
+    show SemanticsFlag, SemanticsNode, SemanticsRole;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weft_document/weft_document.dart';
@@ -86,6 +87,10 @@ void main() {
       _node(find.semantics.byLabel('Data cell')),
       containsSemantics(isHeader: false),
     );
+    final headerNode = _node(find.semantics.byLabel('Header cell'));
+    expect(headerNode.parent?.role, SemanticsRole.columnHeader);
+    expect(headerNode.parent?.parent?.role, SemanticsRole.row);
+    expect(headerNode.parent?.parent?.parent?.role, SemanticsRole.table);
     semantics.dispose();
   });
 
@@ -117,6 +122,35 @@ void main() {
     expect(find.semantics.byLabel('• Bullet item'), findsOneWidget);
     expect(find.semantics.byLabel('1. Outer'), findsOneWidget);
     expect(find.semantics.byLabel('• Nested'), findsOneWidget);
+    final firstItem = _node(find.semantics.byLabel('1. First item'));
+    expect(firstItem.parent?.role, SemanticsRole.listItem);
+    expect(firstItem.parent?.parent?.role, SemanticsRole.list);
+    final nestedItem = _node(find.semantics.byLabel('• Nested'));
+    expect(nestedItem.parent?.role, SemanticsRole.listItem);
+    expect(nestedItem.parent?.parent?.role, SemanticsRole.list);
+    semantics.dispose();
+  });
+
+  testWidgets('table sections, caption and empty cells keep valid roles', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final document = _normalize(
+      '<table><caption>Caption</caption>'
+      '<thead><tr><th>Head</th></tr></thead>'
+      '<tbody><tr><td></td><td>Body</td></tr></tbody></table>',
+    );
+    await tester.pumpWidget(_wrap(WeftSurface(document: document)));
+
+    final caption = _node(find.semantics.byLabel('Caption'));
+    expect(caption.parent?.role, isNot(SemanticsRole.table));
+    final head = _node(find.semantics.byLabel('Head'));
+    expect(head.parent?.role, SemanticsRole.columnHeader);
+    expect(head.parent?.parent?.role, SemanticsRole.row);
+    expect(head.parent?.parent?.parent?.role, SemanticsRole.table);
+    final body = _node(find.semantics.byLabel('Body'));
+    expect(body.parent?.role, SemanticsRole.cell);
+    expect(body.parent?.parent?.role, SemanticsRole.row);
     semantics.dispose();
   });
 

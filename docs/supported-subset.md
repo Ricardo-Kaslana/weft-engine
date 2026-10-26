@@ -107,7 +107,7 @@
 当前能力（ADR 0024）：
 
 - `RenderWeftSurface` 手动暴露阅读顺序文本、链接、图片和非折叠选区；普通文本不与子链接重复朗读，链接支持宿主 Semantics tap，已解析图片使用 alt，空 alt 作为装饰跳过。
-- 标题与 `<th>` 子树暴露 header flag；有序/无序列表项的首个朗读片段带 `1. ` / `• ` 标记，标记不进入复制文本（ADR 0028）。标题内的链接/强调仍保留语义顺序。选区提供 value/selected/rect，并在宿主提供回调时暴露 copy action（ADR 0026）；WeftView 与复制按钮共用 Clipboard 策略，standalone 默认无 copy。同 document.id 的流式追加保留未变 SemanticsNode.id，屏外内容保留并支持 showOnScreen 滚动。
+- 标题与 `<th>` 子树暴露 header flag；有序/无序列表项的首个朗读片段带 `1. ` / `• ` 标记，标记不进入复制文本（ADR 0028）。`ul/ol→li` 与 `table→tr→td/th` 生成嵌套 list/listItem、table/row/cell/columnHeader 角色，thead/tbody 透明、caption 作为 table 前兄弟（ADR 0030）。标题内的链接/强调仍保留语义顺序。选区提供 value/selected/rect，并在宿主提供回调时暴露 copy action（ADR 0026）；WeftView 与复制按钮共用 Clipboard 策略，standalone 默认无 copy。同 document.id 的流式追加保留未变 SemanticsNode.id，屏外内容保留并支持 showOnScreen 滚动。
 - 宿主可用 `ExcludeSemantics` 排除表面；`WeftSurface.onSemanticsLinkTap` 默认回退到 `onLinkTap`，WeftView 自动接入同一宿主回调。
 
 边界与限制：尚无 headingLevel、table/list 角色导航、可编辑 setSelection/caret 动作、逐文本节点 selected state、RTL/语言属性、live region 或语义虚拟化。已解析图片位于链接内时不额外提供 tap，与当前 pointer 命中能力一致。
@@ -134,7 +134,7 @@
 
 - `WeftViewState.scrollToAnchor` 可按逻辑文本锚点导航；懒布局使用 focus 精确测量并物化目标块，保留当前窗口和 lazy 状态，alignment 支持顶部/居中/底部，无效锚点安全返回 false。
 - `scrollToAnchorAsync` 将深链测量拆成逐帧预算（默认每 pass 32 块）；测量期间保持当前滚动内容，完成后才定位，取消/文档变化返回 false。
-- `scrollToNode` 定位元素内首个可朗读文本锚点，复用同一 alignment/lazy focus 路径。
+- `scrollToNode` / `scrollToNodeAsync` 定位元素内首个可朗读文本锚点，复用同一 alignment/lazy focus 与分帧路径。
 - 边界与限制：滚动条长度在未测完时是估算值；锚点导航与冷跳底部仍可能需要顺序测量中间块，不做 O(1) 随机定位或异步分帧；一个超高顶层块、body 直属 Float、表内局部 Float 和图片解码资源仍未虚拟化。
 
 ## 当前明确限制

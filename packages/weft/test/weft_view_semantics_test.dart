@@ -1,3 +1,4 @@
+import 'package:flutter/rendering.dart' show SemanticsRole;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -62,8 +63,14 @@ void main() {
       ),
     );
 
-    expect(find.semantics.byLabel('1. First item'), findsOneWidget);
+    final first = find.semantics.byLabel('1. First item');
+    expect(first, findsOneWidget);
     expect(find.semantics.byLabel('2. Second item'), findsOneWidget);
+    expect(first.evaluate().single.parent?.role, SemanticsRole.listItem);
+    expect(
+      first.evaluate().single.parent?.parent?.role,
+      SemanticsRole.list,
+    );
     controller.dispose();
     semantics.dispose();
   });

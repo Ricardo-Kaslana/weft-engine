@@ -387,6 +387,21 @@ class WeftViewState extends State<WeftView> {
     return scrollToAnchor(anchor, alignment: alignment);
   }
 
+  /// Resolves the first text inside [nodeId] across frames, then scrolls.
+  Future<bool> scrollToNodeAsync(
+    NodeId nodeId, {
+    double alignment = 0.0,
+    int maxNewBlocks = 32,
+  }) async {
+    final anchor = _surfaceRenderObject?.firstTextAnchorInNode(nodeId);
+    if (anchor == null) return false;
+    return scrollToAnchorAsync(
+      anchor,
+      alignment: alignment,
+      maxNewBlocks: maxNewBlocks,
+    );
+  }
+
   /// Resolves [anchor] across animation frames, then scrolls to it.
   ///
   /// Returns false when the anchor is invalid or the request is superseded

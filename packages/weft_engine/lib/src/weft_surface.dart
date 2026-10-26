@@ -6,7 +6,8 @@ import 'package:flutter/rendering.dart'
         OrdinalSortKey,
         RenderAbstractViewport,
         SemanticsConfiguration,
-        SemanticsNode;
+        SemanticsNode,
+        SemanticsRole;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:weft_document/weft_document.dart';
@@ -333,6 +334,7 @@ class RenderWeftSurface extends RenderBox {
   List<_WeftSemanticFragment> _semanticsFragments =
       const <_WeftSemanticFragment>[];
   Map<Key, SemanticsNode> _semanticsChildNodes = <Key, SemanticsNode>{};
+  Map<Key, ui.Rect> _semanticAbsoluteRects = <Key, ui.Rect>{};
 
   WeftDocumentSnapshot get document => _document;
 
@@ -344,6 +346,7 @@ class RenderWeftSurface extends RenderBox {
     if (documentIdChanged) {
       _clearImages();
       _semanticsChildNodes.clear();
+      _semanticAbsoluteRects.clear();
       _fullLayoutRequired = false;
       _debugFullLayoutReason = null;
       _exitLazyMode();
@@ -744,42 +747,61 @@ class RenderWeftSurface extends RenderBox {
     }
 
     final nextCache = <Key, SemanticsNode>{};
-    final nextChildren = <SemanticsNode>[];
-    for (var i = 0; i < fragments.length; i++) {
-      final fragment = fragments[i];
+    final nextAbsoluteRects = <Key, ui.Rect>{};
+    final parentClip = node.parentPaintClipRect;
+
+    SemanticsNode buildNode(_WeftSemanticFragment fragment, int index) {
       final child = _semanticsChildNodes[fragment.key] ??
           SemanticsNode(
             key: fragment.key,
             showOnScreen: _createSemanticsShowOnScreen(fragment.key),
           );
       final childConfig = SemanticsConfiguration()
-        ..sortKey = OrdinalSortKey(i.toDouble())
-        ..textDirection = TextDirection.ltr
-        ..label = fragment.label
-        ..value = fragment.value
-        ..isImage = fragment.isImage
-        ..isSelected = fragment.isSelected
-        ..isHeader = fragment.isHeader
-        ..isLink = fragment.link != null;
-      final link = fragment.link;
-      if (link != null && _onSemanticsLinkTap != null) {
-        childConfig.onTap = () => _onSemanticsLinkTap?.call(link);
+        ..sortKey = OrdinalSortKey(index.toDouble());
+      if (fragment.role != null) {
+        childConfig.role = fragment.role!;
+      } else {
+        childConfig
+          ..textDirection = TextDirection.ltr
+          ..label = fragment.label
+          ..value = fragment.value
+          ..isImage = fragment.isImage
+          ..isSelected = fragment.isSelected
+          ..isHeader = fragment.isHeader
+          ..isLink = fragment.link != null;
+        final link = fragment.link;
+        if (link != null && _onSemanticsLinkTap != null) {
+          childConfig.onTap = () => _onSemanticsLinkTap?.call(link);
+        }
+        if (fragment.isSelection && _onSemanticsCopy != null) {
+          childConfig.onCopy = () => _onSemanticsCopy?.call(fragment.value);
+        }
       }
-      if (fragment.isSelection && _onSemanticsCopy != null) {
-        childConfig.onCopy = () => _onSemanticsCopy?.call(fragment.value);
-      }
-      final parentClip = node.parentPaintClipRect;
       if (parentClip != null) {
-        childConfig.isHidden = parentClip.intersect(fragment.rect).isEmpty &&
-            !fragment.rect.isEmpty;
+        childConfig.isHidden =
+            parentClip.intersect(fragment.documentRect).isEmpty &&
+                !fragment.documentRect.isEmpty;
       }
+      final childNodes = <SemanticsNode>[
+        for (var i = 0; i < fragment.children.length; i++)
+          buildNode(fragment.children[i], i),
+      ];
       child
-        ..updateWith(config: childConfig)
+        ..updateWith(
+          config: childConfig,
+          childrenInInversePaintOrder: childNodes,
+        )
         ..rect = fragment.rect;
       nextCache[fragment.key] = child;
-      nextChildren.add(child);
+      nextAbsoluteRects[fragment.key] = fragment.documentRect;
+      return child;
     }
+
+    final nextChildren = <SemanticsNode>[
+      for (var i = 0; i < fragments.length; i++) buildNode(fragments[i], i),
+    ];
     _semanticsChildNodes = nextCache;
+    _semanticAbsoluteRects = nextAbsoluteRects;
     node.updateWith(
       config: config,
       childrenInInversePaintOrder: nextChildren,
@@ -790,8 +812,9 @@ class RenderWeftSurface extends RenderBox {
     return () {
       if (!attached) return;
       final node = _semanticsChildNodes[key];
-      if (node == null) return;
-      showOnScreen(descendant: this, rect: node.rect);
+      final rect = _semanticAbsoluteRects[key];
+      if (node == null || rect == null) return;
+      showOnScreen(descendant: this, rect: rect);
     };
   }
 
@@ -801,6 +824,7 @@ class RenderWeftSurface extends RenderBox {
     _semanticsFragmentsLayout = null;
     _semanticsFragments = const <_WeftSemanticFragment>[];
     _semanticsChildNodes.clear();
+    _semanticAbsoluteRects.clear();
   }
 
   void _syncImages() {
@@ -1422,10 +1446,21 @@ class RenderWeftSurface extends RenderBox {
   }
 }
 
+final class _WeftSemanticContainerSpec {
+  const _WeftSemanticContainerSpec({required this.id, required this.role});
+
+  final NodeId id;
+  final SemanticsRole role;
+}
+
 final class _WeftSemanticFragment {
   const _WeftSemanticFragment({
     required this.key,
     required this.rect,
+    this.absoluteRect,
+    this.role,
+    this.children = const [],
+    this.containers = const [],
     this.label = '',
     this.value = '',
     this.isImage = false,
@@ -1440,6 +1475,11 @@ final class _WeftSemanticFragment {
 
   final Key key;
   final ui.Rect rect;
+  final ui.Rect? absoluteRect;
+  final SemanticsRole? role;
+  final List<_WeftSemanticFragment> children;
+  final List<_WeftSemanticContainerSpec> containers;
+  ui.Rect get documentRect => absoluteRect ?? rect;
   final String label;
   final String value;
   final bool isImage;
@@ -1450,6 +1490,105 @@ final class _WeftSemanticFragment {
   final WeftLinkRegion? link;
   final int? globalStart;
   final int? globalEnd;
+
+  _WeftSemanticFragment withRect(ui.Rect localRect) {
+    return _WeftSemanticFragment(
+      key: key,
+      rect: localRect,
+      absoluteRect: documentRect,
+      label: label,
+      value: value,
+      isImage: isImage,
+      isSelected: isSelected,
+      isSelection: isSelection,
+      isHeader: isHeader,
+      headingLevel: headingLevel,
+      link: link,
+      globalStart: globalStart,
+      globalEnd: globalEnd,
+    );
+  }
+}
+
+final class _SemanticTreeBuilder {
+  _SemanticTreeBuilder(this.spec);
+
+  final _WeftSemanticContainerSpec? spec;
+  final List<Object> entries = <Object>[];
+  final Map<String, _SemanticTreeBuilder> children =
+      <String, _SemanticTreeBuilder>{};
+
+  ui.Rect get absoluteBounds {
+    ui.Rect? bounds;
+    for (final entry in entries) {
+      final rect = entry is _WeftSemanticFragment
+          ? entry.documentRect
+          : (entry as _SemanticTreeBuilder).absoluteBounds;
+      bounds = bounds == null ? rect : bounds.expandToInclude(rect);
+    }
+    return bounds ?? ui.Rect.zero;
+  }
+}
+
+List<_WeftSemanticFragment> _buildSemanticForest(
+  List<_WeftSemanticFragment> leaves,
+) {
+  final root = _SemanticTreeBuilder(null);
+  for (final leaf in leaves) {
+    var cursor = root;
+    for (final spec in leaf.containers) {
+      final key = '${spec.role.name}:${spec.id}';
+      final existing = cursor.children[key];
+      if (existing != null) {
+        cursor = existing;
+      } else {
+        final child = _SemanticTreeBuilder(spec);
+        cursor.children[key] = child;
+        cursor.entries.add(child);
+        cursor = child;
+      }
+    }
+    cursor.entries.add(leaf);
+  }
+
+  List<_WeftSemanticFragment> convert(
+    _SemanticTreeBuilder builder,
+    ui.Offset parentOrigin,
+  ) {
+    final result = <_WeftSemanticFragment>[];
+    for (final entry in builder.entries) {
+      if (entry is _WeftSemanticFragment) {
+        result.add(entry.withRect(entry.documentRect.shift(-parentOrigin)));
+        continue;
+      }
+      final child = entry as _SemanticTreeBuilder;
+      final absolute = child.absoluteBounds;
+      final spec = child.spec!;
+      result.add(
+        _WeftSemanticFragment(
+          key: ValueKey<String>('role-${spec.role.name}:${spec.id}'),
+          rect: absolute.shift(-parentOrigin),
+          absoluteRect: absolute,
+          role: spec.role,
+          children: convert(child, absolute.topLeft),
+        ),
+      );
+    }
+    return result;
+  }
+
+  return convert(root, ui.Offset.zero);
+}
+
+bool _sameContainers(
+  List<_WeftSemanticContainerSpec> first,
+  List<_WeftSemanticContainerSpec> second,
+) {
+  if (first.length != second.length) return false;
+  for (var i = 0; i < first.length; i++) {
+    if (!identical(first[i], second[i])) return false;
+  }
+  return true;
 }
 
 List<_WeftSemanticFragment> _buildContentSemantics({
@@ -1468,6 +1607,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
       command.nodeId: command,
   };
   final fragments = <_WeftSemanticFragment>[];
+  final activeContainers = <_WeftSemanticContainerSpec>[];
 
   void addText(
     int nodeId,
@@ -1499,6 +1639,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
               !previous.isImage &&
               !previous.isSelected &&
               previous.link?.nodeId == link?.nodeId &&
+              _sameContainers(previous.containers, activeContainers) &&
               previous.isHeader == isHeader &&
               previous.headingLevel == headingLevel &&
               previous.globalEnd != null &&
@@ -1509,6 +1650,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
               rect: previous.rect.expandToInclude(rect),
               label: previous.label + text.substring(start, i),
               link: previous.link,
+              containers: previous.containers,
               isHeader: previous.isHeader,
               headingLevel: previous.headingLevel,
               globalStart: previous.globalStart,
@@ -1523,6 +1665,9 @@ List<_WeftSemanticFragment> _buildContentSemantics({
                 rect: rect,
                 label: '$prefix${text.substring(start, i)}',
                 link: link,
+                containers: List<_WeftSemanticContainerSpec>.unmodifiable(
+                  activeContainers,
+                ),
                 isHeader: isHeader,
                 headingLevel: headingLevel,
                 globalStart: globalStart,
@@ -1573,6 +1718,9 @@ List<_WeftSemanticFragment> _buildContentSemantics({
               rect: rect,
               label: '$prefix$alt',
               isImage: true,
+              containers: List<_WeftSemanticContainerSpec>.unmodifiable(
+                activeContainers,
+              ),
               isHeader: isHeader,
               headingLevel: headingLevel,
             ),
@@ -1609,6 +1757,9 @@ List<_WeftSemanticFragment> _buildContentSemantics({
         node.tag == 'h5' ||
         node.tag == 'h6';
     if (node.tag == 'ul' || node.tag == 'ol') {
+      activeContainers.add(
+        _WeftSemanticContainerSpec(id: node.id, role: SemanticsRole.list),
+      );
       var itemIndex = 0;
       for (final child in node.children) {
         List<String?>? childPrefix;
@@ -1617,9 +1768,65 @@ List<_WeftSemanticFragment> _buildContentSemantics({
           childPrefix = <String?>[
             node.tag == 'ol' ? '$itemIndex. ' : '• ',
           ];
+          activeContainers.add(
+            _WeftSemanticContainerSpec(
+              id: child.id,
+              role: SemanticsRole.listItem,
+            ),
+          );
+          visit(child, link, childHeading, childHeader, childPrefix);
+          activeContainers.removeLast();
+        } else {
+          visit(child, link, childHeading, childHeader, childPrefix);
         }
-        visit(child, link, childHeading, childHeader, childPrefix);
       }
+      activeContainers.removeLast();
+      return;
+    }
+    if (node.tag == 'table') {
+      for (final child in node.children) {
+        if (child is WeftElement && child.tag == 'caption') {
+          visit(child, link, childHeading, childHeader, null);
+        }
+      }
+      activeContainers.add(
+        _WeftSemanticContainerSpec(id: node.id, role: SemanticsRole.table),
+      );
+      void visitRow(WeftElement row) {
+        activeContainers.add(
+          _WeftSemanticContainerSpec(id: row.id, role: SemanticsRole.row),
+        );
+        for (final cell in row.children) {
+          if (cell is! WeftElement || (cell.tag != 'td' && cell.tag != 'th')) {
+            continue;
+          }
+          activeContainers.add(
+            _WeftSemanticContainerSpec(
+              id: cell.id,
+              role: cell.tag == 'th'
+                  ? SemanticsRole.columnHeader
+                  : SemanticsRole.cell,
+            ),
+          );
+          visit(cell, link, childHeading, childHeader, null);
+          activeContainers.removeLast();
+        }
+        activeContainers.removeLast();
+      }
+
+      for (final child in node.children) {
+        if (child is! WeftElement) continue;
+        if (child.tag == 'tr') {
+          visitRow(child);
+        } else if (child.tag == 'thead' ||
+            child.tag == 'tbody' ||
+            child.tag == 'tfoot') {
+          for (final row in child.children) {
+            if (row is WeftElement && row.tag == 'tr') visitRow(row);
+          }
+        }
+      }
+      activeContainers.removeLast();
       return;
     }
     for (final child in node.children) {
@@ -1630,7 +1837,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
   for (final child in body.children) {
     visit(child, null, 0, false, null);
   }
-  return fragments;
+  return _buildSemanticForest(fragments);
 }
 
 ui.Rect? _unionRects(Iterable<ui.Rect> rects) {

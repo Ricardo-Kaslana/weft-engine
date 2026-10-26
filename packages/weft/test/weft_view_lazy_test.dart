@@ -306,6 +306,42 @@ void main() {
     controller.dispose();
   }, semanticsEnabled: false);
 
+  testWidgets('scrollToNodeAsync targets an element across frames', (
+    tester,
+  ) async {
+    final controller = _controller(120);
+    final scroll = ScrollController();
+    final viewKey = GlobalKey<WeftViewState>();
+    await _pump(tester, controller, scroll, viewKey: viewKey);
+    final paragraph = controller.document!.body!.children[90] as WeftElement;
+
+    final future = viewKey.currentState!.scrollToNodeAsync(
+      paragraph.id,
+      maxNewBlocks: 4,
+    );
+    bool? result;
+    var completed = false;
+    future.then((value) {
+      result = value;
+      completed = true;
+    });
+    for (var frame = 0; frame < 80 && !completed; frame++) {
+      await tester.pump();
+    }
+    expect(completed, isTrue);
+    expect(result, isTrue);
+    await tester.pump();
+    await tester.pump();
+    final render = tester.renderObject<RenderWeftSurface>(
+      find.byType(WeftSurface),
+    );
+    expect(render.debugLayout!.debugIsLazy, isTrue);
+    expect(scroll.offset, greaterThan(0));
+
+    scroll.dispose();
+    controller.dispose();
+  }, semanticsEnabled: false);
+
   testWidgets('scrollToAnchor uses the internal controller when none injected',
       (
     tester,

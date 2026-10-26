@@ -18,7 +18,7 @@
 - 块级盒模型（ADR 0021）：显式 height（不裁剪溢出）、百分比宽度、水平 auto margin。
 - 表格列轨道（ADR 0022）：colgroup/col 声明 px 固定列、百分比列与 span 轨道。
 - 流式增量布局（ADR 0023）：复用无 Float 的顶层前缀块/TextPainter，尾部重排；未变 Picture 跨快照复用。
-- 可访问性语义（ADR 0024/0026/0028）：单表面文本/链接/图片/选区、标题与表头 header、列表标记、链接 tap、选区 copy、稳定节点 id 与屏外 showOnScreen。
+- 可访问性语义（ADR 0024/0026/0028/0030）：单表面文本/链接/图片/选区、标题与表头 header、列表标记、list/table 嵌套角色、链接 tap、选区 copy、稳定节点 id 与屏外 showOnScreen。
 - 渐进式布局虚拟化（ADR 0025）：WeftView 只物化可见顶层块，估算后缀 extent，复杂文档/选区/Semantics 回退 full。
 - 锚点导航（ADR 0027/0029）：`scrollToAnchor` 同步 focus 定位，`scrollToAnchorAsync` 逐帧测量深链前缀并保持当前内容；无效/取消安全返回 false。
 - 选择交互（ADR 0019）：长按选词/拖拽扩展/把手微调/复制按钮/tap 放 caret。
@@ -35,7 +35,7 @@
 - 图片资源只能由宿主 WeftImageResolver 提供；引擎不得隐式发起网络请求。
 - 每次修改必须运行 `dart format --output=none --set-exit-if-changed .`、`dart analyze`、`dart run tool/verify.dart` 和 `packages/weft_engine/tool/golden_pixel_test.dart`。
 - 新增能力必须附带单元测试；影响布局时必须评估黄金基线与 conformance/reference/ 下的浏览器几何基线。
-- 重要技术取舍写入 docs/adr/（下一个编号为 0030）。
+- 重要技术取舍写入 docs/adr/（下一个编号为 0031）。
 
 先阅读 README.md、docs/architecture.md、docs/supported-subset.md 和 docs/handoff.md，再选择第一个任务并给出计划。
 
@@ -47,10 +47,10 @@
 - 分支：`main`
 - 最新提交：见 `git log`（本节只保证指南有效，不追踪哈希）
 - Flutter：3.35.5 stable；Dart：3.9.2
-- 常规测试 270+ 项（weft_engine 221、weft 37）、像素黄金 3 项 + 选区高亮 1 项、性能门禁 14 场景（7 布局 + 3 绘制 + 4 命中）；`dart analyze` 无问题。
+- 常规测试 270+ 项（weft_engine 222、weft 38）、像素黄金 3 项 + 选区高亮 1 项、性能门禁 14 场景（7 布局 + 3 绘制 + 4 命中）；`dart analyze` 无问题。
 - GitHub Actions 使用 Windows 执行像素黄金门禁。
 
-已实现到 ADR 0029：分块渲染与命中裁剪（ADR 0017/0020）、行内图片（ADR 0018）、选择 chrome（ADR 0019）、块级盒模型（ADR 0021）、表格列轨道（ADR 0022）、流式顶层前缀复用（ADR 0023）、单表面 Semantics（ADR 0024/0026/0028）、渐进式布局虚拟化（ADR 0025）和同步/异步锚点导航（ADR 0027/0029）。
+已实现到 ADR 0030：分块渲染与命中裁剪（ADR 0017/0020）、行内图片（ADR 0018）、选择 chrome（ADR 0019）、块级盒模型（ADR 0021）、表格列轨道（ADR 0022）、流式顶层前缀复用（ADR 0023）、单表面 Semantics（ADR 0024/0026/0028/0030）、渐进式布局虚拟化（ADR 0025）和同步/异步锚点导航（ADR 0027/0029）。
 
 ## 包结构
 
@@ -97,7 +97,7 @@ docs/adr/               架构决策记录
 - 非图片 Float 与表格局部 Float 的 checkpoint；增量布局的后缀平移与行级复用；行内原子的 margin 参与行框与 top/bottom 对齐。
 - CJK 像素基线与跨引擎像素预算达标。
 - 表格：嵌套表格（触发回退）、浏览器级 auto 列宽分配精度、`col` 的 min/max 语义。
-- Semantics 的 headingLevel、table/list 角色导航、CSS 列表样式/起始序号、可编辑 selection/caret 动作、RTL/语言属性、live region 与语义虚拟化。
+- Semantics 的 headingLevel、table/list 角色导航索引、CSS 列表样式/起始序号、可编辑 selection/caret 动作、RTL/语言属性、live region 与语义虚拟化。
 - QuickJS 原生执行、状态/事件/网络能力包。
 - QuickJS 原生执行、状态/事件/网络能力包。
 
