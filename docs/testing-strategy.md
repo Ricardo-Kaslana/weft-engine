@@ -116,6 +116,8 @@ flutter test test/perf_gate_test.dart --no-pub --timeout 120s     # CI 门禁
 
 流式增量布局(ADR 0023)保留 appendArticle300Full 作为永久全量对照;Incremental 的旧 300 段布局在计时外准备,每次运行使用独立 previous,避免所有权转移后重复消费。`test/incremental_layout_test.dart` 固化连续快照、尾段增长、失效回退、dispose 生命周期及与全量结果的几何/命中/选区/像素等价;`test/chunked_rendering_test.dart` 另行断言未变前缀 Picture 不重录。
 
+锚点导航(ADR 0027)测试覆盖：仅在有效 anchor 上触发 lazy→full、无效/末尾 anchor 不升级、alignment 公式与滚动范围 clamp、注入/内部 controller、连续请求以及卸载后丢弃 post-frame 回调。
+
 布局虚拟化(ADR 0025)的验收分两层:计时对比 lazy 首屏与 full article300,结构计数则断言首屏只布局/物化连续可见前缀,且必须远小于全文块数。`test/lazy_layout_test.dart` 覆盖精确前缀、冷跳收敛、结构化内容、multi-screen 正反向、首帧 selection、空命令块,以及嵌套图片 Float checkpoint 的多代往返、extent 和准入矩阵;`weft_view_lazy_test.dart` 覆盖滚动、初始 offset、约束变化、默认/强制 eager、底部校正、流式、Float 回退、selection 与 Semantics 升级,并验证 full 升级会清除 stale follow/pending 校正。
 
 ## Runtime 安全测试

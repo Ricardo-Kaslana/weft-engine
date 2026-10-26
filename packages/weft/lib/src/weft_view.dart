@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/gestures.dart' show LongPressDownDetails;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
@@ -109,6 +111,7 @@ class WeftViewState extends State<WeftView> {
       widget.scrollController ?? _internalScrollController;
 
   bool _viewportSyncScheduled = false;
+  int _anchorScrollGeneration = 0;
 
   double get _viewportPixelsSeed {
     final controller = _scrollController;
@@ -140,6 +143,7 @@ class WeftViewState extends State<WeftView> {
       (oldWidget.scrollController ?? _internalScrollController)
           .removeListener(_handleScroll);
       _scrollController.addListener(_handleScroll);
+      _anchorScrollGeneration += 1;
       _surfaceRenderObject?.setViewportPixels(_viewportPixelsSeed);
       _scheduleViewportSync();
     }
@@ -157,6 +161,7 @@ class WeftViewState extends State<WeftView> {
 
   @override
   void dispose() {
+    _anchorScrollGeneration += 1;
     _scrollController.removeListener(_handleScroll);
     _internalScrollController.dispose();
     super.dispose();
@@ -333,6 +338,46 @@ class WeftViewState extends State<WeftView> {
     final surface = _surfaceRenderObject;
     if (surface == null) return null;
     return surface.selectionText(widget.controller.selection);
+  }
+
+  /// Scrolls the internal view so [anchor] is placed according to
+  /// [alignment] (0 top, 1 bottom).
+  ///
+  /// Returns true when the anchor resolves and a scroll has been scheduled
+  /// for the next frame. Invalid anchors return false without changing the
+  /// scroll offset or forcing lazy layout to become full.
+  bool scrollToAnchor(TextAnchor anchor, {double alignment = 0.0}) {
+    assert(
+      alignment.isFinite && alignment >= 0 && alignment <= 1,
+      'alignment must be finite and between 0 and 1',
+    );
+    if (!alignment.isFinite || alignment < 0 || alignment > 1) return false;
+    final surface = _surfaceRenderObject;
+    final controller = _scrollController;
+    if (surface == null || !controller.hasClients) return false;
+    final rect = surface.textRectForAnchor(anchor);
+    if (rect == null) return false;
+
+    final generation = ++_anchorScrollGeneration;
+    final document = widget.controller.document;
+    final documentId = document?.id;
+    final revision = document?.revision;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || generation != _anchorScrollGeneration) return;
+      final current = widget.controller.document;
+      if (current?.id != documentId || current?.revision != revision) return;
+      final currentController = _scrollController;
+      if (!currentController.hasClients) return;
+      final position = currentController.position;
+      final target = rect.top -
+          alignment * math.max(0, position.viewportDimension - rect.height);
+      final clamped = target
+          .clamp(position.minScrollExtent, position.maxScrollExtent)
+          .toDouble();
+      position.jumpTo(clamped);
+    });
+    SchedulerBinding.instance.scheduleFrame();
+    return true;
   }
 
   /// Positions the selection chrome overlays from the render object's

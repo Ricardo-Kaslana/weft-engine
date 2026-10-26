@@ -676,10 +676,10 @@ class RenderWeftSurface extends RenderBox {
     });
   }
 
-  void _upgradeLazyLayoutForSemantics() {
+  void _ensureFullLayoutForQuery(String reason) {
     final previous = _layout;
     if (previous?.debugIsLazy != true) return;
-    _markFullLayoutRequired('semantics');
+    _markFullLayoutRequired(reason);
     final current = _layoutEngine.layout(
       _document,
       width: size.width,
@@ -707,7 +707,7 @@ class RenderWeftSurface extends RenderBox {
     SemanticsConfiguration config,
     Iterable<SemanticsNode> children,
   ) {
-    _upgradeLazyLayoutForSemantics();
+    _ensureFullLayoutForQuery('semantics');
     final layout = _layout;
     final fragments = <_WeftSemanticFragment>[];
     if (layout != null) {
@@ -926,6 +926,30 @@ class RenderWeftSurface extends RenderBox {
     final layout = _layout;
     if (layout == null || selection == null) return null;
     return layout.selectionText(selection);
+  }
+
+  /// The painted rectangle for the one-character range starting at [anchor],
+  /// in surface-local coordinates, or null when the anchor does not resolve.
+  ///
+  /// A lazy layout upgrades to the complete layout to obtain exact geometry.
+  /// Invalid anchors are rejected before that upgrade, following the
+  /// selection model's safe-drop semantics.
+  ui.Rect? textRectForAnchor(TextAnchor anchor) {
+    if (!hasSize || size.width <= 0) return null;
+    final before = _layout;
+    final entry = before?.textIndex?.entryByNode[anchor.nodeId];
+    if (before == null ||
+        entry == null ||
+        anchor.offset < 0 ||
+        anchor.offset >= entry.text.length) {
+      return null;
+    }
+    _ensureFullLayoutForQuery('anchor');
+    final layout = _layout;
+    if (layout == null) return null;
+    return _unionRects(
+      layout.textRectsForNode(anchor.nodeId, anchor.offset, anchor.offset + 1),
+    );
   }
 
   /// Touch targets and suggested placements for the selection chrome

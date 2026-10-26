@@ -20,11 +20,12 @@
 - 流式增量布局（ADR 0023）：复用无 Float 的顶层前缀块/TextPainter，尾部重排；未变 Picture 跨快照复用。
 - 可访问性语义（ADR 0024/0026）：单表面文本/链接/图片/选区、标题 header、链接 tap、选区 copy、稳定节点 id 与屏外 showOnScreen。
 - 渐进式布局虚拟化（ADR 0025）：WeftView 只物化可见顶层块，估算后缀 extent，复杂文档/选区/Semantics 回退 full。
+- 锚点导航（ADR 0027）：`WeftViewState.scrollToAnchor` 按逻辑文本锚点与 alignment 定位，无效锚点安全丢弃。
 - 选择交互（ADR 0019）：长按选词/拖拽扩展/把手微调/复制按钮/tap 放 caret。
 - 图片/Float 与表格的浏览器几何基线（Chrome 参考固化在 conformance/reference/）。
 
 请继续下一个切片，优先级如下：
-1. 懒布局进阶：按画像加入异步分帧测量与精确随机定位，减少冷跳底部的 O(N) 停顿；Float checkpoint 已覆盖顶层块内图片，后续再扩展 body 直属/局部上下文。
+1. 懒布局进阶：按画像加入异步分帧测量与基于块 metrics 的 O(1)/O(log N) 随机定位；当前 anchor 导航与冷跳底部仍可能完整测量前缀。
 2. 语义增强：按产品需要补 heading/table/list 角色、语言/RTL 或 live region；保持 ADR 0024 的单表面所有权。
 3. 增量布局扩展：继续缩小 O(块数) diff/样式解析，探索行级复用；保持 ADR 0023/0025 的全量等价门禁。
 
@@ -34,7 +35,7 @@
 - 图片资源只能由宿主 WeftImageResolver 提供；引擎不得隐式发起网络请求。
 - 每次修改必须运行 `dart format --output=none --set-exit-if-changed .`、`dart analyze`、`dart run tool/verify.dart` 和 `packages/weft_engine/tool/golden_pixel_test.dart`。
 - 新增能力必须附带单元测试；影响布局时必须评估黄金基线与 conformance/reference/ 下的浏览器几何基线。
-- 重要技术取舍写入 docs/adr/（下一个编号为 0027）。
+- 重要技术取舍写入 docs/adr/（下一个编号为 0028）。
 
 先阅读 README.md、docs/architecture.md、docs/supported-subset.md 和 docs/handoff.md，再选择第一个任务并给出计划。
 
@@ -46,10 +47,10 @@
 - 分支：`main`
 - 最新提交：见 `git log`（本节只保证指南有效，不追踪哈希）
 - Flutter：3.35.5 stable；Dart：3.9.2
-- 常规测试 260+ 项（weft_engine 218、weft 31）、像素黄金 3 项 + 选区高亮 1 项、性能门禁 14 场景（7 布局 + 3 绘制 + 4 命中）；`dart analyze` 无问题。
+- 常规测试 270+ 项（weft_engine 219、weft 34）、像素黄金 3 项 + 选区高亮 1 项、性能门禁 14 场景（7 布局 + 3 绘制 + 4 命中）；`dart analyze` 无问题。
 - GitHub Actions 使用 Windows 执行像素黄金门禁。
 
-已实现到 ADR 0026：分块渲染与命中裁剪（ADR 0017/0020）、行内图片（ADR 0018）、选择 chrome（ADR 0019）、块级盒模型（ADR 0021）、表格列轨道（ADR 0022）、流式顶层前缀复用（ADR 0023）、单表面 Semantics（ADR 0024/0026）和渐进式布局虚拟化（ADR 0025，article300 首屏 43.6ms→3.2ms、330 块→6 块）。
+已实现到 ADR 0027：分块渲染与命中裁剪（ADR 0017/0020）、行内图片（ADR 0018）、选择 chrome（ADR 0019）、块级盒模型（ADR 0021）、表格列轨道（ADR 0022）、流式顶层前缀复用（ADR 0023）、单表面 Semantics（ADR 0024/0026）、渐进式布局虚拟化（ADR 0025）和锚点导航（ADR 0027）。
 
 ## 包结构
 
@@ -92,7 +93,7 @@ docs/adr/               架构决策记录
 
 ## 明确未实现
 
-- 懒布局的异步分帧测量、精确随机跳转，以及超高顶层块/表内行/图片解码资源虚拟化。
+- 懒布局的异步分帧测量、基于块索引的精确随机跳转，以及超高顶层块/表内行/图片解码资源虚拟化；当前锚点导航会先升级 full。
 - body 直属 Float、非图片 Float 与表格局部 Float 的 checkpoint；增量布局的后缀平移与行级复用；行内原子的 margin 参与行框与 top/bottom 对齐。
 - CJK 像素基线与跨引擎像素预算达标。
 - 表格：嵌套表格（触发回退）、浏览器级 auto 列宽分配精度、`col` 的 min/max 语义。
@@ -145,7 +146,7 @@ python tool/generate_assets.py
 
 目标：降低冷跳底部的同步测量停顿，并让更多文档形态受益。
 
-注意：先画像；候选是异步分帧连续测量、精确块索引随机跳转、更广的 Float/块流 checkpoint，以及超高顶层块/表内行或图片资源虚拟化。继续保留 canonical full 与结构计数门禁。
+注意：先画像；候选是异步分帧连续测量、基于块 metrics 的 O(1)/O(log N) 随机定位、更广的 Float/块流 checkpoint，以及超高顶层块/表内行或图片资源虚拟化。继续保留 canonical full 与结构计数门禁。
 
 ### B. 语义增强
 

@@ -370,6 +370,36 @@ void main() {
     expect(layouts.skip(1).every((layout) => !layout.debugIsLazy), isTrue);
   });
 
+  test('only valid anchors upgrade a lazy surface for geometry', () {
+    final document = _article(80);
+    final canonical = const WeftLayoutEngine().layout(document, width: 320);
+    addTearDown(canonical.dispose);
+    final entry = canonical.textIndex!.entries.last;
+    final expected = canonical.textRectsForNode(entry.nodeId, 2, 3).first;
+
+    final render = RenderWeftSurface(
+      document: document,
+      enableLazyLayout: true,
+      viewportHeight: 400,
+    );
+    addTearDown(render.dispose);
+    render.layout(const BoxConstraints.tightFor(width: 320));
+    expect(render.debugLayout!.debugIsLazy, isTrue);
+
+    expect(render.textRectForAnchor(const TextAnchor(999999, 0)), isNull);
+    expect(
+      render.textRectForAnchor(TextAnchor(entry.nodeId, entry.text.length)),
+      isNull,
+    );
+    expect(render.debugLayout!.debugIsLazy, isTrue);
+    expect(render.debugFullLayoutRequired, isFalse);
+
+    final rect = render.textRectForAnchor(TextAnchor(entry.nodeId, 2));
+    expect(rect, expected);
+    expect(render.debugLayout!.debugIsLazy, isFalse);
+    expect(render.debugFullLayoutReason, 'anchor');
+  });
+
   test('surface enables lazy layout when a viewport is supplied', () {
     final render = RenderWeftSurface(
       document: _article(120),

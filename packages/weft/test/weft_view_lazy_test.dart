@@ -176,6 +176,129 @@ void main() {
     controller.dispose();
   }, semanticsEnabled: false);
 
+  testWidgets('scrollToAnchor upgrades once and honors alignment and clamp', (
+    tester,
+  ) async {
+    final controller = _controller(120);
+    final scroll = ScrollController();
+    final viewKey = GlobalKey<WeftViewState>();
+    await _pump(tester, controller, scroll, viewKey: viewKey);
+    final render = tester.renderObject<RenderWeftSurface>(
+      find.byType(WeftSurface),
+    );
+    final state = viewKey.currentState!;
+    expect(render.debugLayout!.debugIsLazy, isTrue);
+
+    expect(
+      state.scrollToAnchor(const TextAnchor(999999, 0)),
+      isFalse,
+    );
+    expect(render.debugLayout!.debugIsLazy, isTrue);
+    expect(scroll.offset, 0);
+
+    final probe = const WeftLayoutEngine().layout(
+      controller.document!,
+      width: 320,
+    );
+    final entry = probe.textIndex!.entries.firstWhere(
+      (candidate) => candidate.text.startsWith('Paragraph 100 '),
+    );
+    final targetRect = probe.textRectsForNode(entry.nodeId, 2, 3).first;
+    final lastEntry = probe.textIndex!.entries.last;
+    final lastRect = probe.textRectsForNode(lastEntry.nodeId, 0, 1).first;
+    probe.dispose();
+
+    expect(
+      state.scrollToAnchor(TextAnchor(entry.nodeId, 2), alignment: 0.5),
+      isTrue,
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(render.debugLayout!.debugIsLazy, isFalse);
+    expect(render.debugFullLayoutReason, 'anchor');
+    final position = scroll.position;
+    final expected = (targetRect.top -
+            0.5 * (position.viewportDimension - targetRect.height))
+        .clamp(position.minScrollExtent, position.maxScrollExtent)
+        .toDouble();
+    expect(scroll.offset, closeTo(expected, 0.01));
+
+    expect(
+      state.scrollToAnchor(TextAnchor(lastEntry.nodeId, 0), alignment: 1),
+      isTrue,
+    );
+    await tester.pump();
+    await tester.pump();
+    final expectedLast =
+        (lastRect.top - (position.viewportDimension - lastRect.height))
+            .clamp(position.minScrollExtent, position.maxScrollExtent)
+            .toDouble();
+    expect(scroll.offset, closeTo(expectedLast, 0.01));
+    expect(lastRect.top, greaterThan(0));
+
+    scroll.dispose();
+    controller.dispose();
+  }, semanticsEnabled: false);
+
+  testWidgets('scrollToAnchor uses the internal controller when none injected',
+      (
+    tester,
+  ) async {
+    final controller = _controller(120);
+    final viewKey = GlobalKey<WeftViewState>();
+    await _pump(tester, controller, null, viewKey: viewKey);
+    final probe = const WeftLayoutEngine().layout(
+      controller.document!,
+      width: 320,
+    );
+    final entry = probe.textIndex!.entries.firstWhere(
+      (candidate) => candidate.text.startsWith('Paragraph 80 '),
+    );
+    final rect = probe.textRectsForNode(entry.nodeId, 0, 1).first;
+    probe.dispose();
+
+    expect(
+      viewKey.currentState!.scrollToAnchor(TextAnchor(entry.nodeId, 0)),
+      isTrue,
+    );
+    await tester.pump();
+    await tester.pump();
+    final position =
+        tester.state<ScrollableState>(find.byType(Scrollable)).position;
+    expect(
+      position.pixels,
+      closeTo(
+        rect.top.clamp(position.minScrollExtent, position.maxScrollExtent),
+        0.01,
+      ),
+    );
+    controller.dispose();
+  }, semanticsEnabled: false);
+
+  testWidgets('pending anchor scroll is discarded when the view unmounts', (
+    tester,
+  ) async {
+    final controller = _controller(80);
+    final scroll = ScrollController();
+    final viewKey = GlobalKey<WeftViewState>();
+    await _pump(tester, controller, scroll, viewKey: viewKey);
+    final probe = const WeftLayoutEngine().layout(
+      controller.document!,
+      width: 320,
+    );
+    final entry = probe.textIndex!.entries.last;
+    probe.dispose();
+    expect(
+      viewKey.currentState!.scrollToAnchor(TextAnchor(entry.nodeId, 0)),
+      isTrue,
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    scroll.dispose();
+    controller.dispose();
+  }, semanticsEnabled: false);
+
   testWidgets('enableLazyLayout false keeps the canonical full layout', (
     tester,
   ) async {
@@ -352,8 +475,9 @@ void main() {
 Future<void> _pump(
   WidgetTester tester,
   WeftController controller,
-  ScrollController? scroll,
-) {
+  ScrollController? scroll, {
+  GlobalKey<WeftViewState>? viewKey,
+}) {
   return tester.pumpWidget(
     Directionality(
       textDirection: TextDirection.ltr,
@@ -362,6 +486,7 @@ Future<void> _pump(
           width: 320,
           height: 400,
           child: WeftView(
+            key: viewKey,
             controller: controller,
             scrollController: scroll,
           ),
