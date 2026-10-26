@@ -1,7 +1,12 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
-import 'package:flutter/rendering.dart' show RenderAbstractViewport;
+import 'package:flutter/rendering.dart'
+    show
+        OrdinalSortKey,
+        RenderAbstractViewport,
+        SemanticsConfiguration,
+        SemanticsNode;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:weft_document/weft_document.dart';
@@ -77,6 +82,7 @@ class WeftSurface extends StatefulWidget {
     this.textScaler = TextScaler.noScaling,
     this.imageResolver,
     this.onLinkTap,
+    this.onSemanticsLinkTap,
     this.showSelectionHandles = true,
     this.showCaret = true,
     this.showCopyButton = true,
@@ -88,6 +94,10 @@ class WeftSurface extends StatefulWidget {
   final TextScaler textScaler;
   final WeftImageResolver? imageResolver;
   final ValueChanged<WeftLinkRegion>? onLinkTap;
+
+  /// Activates links through assistive technology. Defaults to [onLinkTap];
+  /// WeftView supplies this separately so pointer gestures keep one owner.
+  final ValueChanged<WeftLinkRegion>? onSemanticsLinkTap;
 
   /// Whether [RenderWeftSurface.selectionControlsGeometry] exposes drag
   /// handle touch targets. Handles are overlay widgets owned by WeftView and
@@ -128,6 +138,7 @@ class _WeftSurfaceState extends State<WeftSurface> {
       selection: widget.selection,
       textScaler: widget.textScaler,
       imageResolver: widget.imageResolver,
+      onSemanticsLinkTap: widget.onSemanticsLinkTap ?? widget.onLinkTap,
       showSelectionHandles: widget.showSelectionHandles,
       showCaret: widget.showCaret,
       showCopyButton: widget.showCopyButton,
@@ -149,6 +160,7 @@ class _RawWeftSurface extends LeafRenderObjectWidget {
     this.selection,
     this.textScaler = TextScaler.noScaling,
     this.imageResolver,
+    this.onSemanticsLinkTap,
     this.showSelectionHandles = true,
     this.showCaret = true,
     this.showCopyButton = true,
@@ -158,6 +170,7 @@ class _RawWeftSurface extends LeafRenderObjectWidget {
   final TextSelectionRange? selection;
   final TextScaler textScaler;
   final WeftImageResolver? imageResolver;
+  final ValueChanged<WeftLinkRegion>? onSemanticsLinkTap;
   final bool showSelectionHandles;
   final bool showCaret;
   final bool showCopyButton;
@@ -169,6 +182,7 @@ class _RawWeftSurface extends LeafRenderObjectWidget {
       selection: selection,
       textScaler: textScaler,
       imageResolver: imageResolver,
+      onSemanticsLinkTap: onSemanticsLinkTap,
       imageConfiguration: createLocalImageConfiguration(context),
       showSelectionHandles: showSelectionHandles,
       showCaret: showCaret,
@@ -187,6 +201,7 @@ class _RawWeftSurface extends LeafRenderObjectWidget {
       ..textScaler = textScaler
       ..imageConfiguration = createLocalImageConfiguration(context)
       ..imageResolver = imageResolver
+      ..onSemanticsLinkTap = onSemanticsLinkTap
       ..showSelectionHandles = showSelectionHandles
       ..showCaret = showCaret
       ..showCopyButton = showCopyButton;
@@ -199,6 +214,7 @@ class RenderWeftSurface extends RenderBox {
     TextSelectionRange? selection,
     TextScaler textScaler = TextScaler.noScaling,
     WeftImageResolver? imageResolver,
+    ValueChanged<WeftLinkRegion>? onSemanticsLinkTap,
     ImageConfiguration imageConfiguration = ImageConfiguration.empty,
     bool showSelectionHandles = true,
     bool showCaret = true,
@@ -207,6 +223,7 @@ class RenderWeftSurface extends RenderBox {
         _selection = selection,
         _textScaler = textScaler,
         _imageResolver = imageResolver,
+        _onSemanticsLinkTap = onSemanticsLinkTap,
         _imageConfiguration = imageConfiguration,
         _showSelectionHandles = showSelectionHandles,
         _showCaret = showCaret,
@@ -218,6 +235,7 @@ class RenderWeftSurface extends RenderBox {
   TextSelectionRange? _selection;
   TextScaler _textScaler;
   WeftImageResolver? _imageResolver;
+  ValueChanged<WeftLinkRegion>? _onSemanticsLinkTap;
   ImageConfiguration _imageConfiguration;
   bool _showSelectionHandles;
   bool _showCaret;
@@ -250,6 +268,11 @@ class RenderWeftSurface extends RenderBox {
   int _debugPaintedChunkCount = 0;
   int _debugSelectionRectBuildCount = 0;
 
+  WeftLayoutResult? _semanticsFragmentsLayout;
+  List<_WeftSemanticFragment> _semanticsFragments =
+      const <_WeftSemanticFragment>[];
+  Map<Key, SemanticsNode> _semanticsChildNodes = <Key, SemanticsNode>{};
+
   WeftDocumentSnapshot get document => _document;
 
   set document(WeftDocumentSnapshot value) {
@@ -259,6 +282,7 @@ class RenderWeftSurface extends RenderBox {
     _invalidateLayout(preservePrevious: true);
     if (documentIdChanged) {
       _clearImages();
+      _semanticsChildNodes.clear();
     }
   }
 
@@ -268,6 +292,15 @@ class RenderWeftSurface extends RenderBox {
     if (_selection == value) return;
     _selection = value;
     markNeedsPaint();
+    markNeedsSemanticsUpdate();
+  }
+
+  ValueChanged<WeftLinkRegion>? get onSemanticsLinkTap => _onSemanticsLinkTap;
+
+  set onSemanticsLinkTap(ValueChanged<WeftLinkRegion>? value) {
+    if (identical(_onSemanticsLinkTap, value)) return;
+    _onSemanticsLinkTap = value;
+    markNeedsSemanticsUpdate();
   }
 
   TextScaler get textScaler => _textScaler;
@@ -409,6 +442,108 @@ class RenderWeftSurface extends RenderBox {
     _layout = current;
     previous?.dispose();
     size = constraints.constrain(Size(width, current.size.height));
+  }
+
+  @override
+  void describeSemanticsConfiguration(SemanticsConfiguration config) {
+    super.describeSemanticsConfiguration(config);
+    config
+      ..isSemanticBoundary = true
+      ..explicitChildNodes = true;
+  }
+
+  @override
+  void assembleSemanticsNode(
+    SemanticsNode node,
+    SemanticsConfiguration config,
+    Iterable<SemanticsNode> children,
+  ) {
+    final layout = _layout;
+    final fragments = <_WeftSemanticFragment>[];
+    if (layout != null) {
+      if (!identical(_semanticsFragmentsLayout, layout)) {
+        _semanticsFragmentsLayout = layout;
+        _semanticsFragments = _buildContentSemantics(
+          document: _document,
+          layout: layout,
+          bounds: Offset.zero & size,
+        );
+      }
+      fragments.addAll(_semanticsFragments);
+      final selection = _selection;
+      if (selection != null && !selection.isCollapsed) {
+        final text = layout.selectionText(selection);
+        final rect = _clippedSemanticsRect(
+          _unionRects(_selectionRectsFor(layout, selection)),
+          Offset.zero & size,
+        );
+        if (text != null && text.isNotEmpty && rect != null) {
+          fragments.add(
+            _WeftSemanticFragment(
+              key: const ValueKey<String>('weft-selection'),
+              rect: rect,
+              value: text,
+              isSelected: true,
+            ),
+          );
+        }
+      }
+    }
+
+    final nextCache = <Key, SemanticsNode>{};
+    final nextChildren = <SemanticsNode>[];
+    for (var i = 0; i < fragments.length; i++) {
+      final fragment = fragments[i];
+      final child = _semanticsChildNodes[fragment.key] ??
+          SemanticsNode(
+            key: fragment.key,
+            showOnScreen: _createSemanticsShowOnScreen(fragment.key),
+          );
+      final childConfig = SemanticsConfiguration()
+        ..sortKey = OrdinalSortKey(i.toDouble())
+        ..textDirection = TextDirection.ltr
+        ..label = fragment.label
+        ..value = fragment.value
+        ..isImage = fragment.isImage
+        ..isSelected = fragment.isSelected
+        ..isLink = fragment.link != null;
+      final link = fragment.link;
+      if (link != null && _onSemanticsLinkTap != null) {
+        childConfig.onTap = () => _onSemanticsLinkTap?.call(link);
+      }
+      final parentClip = node.parentPaintClipRect;
+      if (parentClip != null) {
+        childConfig.isHidden = parentClip.intersect(fragment.rect).isEmpty &&
+            !fragment.rect.isEmpty;
+      }
+      child
+        ..updateWith(config: childConfig)
+        ..rect = fragment.rect;
+      nextCache[fragment.key] = child;
+      nextChildren.add(child);
+    }
+    _semanticsChildNodes = nextCache;
+    node.updateWith(
+      config: config,
+      childrenInInversePaintOrder: nextChildren,
+    );
+  }
+
+  VoidCallback _createSemanticsShowOnScreen(Key key) {
+    return () {
+      if (!attached) return;
+      final node = _semanticsChildNodes[key];
+      if (node == null) return;
+      showOnScreen(descendant: this, rect: node.rect);
+    };
+  }
+
+  @override
+  void clearSemantics() {
+    super.clearSemantics();
+    _semanticsFragmentsLayout = null;
+    _semanticsFragments = const <_WeftSemanticFragment>[];
+    _semanticsChildNodes.clear();
   }
 
   void _syncImages() {
@@ -853,6 +988,169 @@ class RenderWeftSurface extends RenderBox {
     _clearImages();
     super.dispose();
   }
+}
+
+final class _WeftSemanticFragment {
+  const _WeftSemanticFragment({
+    required this.key,
+    required this.rect,
+    this.label = '',
+    this.value = '',
+    this.isImage = false,
+    this.isSelected = false,
+    this.link,
+    this.globalStart,
+    this.globalEnd,
+  });
+
+  final Key key;
+  final ui.Rect rect;
+  final String label;
+  final String value;
+  final bool isImage;
+  final bool isSelected;
+  final WeftLinkRegion? link;
+  final int? globalStart;
+  final int? globalEnd;
+}
+
+List<_WeftSemanticFragment> _buildContentSemantics({
+  required WeftDocumentSnapshot document,
+  required WeftLayoutResult layout,
+  required ui.Rect bounds,
+}) {
+  final textIndex = layout.textIndex;
+  final body = document.body;
+  if (textIndex == null || body == null) return const [];
+  final links = <int, WeftLinkRegion>{
+    for (final link in layout.links) link.nodeId: link,
+  };
+  final images = <int, WeftImagePaintCommand>{
+    for (final command in layout.commands.whereType<WeftImagePaintCommand>())
+      command.nodeId: command,
+  };
+  final fragments = <_WeftSemanticFragment>[];
+
+  void addText(
+    int nodeId,
+    String text,
+    WeftLinkRegion? link, {
+    int? entryGlobalStart,
+  }) {
+    var start = 0;
+    for (var i = 0; i <= text.length; i++) {
+      if (i < text.length && text.codeUnitAt(i) != 0x0A) continue;
+      if (i > start) {
+        final rect = _clippedSemanticsRect(
+          _unionRects(layout.textRectsForNode(nodeId, start, i)),
+          bounds,
+        );
+        if (rect != null) {
+          final globalStart =
+              entryGlobalStart == null ? null : entryGlobalStart + start;
+          final globalEnd =
+              entryGlobalStart == null ? null : entryGlobalStart + i;
+          final key = ValueKey<String>(
+            '${link == null ? 'text' : 'link-${link.nodeId}'}:$nodeId:$start',
+          );
+          final previous = fragments.isEmpty ? null : fragments.last;
+          final canMerge = previous != null &&
+              !previous.isImage &&
+              !previous.isSelected &&
+              previous.link?.nodeId == link?.nodeId &&
+              previous.globalEnd != null &&
+              previous.globalEnd == globalStart;
+          if (canMerge) {
+            fragments[fragments.length - 1] = _WeftSemanticFragment(
+              key: previous.key,
+              rect: previous.rect.expandToInclude(rect),
+              label: previous.label + text.substring(start, i),
+              link: previous.link,
+              globalStart: previous.globalStart,
+              globalEnd: globalEnd,
+            );
+          } else {
+            fragments.add(
+              _WeftSemanticFragment(
+                key: key,
+                rect: rect,
+                label: text.substring(start, i),
+                link: link,
+                globalStart: globalStart,
+                globalEnd: globalEnd,
+              ),
+            );
+          }
+        }
+      }
+      start = i + 1;
+    }
+  }
+
+  void visit(WeftNode node, WeftLinkRegion? currentLink) {
+    if (node is WeftText) {
+      final entry = textIndex.entryByNode[node.id];
+      if (entry != null) {
+        addText(
+          node.id,
+          entry.text,
+          currentLink,
+          entryGlobalStart: entry.globalStart,
+        );
+      }
+      return;
+    }
+    if (node is! WeftElement) return;
+    if (node.tag == 'img') {
+      final image = images[node.id];
+      final alt = node.attribute('alt')?.trim() ?? '';
+      if (image != null) {
+        final rect = _clippedSemanticsRect(image.destination, bounds);
+        if (alt.isNotEmpty && rect != null) {
+          fragments.add(
+            _WeftSemanticFragment(
+              key: ValueKey<String>('image:${node.id}'),
+              rect: rect,
+              label: alt,
+              isImage: true,
+            ),
+          );
+        }
+      } else if (alt.isNotEmpty) {
+        addText(node.id, alt, currentLink);
+      }
+      return;
+    }
+    final link = node.tag == 'a' ? links[node.id] : currentLink;
+    for (final child in node.children) {
+      visit(child, link);
+    }
+  }
+
+  for (final child in body.children) {
+    visit(child, null);
+  }
+  return fragments;
+}
+
+ui.Rect? _unionRects(Iterable<ui.Rect> rects) {
+  ui.Rect? result;
+  for (final rect in rects) {
+    if (!rect.isFinite || rect.isEmpty) continue;
+    result = result == null ? rect : result.expandToInclude(rect);
+  }
+  return result;
+}
+
+ui.Rect? _clippedSemanticsRect(ui.Rect? rect, ui.Rect bounds) {
+  if (rect == null ||
+      !rect.isFinite ||
+      rect.isEmpty ||
+      !rect.overlaps(bounds)) {
+    return null;
+  }
+  final clipped = rect.intersect(bounds);
+  return clipped.isEmpty ? null : clipped;
 }
 
 final class _ResolvedImage {

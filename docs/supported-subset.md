@@ -100,7 +100,27 @@
 - 引擎不写剪贴板；复制动作由 weft 视图层执行，策略归宿主。
 - 把手与复制按钮是 `WeftView` 的 overlay；单独使用 `WeftSurface` 时只有 caret，`selectionControlsGeometry()` 仍可查询供宿主自组 chrome。
 - overlay 位置滞后真实布局一帧（post-frame 同步补齐）；极短文档中复制按钮可能与文本重叠。
-- 无选择工具条（全选/分享等菜单项）、无 chrome 动画与可访问性语义；字素簇边界未处理。
+- 无选择工具条（全选/分享等菜单项）、无 chrome 动画；字素簇边界和辅助技术调整选区动作未处理。
+
+## 可访问性语义
+
+当前能力（ADR 0024）：
+
+- `RenderWeftSurface` 手动暴露阅读顺序文本、链接、图片和非折叠选区；普通文本不与子链接重复朗读，链接支持宿主 Semantics tap，已解析图片使用 alt，空 alt 作为装饰跳过。
+- 选区提供 value/selected/rect，复制仍使用现有按钮；同 document.id 的流式追加保留未变 SemanticsNode.id，屏外内容保留并支持 showOnScreen 滚动。
+- 宿主可用 `ExcludeSemantics` 排除表面；`WeftSurface.onSemanticsLinkTap` 默认回退到 `onLinkTap`，WeftView 自动接入同一宿主回调。
+
+边界与限制：尚无 heading/table/list 角色导航、可编辑 setSelection/copy/caret 动作、逐文本节点 selected state、RTL/语言属性、live region 或语义虚拟化。已解析图片位于链接内时不额外提供 tap，与当前 pointer 命中能力一致。
+
+## 流式增量布局
+
+当前能力（ADR 0023）：
+
+- 同一 document 的连续快照可复用无 Float 的 body 顶层公共前缀块及其 TextPainter；完整尾部追加与最后一个顶层块持续增长都只重排变化后缀。
+- 复用仍经过原块流的 margin collapse、列表计数和 cursor 计算；普通块、表格和块级图片以整个顶层块为单位，连续多轮快照可持续命中。
+- 几何与命令实例完全未变的前缀 chunk 保留 ui.Picture；同 id/src 的已解析图片跨快照保留。文本索引每轮重建，命中索引随新快照更新。
+
+边界与限制：样式表、宽度、textScaler、换行规则或图片输入变化会全量回退；旧结果含 Float、body 直属 loose inline/text、空块折叠或未解析图片时不作为复用来源。尚不支持 Float checkpoint、后缀平移、行级复用和布局级视口虚拟化。
 
 ## 当前明确限制
 

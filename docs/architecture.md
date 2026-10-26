@@ -45,7 +45,7 @@ flowchart TB
 
 当前复用 Dart `html`、`csslib` 的解析能力，但仅存在于适配层。内部节点使用稳定 `NodeId`，生成不可变 `WeftElement`/`WeftText` 树和结构化 `WeftStyleSheet`，外部不暴露完整 DOM。
 
-阶段 1A 已实现规范化、节点树、结构化 CSS、计算样式和基础静态布局。当前尚未引入独立盒树与 Fragment 层；布局直接遍历不可变节点并生成绘制命令。图片 Float 已在该直接布局内通过共享排除区和逐行文本测量交付（见 ADR 0011），但表格、增量失效和完整格式化上下文仍需要独立 Fragment 结构。分块 `ui.Picture`、命中索引和语义树仍未实现。
+阶段 1A 已实现规范化、节点树、结构化 CSS、计算样式和基础静态布局。当前尚未引入独立盒树与通用 Fragment 层；布局直接遍历不可变节点并生成绘制命令。图片 Float 通过共享排除区和逐行文本测量交付（ADR 0011），表格采用整体两遍布局；流式追加会缓存 body 顶层块输出并复用未变前缀（ADR 0023），但不等同于通用 Fragment 树。分块 `ui.Picture`、命中索引和单表面 Semantics 树均已实现（ADR 0024）。
 
 ## 4. 布局与渲染
 
@@ -56,7 +56,7 @@ flowchart TB
 - CJK 使用 Unicode 断行候选叠加可配置禁则表。
 - `TextShaper` 隔离 Flutter 文本整形能力，最终行按实际断点整形。
 - 单一 `RenderWeftSurface` 负责绘制、命中、选择和语义，不逐节点创建 Widget。
-- 后续按块缓存 `ui.Picture`，仅绘制可见块；选择覆盖层独立重绘。
+- 按 body 顶层块缓存 `ui.Picture`，仅绘制可见块；流式追加保留命令实例与几何均未变的前缀 Picture，选择覆盖层独立重绘。
 
 阶段 1A 的 `RenderWeftSurface` 已执行真实布局与绘制：
 
@@ -64,6 +64,7 @@ flowchart TB
 - 行内内容由跨样式文本片段组成，经 `TextPainter` 完成空白折叠、换行、对齐和多行绘制；行高按 CSS 半行距分配（`TextLeadingDistribution.even`），固定字体下与 Chromium 的块级几何误差小于 0.5px。
 - 列表标记单独绘制，不进入正文选择文本。
 - 链接显示文本在布局后按字符范围查询行盒，生成跨行命中矩形；命中由单一表面解析，宿主通过 `onLinkTap` 决定导航。
+- `RenderWeftSurface` 手动组装 SemanticsNode：文档树与文本索引提供阅读顺序，布局命令提供矩形，链接动作与选区更新走同一宿主通路；屏外节点不参与绘制视口裁剪（ADR 0024）。
 - 图片是块级替换元素：由 `WeftImageResolver` 提供 `ImageProvider`，`RenderWeftSurface` 监听解码结果并在完成后触发布局失效；布局只接收已解码的 `ui.Image`。
 - Float 使用共享的 `_FloatContext` 保存排除矩形。每个行盒按当前 `y` 查询左右可用边界，空间不足时下移到最近浮动底部；`clear` 将后续块级元素推到对应浮动下方。
 - Float 环绕走逐行分行路径，每行单独生成 `TextPainter` 和链接矩形；无浮动内容仍使用整段文本布局，避免改变已验收的静态路径。

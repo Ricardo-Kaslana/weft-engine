@@ -356,6 +356,7 @@ class WeftViewState extends State<WeftView> {
           selection: widget.controller.selection,
           textScaler: textScaler,
           imageResolver: widget.imageResolver,
+          onSemanticsLinkTap: widget.onLinkTap,
           showSelectionHandles: widget.showSelectionHandles,
           showCaret: widget.showCaret,
           showCopyButton: widget.showCopyButton,

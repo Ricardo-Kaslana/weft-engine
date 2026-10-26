@@ -63,6 +63,10 @@ CJK 结构化布局已有测试，但尚无固定 CJK 字体，因此不提交�
 - 宽度变化、图片晚加载和文档更新后的重映射。
 - 快速滚动、自动滚动和销毁过程中的取消安全。
 
+## 可访问性语义测试
+
+`weft_surface_semantics_test.dart` 与 `weft_view_semantics_test.dart` 使用真实 `SemanticsOwner` 和公开 `find.semantics`/`containsSemantics` API，覆盖阅读顺序、文本不重复、链接 tap、图片 alt、选区更新、流式节点身份、ExcludeSemantics 和屏外 `showOnScreen` 滚动。测试必须显式 dispose `tester.ensureSemantics()` 返回的 handle；不依赖 Flutter SDK 内部 SemanticsTester，也不对无关祖先结构做全树 golden。
+
 ## 性能测量
 
 基线必须是功能等价的“标签→Widget”实现，使用同设备、同文档、同字体和同本地资源。分别记录解析、样式、布局、首次绘制和滚动，不以单一总耗时隐藏回退。
@@ -71,7 +75,7 @@ CJK 结构化布局已有测试，但尚无固定 CJK 字体，因此不提交�
 
 ## 性能门禁
 
-`test/perf_gate_test.dart` 为四个固定场景提供 CI 稳定的宽松性能门禁,防止 10 倍级回归;精确数字由 `tool/layout_benchmark_test.dart` 在本机打印(每场景预热 1 次、测量 5 次取中位数,并给出最近邻秩 P95)。运行方式:
+`test/perf_gate_test.dart` 为固定场景提供 CI 稳定的宽松性能门禁,防止 10 倍级回归;精确数字由 `tool/layout_benchmark_test.dart` 在本机打印(每场景预热 1 次、测量 5 次取中位数,并给出最近邻秩 P95)。运行方式:
 
 ```bash
 cd packages/weft_engine
@@ -81,7 +85,9 @@ flutter test test/perf_gate_test.dart --no-pub --timeout 120s     # CI 门禁
 
 | 场景 | 内容(宽度 360) | 实测中位数(Windows 开发机,2026-10) | 门禁上限 |
 |---|---|---|---|
-| article300 | 300 段中英混排文章,每 10 段一个标题,段内含强调与链接 | ~52–56 ms | 600 ms |
+| article300 | 300 段中英混排文章,每 10 段一个标题,段内含强调与链接 | ~42–56 ms | 600 ms |
+| appendArticle300Full | article300 尾部追加第 301 段,不使用 previous,永久保留全量对照 | 改前 ~37.3 ms;改后同轮 ~31.8 ms | 500 ms |
+| appendArticle300Incremental | 同一追加场景,旧 300 段布局在计时前准备,计时内复用前缀并释放旧/新结果 | ~6.7 ms | 500 ms |
 | table48 | 48 行 × 6 列表格,collapse 边框、padding,每 7 行一个 rowspan=2、每 5 行一个 colspan=2 | ~26–28 ms | 500 ms |
 | floatWrap | 10 组左浮动 120×96 假图(`ui.PictureRecorder` 生成)+ 长 CJK 段落逐行环绕 | ~6–9 ms | 500 ms |
 | selection300 | 在 article300 布局结果上取跨 10 段(第 100–110 段)的选区,调用 `selectionRects` | ~0.7–0.9 ms | 500 ms |
@@ -106,6 +112,8 @@ flutter test test/perf_gate_test.dart --no-pub --timeout 120s     # CI 门禁
 分块渲染(ADR 0017)按此方法落地:paintArticle300Direct 直绘全部命令,是分块前 paint 的基线场景,永久保留;paintArticle300Full/Window 走 `RenderWeftSurface.debugPaintChunks` 生产路径(基准与门禁均以预热建好 Picture 缓存后的稳态绘制为测量对象)。分块只允许改变执行方式,不允许改变输出:块绘制与直绘的逐字节像素等价由 `test/chunked_rendering_test.dart` 固化,黄金基线不因分块调整。
 
 命中裁剪(ADR 0020)按同一方法落地:hitAnchor*/hitLinkArticle 的计时体恰为一次 `anchorAt`/`linkAt` 调用,基准与门禁均以预热建好命中索引后的稳态解析为测量对象。裁剪只允许改变执行方式,不允许改变结果:裁剪路径与全量扫描的逐点一致(含块间隙空点、chrome 散落文本、负 margin 跨块重叠)由 `test/hit_culling_test.dart` 固化。
+
+流式增量布局(ADR 0023)保留 appendArticle300Full 作为永久全量对照;Incremental 的旧 300 段布局在计时外准备,每次运行使用独立 previous,避免所有权转移后重复消费。`test/incremental_layout_test.dart` 固化连续快照、尾段增长、失效回退、dispose 生命周期及与全量结果的几何/命中/选区/像素等价;`test/chunked_rendering_test.dart` 另行断言未变前缀 Picture 不重录。
 
 ## Runtime 安全测试
 

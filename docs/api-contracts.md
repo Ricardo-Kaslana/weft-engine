@@ -37,7 +37,7 @@ const WeftDocumentSnapshot({
 
 `WeftView` 监听控制器。支持内容进入垂直滚动容器和 `WeftSurface`；不支持内容必须调用 `fallbackBuilder`，未提供时抛出明确 Flutter 错误。
 
-`WeftView.onLinkTap` 接收命中的 `WeftLinkRegion`，负责把经过清洗的链接交还宿主。引擎不自行打开 URL、启动外部应用或执行导航。当前仅启用点击手势；拖动滚动和未来选择手势由 Flutter 手势竞技场协调。
+`WeftView.onLinkTap` 接收命中的 `WeftLinkRegion`，负责把经过清洗的链接交还宿主；pointer 与 Semantics tap 都走这一回调，各由单一入口触发。引擎不自行打开 URL、启动外部应用或执行导航。独立使用 `WeftSurface` 时，`onSemanticsLinkTap` 默认回退到 `onLinkTap`；同时提供两个回调时分别服务辅助技术与 pointer。
 
 `WeftView.imageResolver` / `WeftSurface.imageResolver` 接收受控图片请求：
 
@@ -93,7 +93,7 @@ final layout = const WeftLayoutEngine().layout(
 
 布局结果拥有 `TextPainter`，调用方必须 `dispose()`。`RenderWeftSurface` 在重新布局和销毁时负责释放旧结果，缓存当前链接区域供点击测试使用，并管理图片 `ImageInfo` 的监听与释放。
 
-当前布局仍是直接、全量的 Block/Inline 叠放，尚未提供 Fragment 行盒、表格或选择区域。Float 只覆盖图片，使用共享排除区和逐行文本布局；链接命中覆盖字形行盒，不包含行间空白。
+布局直接执行 Block/Inline/Table 流，没有通用 Fragment 行盒树；ADR 0023 可复用 body 顶层前缀块，ADR 0024 从文档与布局结果派生 Semantics。Float 只覆盖图片，使用共享排除区和逐行文本布局；链接命中覆盖字形行盒，不包含行间空白。
 
 ## 已建立：Runtime
 
