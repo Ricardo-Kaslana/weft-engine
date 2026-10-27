@@ -1,0 +1,489 @@
+{
+  "id": "case_table_basic",
+  "source": "conformance/cases/table_basic.html",
+  "normalizer": {
+    "customTags": []
+  },
+  "snapshot": {
+    "id": "vector-case_table_basic",
+    "revision": 1
+  },
+  "input": "<style>\n  body { font-family: \"WeftRoboto\"; }\n  table { border-collapse: collapse; }\n  td, th { border: 1px solid #d0d7de; padding: 6px 10px; vertical-align: top; }\n  th { font-weight: 700; text-align: left; }\n  table.separate { border-collapse: separate; border-spacing: 4px; }\n  td.mid { vertical-align: middle; }\n</style>\n<h2 data-geo=\"title\">Table geometry baseline</h2>\n<table data-geo=\"t1\">\n  <caption data-geo=\"cap\">Quarterly summary</caption>\n  <thead>\n    <tr><th data-geo=\"h1\">Region</th><th data-geo=\"h2\">Units</th><th data-geo=\"h3\">Revenue</th></tr>\n  </thead>\n  <tbody>\n    <tr><td data-geo=\"r1\">North</td><td data-geo=\"u1\">1,240</td><td data-geo=\"v1\">48,200</td></tr>\n    <tr><td data-geo=\"r2\" colspan=\"2\">South and East merged</td><td data-geo=\"v2\">31,900</td></tr>\n    <tr><td data-geo=\"r3\">West</td><td data-geo=\"u3\" rowspan=\"2\">2,410</td><td data-geo=\"v3\">52,750</td></tr>\n    <tr><td data-geo=\"r4\">Coastal</td><td data-geo=\"v4\">19,300</td></tr>\n  </tbody>\n</table>\n<p data-geo=\"after\">Paragraph after the collapsed table.</p>\n<table class=\"separate\" data-geo=\"t2\">\n  <tr><td data-geo=\"s1\" class=\"mid\" style=\"width: 260px\">alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima mike november oscar</td><td data-geo=\"s2\">Short</td></tr>\n</table>\n<p data-geo=\"tail\">Tail paragraph closing the case.</p>\n",
+  "expected": {
+    "format": "weft.document",
+    "version": 1,
+    "id": "vector-case_table_basic",
+    "revision": 1,
+    "normalizedHtml": "<h2>Table geometry baseline</h2>\n<table>\n  <caption>Quarterly summary</caption>\n  <thead>\n    <tr><th>Region</th><th>Units</th><th>Revenue</th></tr>\n  </thead>\n  <tbody>\n    <tr><td>North</td><td>1,240</td><td>48,200</td></tr>\n    <tr><td colspan=\"2\">South and East merged</td><td>31,900</td></tr>\n    <tr><td>West</td><td rowspan=\"2\">2,410</td><td>52,750</td></tr>\n    <tr><td>Coastal</td><td>19,300</td></tr>\n  </tbody>\n</table>\n<p>Paragraph after the collapsed table.</p>\n<table class=\"separate\">\n  <tbody><tr><td class=\"mid\" style=\"width: 260px\">alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima mike november oscar</td><td>Short</td></tr>\n</tbody></table>\n<p>Tail paragraph closing the case.</p>\n",
+    "supportReport": {
+      "issues": [
+        {
+          "code": "html.parse.warning",
+          "message": "Unexpected start tag (style). Expected DOCTYPE.",
+          "severity": "warning",
+          "requiresWebView": false
+        }
+      ]
+    },
+    "body": {
+      "id": 0,
+      "tag": "body",
+      "children": [
+        {
+          "id": 1,
+          "tag": "h2",
+          "children": [
+            {
+              "id": 2,
+              "text": "Table geometry baseline"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "text": "\n"
+        },
+        {
+          "id": 4,
+          "tag": "table",
+          "children": [
+            {
+              "id": 5,
+              "text": "\n  "
+            },
+            {
+              "id": 6,
+              "tag": "caption",
+              "children": [
+                {
+                  "id": 7,
+                  "text": "Quarterly summary"
+                }
+              ]
+            },
+            {
+              "id": 8,
+              "text": "\n  "
+            },
+            {
+              "id": 9,
+              "tag": "thead",
+              "children": [
+                {
+                  "id": 10,
+                  "text": "\n    "
+                },
+                {
+                  "id": 11,
+                  "tag": "tr",
+                  "children": [
+                    {
+                      "id": 12,
+                      "tag": "th",
+                      "children": [
+                        {
+                          "id": 13,
+                          "text": "Region"
+                        }
+                      ]
+                    },
+                    {
+                      "id": 14,
+                      "tag": "th",
+                      "children": [
+                        {
+                          "id": 15,
+                          "text": "Units"
+                        }
+                      ]
+                    },
+                    {
+                      "id": 16,
+                      "tag": "th",
+                      "children": [
+                        {
+                          "id": 17,
+                          "text": "Revenue"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": 18,
+                  "text": "\n  "
+                }
+              ]
+            },
+            {
+              "id": 19,
+              "text": "\n  "
+            },
+            {
+              "id": 20,
+              "tag": "tbody",
+              "children": [
+                {
+                  "id": 21,
+                  "text": "\n    "
+                },
+                {
+                  "id": 22,
+                  "tag": "tr",
+                  "children": [
+                    {
+                      "id": 23,
+                      "tag": "td",
+                      "children": [
+                        {
+                          "id": 24,
+                          "text": "North"
+                        }
+                      ]
+                    },
+                    {
+                      "id": 25,
+                      "tag": "td",
+                      "children": [
+                        {
+                          "id": 26,
+                          "text": "1,240"
+                        }
+                      ]
+                    },
+                    {
+                      "id": 27,
+                      "tag": "td",
+                      "children": [
+                        {
+                          "id": 28,
+                          "text": "48,200"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": 29,
+                  "text": "\n    "
+                },
+                {
+                  "id": 30,
+                  "tag": "tr",
+                  "children": [
+                    {
+                      "id": 31,
+                      "tag": "td",
+                      "attributes": {
+                        "colspan": "2"
+                      },
+                      "children": [
+                        {
+                          "id": 32,
+                          "text": "South and East merged"
+                        }
+                      ]
+                    },
+                    {
+                      "id": 33,
+                      "tag": "td",
+                      "children": [
+                        {
+                          "id": 34,
+                          "text": "31,900"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": 35,
+                  "text": "\n    "
+                },
+                {
+                  "id": 36,
+                  "tag": "tr",
+                  "children": [
+                    {
+                      "id": 37,
+                      "tag": "td",
+                      "children": [
+                        {
+                          "id": 38,
+                          "text": "West"
+                        }
+                      ]
+                    },
+                    {
+                      "id": 39,
+                      "tag": "td",
+                      "attributes": {
+                        "rowspan": "2"
+                      },
+                      "children": [
+                        {
+                          "id": 40,
+                          "text": "2,410"
+                        }
+                      ]
+                    },
+                    {
+                      "id": 41,
+                      "tag": "td",
+                      "children": [
+                        {
+                          "id": 42,
+                          "text": "52,750"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": 43,
+                  "text": "\n    "
+                },
+                {
+                  "id": 44,
+                  "tag": "tr",
+                  "children": [
+                    {
+                      "id": 45,
+                      "tag": "td",
+                      "children": [
+                        {
+                          "id": 46,
+                          "text": "Coastal"
+                        }
+                      ]
+                    },
+                    {
+                      "id": 47,
+                      "tag": "td",
+                      "children": [
+                        {
+                          "id": 48,
+                          "text": "19,300"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": 49,
+                  "text": "\n  "
+                }
+              ]
+            },
+            {
+              "id": 50,
+              "text": "\n"
+            }
+          ]
+        },
+        {
+          "id": 51,
+          "text": "\n"
+        },
+        {
+          "id": 52,
+          "tag": "p",
+          "children": [
+            {
+              "id": 53,
+              "text": "Paragraph after the collapsed table."
+            }
+          ]
+        },
+        {
+          "id": 54,
+          "text": "\n"
+        },
+        {
+          "id": 55,
+          "tag": "table",
+          "attributes": {
+            "class": "separate"
+          },
+          "children": [
+            {
+              "id": 56,
+              "text": "\n  "
+            },
+            {
+              "id": 57,
+              "tag": "tbody",
+              "children": [
+                {
+                  "id": 58,
+                  "tag": "tr",
+                  "children": [
+                    {
+                      "id": 59,
+                      "tag": "td",
+                      "attributes": {
+                        "class": "mid"
+                      },
+                      "style": {
+                        "width": "260px"
+                      },
+                      "children": [
+                        {
+                          "id": 60,
+                          "text": "alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima mike november oscar"
+                        }
+                      ]
+                    },
+                    {
+                      "id": 61,
+                      "tag": "td",
+                      "children": [
+                        {
+                          "id": 62,
+                          "text": "Short"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": 63,
+                  "text": "\n"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": 64,
+          "text": "\n"
+        },
+        {
+          "id": 65,
+          "tag": "p",
+          "children": [
+            {
+              "id": 66,
+              "text": "Tail paragraph closing the case."
+            }
+          ]
+        },
+        {
+          "id": 67,
+          "text": "\n"
+        }
+      ]
+    },
+    "styleSheet": {
+      "rules": [
+        {
+          "selectors": [
+            {
+              "parts": [
+                {
+                  "tag": "body"
+                }
+              ]
+            }
+          ],
+          "declarations": {
+            "font-family": "\"WeftRoboto\""
+          },
+          "order": 0
+        },
+        {
+          "selectors": [
+            {
+              "parts": [
+                {
+                  "tag": "table"
+                }
+              ]
+            }
+          ],
+          "declarations": {
+            "border-collapse": "collapse"
+          },
+          "order": 1
+        },
+        {
+          "selectors": [
+            {
+              "parts": [
+                {
+                  "tag": "td"
+                }
+              ]
+            },
+            {
+              "parts": [
+                {
+                  "tag": "th"
+                }
+              ]
+            }
+          ],
+          "declarations": {
+            "border": "1px solid #d0d7de",
+            "padding": "6px 10px",
+            "vertical-align": "top"
+          },
+          "order": 2
+        },
+        {
+          "selectors": [
+            {
+              "parts": [
+                {
+                  "tag": "th"
+                }
+              ]
+            }
+          ],
+          "declarations": {
+            "font-weight": "700",
+            "text-align": "left"
+          },
+          "order": 3
+        },
+        {
+          "selectors": [
+            {
+              "parts": [
+                {
+                  "tag": "table",
+                  "classes": [
+                    "separate"
+                  ]
+                }
+              ]
+            }
+          ],
+          "declarations": {
+            "border-collapse": "separate",
+            "border-spacing": "4px"
+          },
+          "order": 4
+        },
+        {
+          "selectors": [
+            {
+              "parts": [
+                {
+                  "tag": "td",
+                  "classes": [
+                    "mid"
+                  ]
+                }
+              ]
+            }
+          ],
+          "declarations": {
+            "vertical-align": "middle"
+          },
+          "order": 5
+        }
+      ]
+    }
+  }
+}

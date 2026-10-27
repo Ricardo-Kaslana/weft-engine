@@ -175,3 +175,8 @@
 ## 不支持输入处理
 
 未知标签按策略选择 drop、unwrap 或 error。非关键 CSS 可丢弃并警告；Canvas、WebGL、需要完整 DOM 的交互、表格和未接入资源策略的图片必须在有能力渲染前设置 `requiresWebView`。任何策略都不得无诊断地静默改变内容语义。
+
+## WebView 回退（阶段 5，ADR 0034）
+
+- `SupportReport.requiresWebView` 时宿主把**原始 HTML** 交给自己的 WebView（或专用库）；`WeftView.fallbackBuilder` 是接入点，`example/weft_fallback` 给出可运行演示：`decideWeftFallback` 三路决策（原生渲染 / requiresWebView → 宿主 WebView / 其余错误 → 诊断卡片），`webview_flutter` 只出现在示例包。
+- 快照 JSON 线格式（`WeftDocumentJson`）带 format+version 门禁：宿主钉回旧版本引擎时，新版本快照被显式拒绝而不是静默误读；版本策略与回滚演练见 `docs/release-runbook.md`。

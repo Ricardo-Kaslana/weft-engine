@@ -14,7 +14,14 @@ import 'text_index.dart';
 part 'inline_flow.part.dart';
 part 'table_layout.part.dart';
 
+/// Lays out a normalized document snapshot into paint commands, boxes and
+/// link/tag regions.
+///
+/// The engine is immutable and stateless: all inputs come from the arguments
+/// and all outputs are returned in a [WeftLayoutResult]. Prefer [layout] for
+/// full-document layouts and [layoutViewport] for progressive lazy layout.
 final class WeftLayoutEngine {
+  /// Creates an engine with the given custom tag renderers.
   const WeftLayoutEngine(
       {this.tagRenderers = const <String, WeftTagRenderer>{}});
 
@@ -44,6 +51,14 @@ final class WeftLayoutEngine {
     );
   }
 
+  /// Lays out only the blocks intersecting the viewport extent, for hosts
+  /// that drive progressive lazy layout themselves.
+  ///
+  /// Blocks fully outside `[viewportStart, viewportEnd)` are estimated rather
+  /// than laid out, so the result's total height is approximate until the
+  /// host scrolls them into view and lays them out. Pass [focusNodeId] when
+  /// jumping to an anchor so its block is always laid out, and [maxNewBlocks]
+  /// to bound the synchronous work per call.
   WeftLayoutResult layoutViewport(
     WeftDocumentSnapshot document, {
     required double width,
@@ -472,14 +487,31 @@ final class _LayoutContext {
     }
   }
 
+  /// Resolves computed styles for the walk.
   final WeftStyleResolver styleResolver;
+
+  /// Text scaling applied to every shaped text run.
   final TextScaler textScaler;
+
+  /// Decoded images keyed by node id, provided by the host.
   final Map<int, ui.Image> images;
+
+  /// Root element the block walk starts from.
   final WeftElement body;
+
+  /// Reusable top-level blocks carried over from the previous result.
   final Map<int, WeftCachedLayoutBlock> reusableBlocks;
+
+  /// Viewport top in document coordinates; null disables lazy layout.
   final double? viewportStart;
+
+  /// Viewport bottom in document coordinates; null disables lazy layout.
   final double? viewportEnd;
+
+  /// Ordinal of the focus block that must be laid out even when offscreen.
   final int? focusOrdinal;
+
+  /// Cap on how many new blocks one lazy pass may lay out.
   final int? maxNewBlocks;
 
   /// Kinsoku tables applied by the line-by-line inline layout path.
@@ -493,19 +525,49 @@ final class _LayoutContext {
 
   /// Renderers for custom tags, resolved once against the snapshot.
   final Map<String, WeftTagRenderer> tagRenderers;
+
+  /// Boxes accumulated by the walk, in paint order.
   final List<WeftLayoutBox> boxes = <WeftLayoutBox>[];
+
+  /// Paint commands accumulated by the walk, in paint order.
   final List<WeftPaintCommand> commands = <WeftPaintCommand>[];
+
+  /// Link hit regions accumulated by the walk.
   final List<WeftLinkRegion> links = <WeftLinkRegion>[];
+
+  /// Custom tag hit regions accumulated by the walk.
   final List<WeftTagRegion> tagRegions = <WeftTagRegion>[];
+
+  /// Cached top-level blocks emitted by this pass, seeded into the next
+  /// incremental layout's [WeftIncrementalLayoutCache].
   final List<WeftCachedLayoutBlock> topLevelBlocks = <WeftCachedLayoutBlock>[];
+
+  /// Commands this pass copied from reused blocks; transferred back to the
+  /// previous result on dispose so its painters stay alive.
   final Set<WeftPaintCommand> reusedCommands = <WeftPaintCommand>{};
+
+  /// Whether top-level blocks may be cached for reuse by the next pass;
+  /// cleared when a construct (float, margin collapse) makes reuse unsound.
   bool topLevelCacheEligible = true;
+
+  /// Set when a block's reused position no longer matches, which invalidates
+  /// positional reuse for every later top-level block.
   bool reuseStopped = false;
+
+  /// Debug counter of blocks copied from the previous result.
   int reusedBlockCount = 0;
+
+  /// Debug counter of blocks laid out fresh in this pass.
   int laidOutBlockCount = 0;
+
+  /// Debug counter of reused blocks materialized into paint commands.
   int materializedBlockCount = 0;
+
+  /// Rolling per-tag height samples (most recent 16) used to estimate the
+  /// height of blocks the lazy path skips.
   final Map<String, List<double>> heightSamples = <String, List<double>>{};
 
+  /// Whether this pass is bounded to a viewport extent.
   bool get isLazy => viewportStart != null && viewportEnd != null;
 
   /// Resolves [element]'s computed style through [styleCache]. An element has
@@ -2052,8 +2114,15 @@ final class _ImageBoxMetrics {
     required this.contentHeight,
   });
 
+  /// Border-box width of the image element.
   final double boxWidth;
+
+  /// Border-box height of the image element.
   final double boxHeight;
+
+  /// Content-box width available to the image itself.
   final double contentWidth;
+
+  /// Content-box height the image is sized into.
   final double contentHeight;
 }

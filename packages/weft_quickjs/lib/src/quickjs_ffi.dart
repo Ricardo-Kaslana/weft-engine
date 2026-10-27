@@ -73,23 +73,49 @@ final class QuickJsNativeLibrary {
   QuickJsNativeLibrary._(DynamicLibrary library)
       : newRuntime = library.lookupFunction<_NewRuntimeNative, _NewRuntimeDart>(
             'weft_new_runtime'),
+
+        /// Arms the native interrupt handler so a running script is cut off
+        /// once the monotonic clock passes the given deadline.
         setDeadline =
             library.lookupFunction<_SetDeadlineNative, _SetDeadlineDart>(
                 'weft_set_deadline'),
+
+        /// Monotonic millisecond clock all deadline math is based on.
         nowMs = library.lookupFunction<_NowNative, _NowDart>('weft_now_ms'),
+
+        /// Evaluates one source unit and returns a JSON result envelope the
+        /// caller releases with [freeString].
         eval = library.lookupFunction<_EvalNative, _EvalDart>('weft_eval'),
+
+        /// Drains up to a microtask cap of pending promise jobs, reporting
+        /// [kPumpJobError] or [kPumpBudgetExceeded] instead of throwing.
         pumpJobs = library
             .lookupFunction<_PumpJobsNative, _PumpJobsDart>('weft_pump_jobs'),
+
+        /// Settles the pending bridge promise for one call id with a JSON
+        /// payload, flagged as error or value.
         resolve = library
             .lookupFunction<_ResolveNative, _ResolveDart>('weft_resolve'),
+
+        /// Delivers one host event to the installed JS handler and returns a
+        /// `kSendEvent*` status, writing an error envelope when the handler
+        /// threw.
         sendEvent = library.lookupFunction<_SendEventNative, _SendEventDart>(
             'weft_send_event'),
+
+        /// Registers the callback QuickJS invokes synchronously whenever a
+        /// script calls the host bridge.
         installBridge =
             library.lookupFunction<_InstallBridgeNative, _InstallBridgeDart>(
                 'weft_install_bridge'),
+
+        /// Tears down the runtime created by [newRuntime], releasing all
+        /// engine memory.
         freeRuntime =
             library.lookupFunction<_FreeRuntimeNative, _FreeRuntimeDart>(
                 'weft_free_runtime'),
+
+        /// Releases native strings handed back across the FFI boundary.
         freeString = library.lookupFunction<_FreeStringNative, _FreeStringDart>(
             'weft_free_string');
 
@@ -138,6 +164,9 @@ final class QuickJsNativeLibrary {
     ];
   }
 
+  /// Picks the library path: [explicitPath] wins, then the
+  /// `WEFT_QUICKJS_LIBRARY` environment variable, then the first existing
+  /// of [defaultLibraryCandidates]; throws [StateError] when none exists.
   static String resolveLibraryPath({String? explicitPath}) {
     final override =
         explicitPath ?? Platform.environment['WEFT_QUICKJS_LIBRARY'];
@@ -156,14 +185,36 @@ final class QuickJsNativeLibrary {
     );
   }
 
+  /// Allocates a native `JSRuntime` with byte-sized memory and stack
+  /// limits; returns null when QuickJS cannot allocate.
   final _NewRuntimeDart newRuntime;
+
+  /// Deadline setter consumed by the native interrupt handler.
   final _SetDeadlineDart setDeadline;
+
+  /// Clock backing [setDeadline]; read before each deadline is armed.
   final _NowDart nowMs;
+
+  /// Synchronous evaluation entry: runs one source to completion and
+  /// returns its result envelope.
   final _EvalDart eval;
+
+  /// Promise-job pump run after evaluation, event delivery, and each
+  /// bridge resolution.
   final _PumpJobsDart pumpJobs;
+
+  /// Bridge resolution entry, called when a dispatched future lands.
   final _ResolveDart resolve;
+
+  /// Event delivery entry backing [JsSession.send].
   final _SendEventDart sendEvent;
+
+  /// One-time registration of the bridge notification callback.
   final _InstallBridgeDart installBridge;
+
+  /// Destructor paired with [newRuntime]; frees the whole engine state.
   final _FreeRuntimeDart freeRuntime;
+
+  /// Frees every native string the glue hands back to Dart.
   final _FreeStringDart freeString;
 }

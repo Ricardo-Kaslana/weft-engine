@@ -1,4 +1,8 @@
+/// The HTML tag/attribute whitelist (single source of truth for the
+/// normalizer's policy tables, docs/supported-subset.md matrix).
 abstract final class WeftHtmlSpec {
+  /// Tags rendered natively; anything else is unwrapped, dropped with a
+  /// diagnostic, or routed to [fallbackTags].
   static const allowedTags = <String>{
     'a',
     'b',
@@ -43,8 +47,11 @@ abstract final class WeftHtmlSpec {
     'ul',
   };
 
+  /// Empty elements that never have children.
   static const voidTags = <String>{'br', 'col', 'hr', 'img'};
 
+  /// Interactive/embedded tags the engine will not render; each produces
+  /// a `requiresWebView` diagnostic (ADR 0006).
   static const fallbackTags = <String>{
     'audio',
     'button',
@@ -60,6 +67,7 @@ abstract final class WeftHtmlSpec {
     'video',
   };
 
+  /// Metadata containers stripped before the tree is built.
   static const ignoredContainerTags = <String>{
     'base',
     'head',
@@ -69,10 +77,14 @@ abstract final class WeftHtmlSpec {
     'title',
   };
 
+  /// Containers whose children are visited directly (not rendered as
+  /// boxes themselves).
   static const transparentTags = <String>{'body', 'html'};
 
+  /// Attributes allowed on every element.
   static const globalAttributes = <String>{'class', 'id', 'style', 'title'};
 
+  /// Per-tag attribute whitelist on top of [globalAttributes].
   static const tagAttributes = <String, Set<String>>{
     'a': {'href'},
     'col': {'span', 'width'},

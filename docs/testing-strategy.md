@@ -20,7 +20,7 @@ dart analyze
 dart run tool/verify.dart
 ```
 
-当前主 CI 覆盖格式、静态分析、纯 Dart 测试和 Flutter 单元/Widget 测试，共 400+ 项（weft_engine 243、weft 50、weft_quickjs 22、weft_capabilities 15、weft_document 15、weft_runtime_fake 12、weft_runtime_contract 9 等，QuickJS FFI 测试在 native 库缺失时跳过）；另有 Windows 独立执行的 3 项 Flutter 像素基线测试：
+当前主 CI 覆盖格式、静态分析、纯 Dart 测试和 Flutter 单元/Widget 测试，共 447 项（weft_engine 243、weft_document 77、weft 59、weft_quickjs 22、weft_capabilities 15、weft_runtime_fake 12、weft_runtime_contract 9、weft_runtime_api 2 等，QuickJS FFI 测试在 native 库缺失时跳过）；阶段 5 起还有两类门禁：规范化一致性向量（`conformance/normalization/` 21 个固化快照，逐字节复现）与公开 API 文档覆盖（`tool/doc_coverage.dart` 零缺口）；另有 Windows 独立执行的 3 项 Flutter 像素基线测试：
 
 - 规范化：标签、属性、URL、未知元素、回退能力、节点上限、图片地址与尺寸。
 - CSS：选择器结构、后代/子代匹配、特异性、内联覆盖、声明过滤。
@@ -123,5 +123,14 @@ flutter test test/perf_gate_test.dart --no-pub --timeout 120s     # CI 门禁
 ## Runtime 安全测试
 
 至少包含无限循环、递归爆栈、内存炸弹、微任务风暴、超大桥接消息、队列积压、非法 URL、重定向越权、取消、销毁竞争和恢复后的副作用去重。测试必须验证整个宿主没有继续暴露已撤销能力。
+
+能力策略矩阵（ADR 0034）覆盖 built-in 能力的全部 8 个子集：启用者探针通过、禁用者被网关拒绝且网络副作用严格为零；bootstrap 只引用启用命名空间。JS 整体关闭即不打开 `WeftDocumentRuntime`（渲染路径无 runtime 依赖）。
+
+## 模糊测试与发布门禁（ADR 0034）
+
+- CI 层：`packages/weft_document/test/fuzz_test.dart` 对 conformance 语料 + 一致性向量做种子化变异（400+ 迭代 × 2 种子），不变量：无异常逃逸、issue 数不超上限、节点 id 唯一且父子递增、body/normalizedHtml 一致、抽样 JSON 往返字节稳定。
+- 发布层：`tool/fuzz.dart --iterations 50000`（发布清单要求）长跑，崩溃输入写入 `build/fuzz/` 复现；已发现并修复诊断上限绕过与 `ParseError.toString()` 崩溃。
+- 回滚演练：`packages/weft_document/test/release_compat_test.dart`（旧向量逐字节复现、新版本快照被拒、外格式被拒、兼容锚点与 docs/release-runbook.md §2 一致）。
+- 文档覆盖：`tool/doc_coverage.dart` 扫描导出面公开声明，要求 `///` 零缺口，已接入 `tool/check.sh`。
 
 阶段 4 已交付（ADR 0033，证据见 `packages/weft_quickjs/test/quickjs_session_test.dart`、`packages/weft_capabilities/test/capability_modules_test.dart`、`packages/weft/test/weft_document_runtime_test.dart`）：无限循环墙钟中断、内存炸弹、递归爆栈、微任务风暴、非法协议与重定向越权拦截、恢复后的副作用去重、销毁后的执行拒绝、`weft_runtime_contract` 的后端中立契约套件。尚未覆盖：超大桥接消息、队列积压与取消令牌。

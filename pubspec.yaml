@@ -5,6 +5,11 @@ publish_to: none
 environment:
   sdk: ">=3.5.0 <4.0.0"
 
+# Workspace-level tooling (tool/*.dart) drives the document package directly,
+# e.g. `dart run tool/normalization_vectors.dart`.
+dependencies:
+  weft_document: any
+
 workspace:
   - packages/weft_document
   - packages/weft_runtime_api
@@ -15,3 +20,4 @@ workspace:
   - packages/weft_runtime_contract
   - packages/weft
   - example/weft_lab
+  - example/weft_fallback

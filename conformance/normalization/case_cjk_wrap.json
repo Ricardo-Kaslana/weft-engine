@@ -1,0 +1,97 @@
+{
+  "id": "case_cjk_wrap",
+  "source": "conformance/cases/cjk_wrap.html",
+  "normalizer": {
+    "customTags": []
+  },
+  "snapshot": {
+    "id": "vector-case_cjk_wrap",
+    "revision": 1
+  },
+  "input": "<h2>中文换行与标点</h2>\n<p>这是一段用于检查中文排版的连续文本，其中包含逗号，顿号、分号；冒号：问号？感叹号！以及括号（示例内容）和书名号《排版规范》。</p>\n<p>Flutter 的文本布局需要保留完整字符序列，同时不应把代理对或组合字符拆开。混合 Latin words、数字 12345 和中文标点。</p>\n<p style=\"width: 180px\">较窄的固定宽度盒子会让这段文字产生更多换行，用于检查固定宽度与行高组合。</p>\n",
+  "expected": {
+    "format": "weft.document",
+    "version": 1,
+    "id": "vector-case_cjk_wrap",
+    "revision": 1,
+    "normalizedHtml": "<h2>中文换行与标点</h2>\n<p>这是一段用于检查中文排版的连续文本，其中包含逗号，顿号、分号；冒号：问号？感叹号！以及括号（示例内容）和书名号《排版规范》。</p>\n<p>Flutter 的文本布局需要保留完整字符序列，同时不应把代理对或组合字符拆开。混合 Latin words、数字 12345 和中文标点。</p>\n<p style=\"width: 180px\">较窄的固定宽度盒子会让这段文字产生更多换行，用于检查固定宽度与行高组合。</p>\n",
+    "supportReport": {
+      "issues": [
+        {
+          "code": "html.parse.warning",
+          "message": "Unexpected start tag (h2). Expected DOCTYPE.",
+          "severity": "warning",
+          "requiresWebView": false
+        }
+      ]
+    },
+    "body": {
+      "id": 0,
+      "tag": "body",
+      "children": [
+        {
+          "id": 1,
+          "tag": "h2",
+          "children": [
+            {
+              "id": 2,
+              "text": "中文换行与标点"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "text": "\n"
+        },
+        {
+          "id": 4,
+          "tag": "p",
+          "children": [
+            {
+              "id": 5,
+              "text": "这是一段用于检查中文排版的连续文本，其中包含逗号，顿号、分号；冒号：问号？感叹号！以及括号（示例内容）和书名号《排版规范》。"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "text": "\n"
+        },
+        {
+          "id": 7,
+          "tag": "p",
+          "children": [
+            {
+              "id": 8,
+              "text": "Flutter 的文本布局需要保留完整字符序列，同时不应把代理对或组合字符拆开。混合 Latin words、数字 12345 和中文标点。"
+            }
+          ]
+        },
+        {
+          "id": 9,
+          "text": "\n"
+        },
+        {
+          "id": 10,
+          "tag": "p",
+          "style": {
+            "width": "180px"
+          },
+          "children": [
+            {
+              "id": 11,
+              "text": "较窄的固定宽度盒子会让这段文字产生更多换行，用于检查固定宽度与行高组合。"
+            }
+          ]
+        },
+        {
+          "id": 12,
+          "text": "\n"
+        }
+      ]
+    },
+    "styleSheet": {
+      "rules": []
+    }
+  }
+}

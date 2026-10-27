@@ -1,0 +1,193 @@
+{
+  "id": "case_box_model",
+  "source": "conformance/cases/box_model.html",
+  "normalizer": {
+    "customTags": []
+  },
+  "snapshot": {
+    "id": "vector-case_box_model",
+    "revision": 1
+  },
+  "input": "<style>\n  body { font-family: \"WeftRoboto\"; }\n  .content-box {\n    width: 260px;\n    padding: 12px;\n    border: 2px solid #cf222e;\n    background-color: #fff5f5;\n  }\n  .border-box {\n    width: 260px;\n    padding: 12px;\n    border: 3px solid #0969da;\n    box-sizing: border-box;\n    background-color: #f6f8fa;\n  }\n  .bounded {\n    width: 420px;\n    max-width: 240px;\n    border-left: 4px solid #1a7f37;\n    padding-left: 10px;\n  }\n</style>\n<div class=\"content-box\"><p style=\"margin: 0\">Content box sizing</p></div>\n<div class=\"border-box\"><p style=\"margin: 0\">Border box sizing</p></div>\n<div class=\"bounded\"><p style=\"margin: 0\">Maximum width constraint</p></div>\n",
+  "expected": {
+    "format": "weft.document",
+    "version": 1,
+    "id": "vector-case_box_model",
+    "revision": 1,
+    "normalizedHtml": "<div class=\"content-box\"><p style=\"margin: 0\">Content box sizing</p></div>\n<div class=\"border-box\"><p style=\"margin: 0\">Border box sizing</p></div>\n<div class=\"bounded\"><p style=\"margin: 0\">Maximum width constraint</p></div>\n",
+    "supportReport": {
+      "issues": [
+        {
+          "code": "html.parse.warning",
+          "message": "Unexpected start tag (style). Expected DOCTYPE.",
+          "severity": "warning",
+          "requiresWebView": false
+        }
+      ]
+    },
+    "body": {
+      "id": 0,
+      "tag": "body",
+      "children": [
+        {
+          "id": 1,
+          "tag": "div",
+          "attributes": {
+            "class": "content-box"
+          },
+          "children": [
+            {
+              "id": 2,
+              "tag": "p",
+              "style": {
+                "margin": "0"
+              },
+              "children": [
+                {
+                  "id": 3,
+                  "text": "Content box sizing"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "text": "\n"
+        },
+        {
+          "id": 5,
+          "tag": "div",
+          "attributes": {
+            "class": "border-box"
+          },
+          "children": [
+            {
+              "id": 6,
+              "tag": "p",
+              "style": {
+                "margin": "0"
+              },
+              "children": [
+                {
+                  "id": 7,
+                  "text": "Border box sizing"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": 8,
+          "text": "\n"
+        },
+        {
+          "id": 9,
+          "tag": "div",
+          "attributes": {
+            "class": "bounded"
+          },
+          "children": [
+            {
+              "id": 10,
+              "tag": "p",
+              "style": {
+                "margin": "0"
+              },
+              "children": [
+                {
+                  "id": 11,
+                  "text": "Maximum width constraint"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": 12,
+          "text": "\n"
+        }
+      ]
+    },
+    "styleSheet": {
+      "rules": [
+        {
+          "selectors": [
+            {
+              "parts": [
+                {
+                  "tag": "body"
+                }
+              ]
+            }
+          ],
+          "declarations": {
+            "font-family": "\"WeftRoboto\""
+          },
+          "order": 0
+        },
+        {
+          "selectors": [
+            {
+              "parts": [
+                {
+                  "classes": [
+                    "content-box"
+                  ]
+                }
+              ]
+            }
+          ],
+          "declarations": {
+            "width": "260px",
+            "padding": "12px",
+            "border": "2px solid #cf222e",
+            "background-color": "#fff5f5"
+          },
+          "order": 1
+        },
+        {
+          "selectors": [
+            {
+              "parts": [
+                {
+                  "classes": [
+                    "border-box"
+                  ]
+                }
+              ]
+            }
+          ],
+          "declarations": {
+            "width": "260px",
+            "padding": "12px",
+            "border": "3px solid #0969da",
+            "box-sizing": "border-box",
+            "background-color": "#f6f8fa"
+          },
+          "order": 2
+        },
+        {
+          "selectors": [
+            {
+              "parts": [
+                {
+                  "classes": [
+                    "bounded"
+                  ]
+                }
+              ]
+            }
+          ],
+          "declarations": {
+            "width": "420px",
+            "max-width": "240px",
+            "border-left": "4px solid #1a7f37",
+            "padding-left": "10px"
+          },
+          "order": 3
+        }
+      ]
+    }
+  }
+}

@@ -15,6 +15,8 @@ typedef _BridgeNotifyNative = Void Function(Pointer<Utf8>, Pointer<Void>);
 /// budgets are enforced natively by the interrupt handler in
 /// `native/weft_glue.c`.
 final class QuickJsFfiBackend implements JsRuntimeBackend {
+  /// Creates the backend; [libraryPath] overrides shared-library discovery
+  /// in [QuickJsNativeLibrary.load], otherwise the default search applies.
   QuickJsFfiBackend({String? libraryPath}) : _libraryPath = libraryPath;
 
   final String? _libraryPath;
@@ -26,6 +28,13 @@ final class QuickJsFfiBackend implements JsRuntimeBackend {
   }
 }
 
+/// One [JsSession] bound to one native `JSRuntime` handle.
+///
+/// Everything runs on the owning isolate: while a script is on the stack,
+/// QuickJS re-enters Dart synchronously to dispatch capability calls, and
+/// after each evaluation, event, or bridge resolution the session pumps the
+/// native promise queue so continuations and cascaded bridge calls make
+/// progress within their budgets.
 final class QuickJsFfiSession implements JsSession {
   QuickJsFfiSession._(
     this._library,
@@ -64,6 +73,9 @@ final class QuickJsFfiSession implements JsSession {
   @override
   final String id;
 
+  /// Allocates the native runtime with [RuntimeConfig.memoryLimitBytes] and
+  /// [RuntimeConfig.stackLimitBytes]; throws [StateError] when QuickJS
+  /// cannot allocate the engine.
   static Future<JsSession> open(
     QuickJsNativeLibrary library,
     RuntimeConfig config,

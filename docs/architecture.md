@@ -45,7 +45,7 @@ flowchart TB
 
 当前复用 Dart `html`、`csslib` 的解析能力，但仅存在于适配层。内部节点使用稳定 `NodeId`，生成不可变 `WeftElement`/`WeftText` 树和结构化 `WeftStyleSheet`，外部不暴露完整 DOM。
 
-阶段 1A 已实现规范化、节点树、结构化 CSS、计算样式和基础静态布局。当前尚未引入独立盒树与通用 Fragment 层；布局直接遍历不可变节点并生成绘制命令。图片 Float 通过共享排除区和逐行文本测量交付（ADR 0011），表格采用整体两遍布局；流式追加会缓存 body 顶层块输出并复用未变前缀（ADR 0023），但不等同于通用 Fragment 树。分块 `ui.Picture`、命中索引和单表面 Semantics 树均已实现（ADR 0024）；WeftView 的简单文档使用连续前缀测量与可见块物化，未测后缀仅估算滚动高度（ADR 0025）。
+阶段 1A 已实现规范化、节点树、结构化 CSS、计算样式和基础静态布局。快照可编码为规范 JSON（`WeftDocumentJson`，format+version 门禁，ADR 0034）：服务端规范化一次、客户端解码消费，一致性由 `conformance/normalization/` 固化向量逐字节约束。当前尚未引入独立盒树与通用 Fragment 层；布局直接遍历不可变节点并生成绘制命令。图片 Float 通过共享排除区和逐行文本测量交付（ADR 0011），表格采用整体两遍布局；流式追加会缓存 body 顶层块输出并复用未变前缀（ADR 0023），但不等同于通用 Fragment 树。分块 `ui.Picture`、命中索引和单表面 Semantics 树均已实现（ADR 0024）；WeftView 的简单文档使用连续前缀测量与可见块物化，未测后缀仅估算滚动高度（ADR 0025）。
 
 ## 4. 布局与渲染
 
@@ -104,11 +104,13 @@ JS 不获得节点、盒树或渲染对象。它只能通过 `__weftBridge`（�
 
 目标扩展接口只有进入对应里程碑并经过契约测试后才进入代码，避免占位 API 固化错误抽象。
 
-## 8. 回退路径
+## 8. 回退路径（阶段 5 已交付示例，ADR 0034）
 
 规范化器和控制器输出 `SupportReport`。不支持内容不得静默显示为“成功渲染”；宿主通过 `WeftView.fallbackBuilder` 选择 WebView 或专用库。
 
-核心包不依赖 `webview_flutter`，避免回退机制反向污染轻量引擎。
+`example/weft_fallback` 是可运行回退示例：`decideWeftFallback` 纯函数把报告映射为三路决策——原生渲染（`canRender`）、`requiresWebView` → 宿主 WebView（示例内经 `WeftFallbackCoordinator` 注入 `webview_flutter`，宿主持有原始 HTML）、其余错误 → 诊断卡片；widget 测试用注入占位覆盖决策契约，不触平台通道。
+
+核心包不依赖 `webview_flutter`，避免回退机制反向污染轻量引擎。发布与版本回退见 docs/release-runbook.md（快照格式版本门禁、统一版本号、回滚演练测试）。
 
 ## 9. 关键 ADR
 
@@ -126,3 +128,4 @@ JS 不获得节点、盒树或渲染对象。它只能通过 `__weftBridge`（�
 - `0012`：表格使用槽位网格与中心线折叠边框模型。
 - `0013`：选择基于逻辑文本索引，锚点在内容变更后安全清除。
 - `0033`：受限 JS 运行时（QuickJS FFI + 能力网关 + 恢复去重）与自定义标签扩展。
+- `0034`：回退、硬化与发布——快照 JSON 线格式与一致性向量、种子化模糊测试、WebView 回退示例、版本兼容锚点与回滚演练、API 文档门禁。

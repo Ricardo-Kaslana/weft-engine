@@ -1,0 +1,154 @@
+{
+  "id": "synthetic_table_tracks",
+  "source": "inline",
+  "normalizer": {
+    "customTags": []
+  },
+  "snapshot": {
+    "id": "vector-synthetic_table_tracks",
+    "revision": 1
+  },
+  "input": "<head><style>table { border-collapse: collapse; }</style></head><body><table><colgroup><col style=\"width: 40px\"><col style=\"width: 30%\" span=\"2\"></colgroup><tr><th colspan=\"2\">head</th><th>tail</th></tr><tr><td>a</td><td>b</td><td>c</td></tr></table></body>",
+  "expected": {
+    "format": "weft.document",
+    "version": 1,
+    "id": "vector-synthetic_table_tracks",
+    "revision": 1,
+    "normalizedHtml": "<table><colgroup><col style=\"width: 40px\"><col span=\"2\" style=\"width: 30%\"></colgroup><tbody><tr><th colspan=\"2\">head</th><th>tail</th></tr><tr><td>a</td><td>b</td><td>c</td></tr></tbody></table>",
+    "supportReport": {
+      "issues": [
+        {
+          "code": "html.parse.warning",
+          "message": "Unexpected start tag (head). Expected DOCTYPE.",
+          "severity": "warning",
+          "requiresWebView": false
+        }
+      ]
+    },
+    "body": {
+      "id": 0,
+      "tag": "body",
+      "children": [
+        {
+          "id": 1,
+          "tag": "table",
+          "children": [
+            {
+              "id": 2,
+              "tag": "colgroup",
+              "children": [
+                {
+                  "id": 3,
+                  "tag": "col",
+                  "style": {
+                    "width": "40px"
+                  }
+                },
+                {
+                  "id": 4,
+                  "tag": "col",
+                  "attributes": {
+                    "span": "2"
+                  },
+                  "style": {
+                    "width": "30%"
+                  }
+                }
+              ]
+            },
+            {
+              "id": 5,
+              "tag": "tbody",
+              "children": [
+                {
+                  "id": 6,
+                  "tag": "tr",
+                  "children": [
+                    {
+                      "id": 7,
+                      "tag": "th",
+                      "attributes": {
+                        "colspan": "2"
+                      },
+                      "children": [
+                        {
+                          "id": 8,
+                          "text": "head"
+                        }
+                      ]
+                    },
+                    {
+                      "id": 9,
+                      "tag": "th",
+                      "children": [
+                        {
+                          "id": 10,
+                          "text": "tail"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": 11,
+                  "tag": "tr",
+                  "children": [
+                    {
+                      "id": 12,
+                      "tag": "td",
+                      "children": [
+                        {
+                          "id": 13,
+                          "text": "a"
+                        }
+                      ]
+                    },
+                    {
+                      "id": 14,
+                      "tag": "td",
+                      "children": [
+                        {
+                          "id": 15,
+                          "text": "b"
+                        }
+                      ]
+                    },
+                    {
+                      "id": 16,
+                      "tag": "td",
+                      "children": [
+                        {
+                          "id": 17,
+                          "text": "c"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "styleSheet": {
+      "rules": [
+        {
+          "selectors": [
+            {
+              "parts": [
+                {
+                  "tag": "table"
+                }
+              ]
+            }
+          ],
+          "declarations": {
+            "border-collapse": "collapse"
+          },
+          "order": 0
+        }
+      ]
+    }
+  }
+}

@@ -94,8 +94,17 @@ void main() {
   runApp(const WeftLabApp());
 }
 
-class WeftLabApp extends StatelessWidget {
+class WeftLabApp extends StatefulWidget {
   const WeftLabApp({super.key});
+
+  @override
+  State<WeftLabApp> createState() => _WeftLabAppState();
+}
+
+class _WeftLabAppState extends State<WeftLabApp> {
+  // Device-matrix runs (docs/device-matrix.md) read the performance overlay
+  // instead of trusting debug prints; the toggle keeps it one tap away.
+  bool _showPerformanceOverlay = false;
 
   @override
   Widget build(BuildContext context) {
@@ -105,13 +114,28 @@ class WeftLabApp extends StatelessWidget {
         useMaterial3: true,
         colorSchemeSeed: const Color(0xFF0969DA),
       ),
-      home: const WeftLabPage(),
+      showPerformanceOverlay: _showPerformanceOverlay,
+      home: WeftLabPage(
+        showPerformanceOverlay: _showPerformanceOverlay,
+        onTogglePerformanceOverlay: () =>
+            setState(() => _showPerformanceOverlay = !_showPerformanceOverlay),
+      ),
     );
   }
 }
 
 class WeftLabPage extends StatefulWidget {
-  const WeftLabPage({super.key});
+  const WeftLabPage({
+    super.key,
+    this.showPerformanceOverlay = false,
+    this.onTogglePerformanceOverlay,
+  });
+
+  /// Mirrors the MaterialApp overlay switch so the app bar action can
+  /// reflect the current state.
+  final bool showPerformanceOverlay;
+
+  final VoidCallback? onTogglePerformanceOverlay;
 
   @override
   State<WeftLabPage> createState() => _WeftLabPageState();
@@ -206,7 +230,20 @@ class _WeftLabPageState extends State<WeftLabPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Weft Lab')),
+      appBar: AppBar(
+        title: const Text('Weft Lab'),
+        actions: [
+          IconButton(
+            tooltip: '性能浮层',
+            onPressed: widget.onTogglePerformanceOverlay,
+            icon: Icon(
+              widget.showPerformanceOverlay
+                  ? Icons.speed
+                  : Icons.speed_outlined,
+            ),
+          ),
+        ],
+      ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

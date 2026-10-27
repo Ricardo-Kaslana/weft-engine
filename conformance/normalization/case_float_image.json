@@ -1,0 +1,205 @@
+{
+  "id": "case_float_image",
+  "source": "conformance/cases/float_image.html",
+  "normalizer": {
+    "customTags": []
+  },
+  "snapshot": {
+    "id": "vector-case_float_image",
+    "revision": 1
+  },
+  "input": "<style>\n  body { font-family: \"WeftRoboto\"; }\n</style>\n<h2 data-geo=\"title\">Float geometry baseline</h2>\n<p data-geo=\"intro\">Images float beside text with deterministic geometry.</p>\n<p data-geo=\"wrap-latin\" data-words=\"wrap-latin\"><img data-geo=\"float-left\" src=\"assets/float_left.png\" style=\"float: left; margin: 0 16px 8px 0\" width=\"120\" height=\"96\" alt=\"\">alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima mike november oscar papa quebec romeo sierra tango uniform victor whiskey xray yankee zulu alpha bravo charlie delta echo</p>\n<p data-geo=\"between\">A short paragraph that closes the left float region.</p>\n<p data-geo=\"wrap-opposing\" data-words=\"wrap-opposing\"><img data-geo=\"float-right\" src=\"assets/float_right.png\" style=\"float: right; margin: 0 0 8px 16px\" width=\"144\" height=\"72\" alt=\"\">alpha bravo charlie delta echo foxtrot</p>\n<p data-geo=\"cleared\" style=\"clear: both\">Cleared below every float on both sides.</p>\n<hr data-geo=\"divider\">\n<img data-geo=\"hero\" src=\"assets/block_hero.png\" style=\"display: block\" width=\"240\" height=\"120\" alt=\"\">\n<p data-geo=\"caption\">A block-level image sits above this caption.</p>\n",
+  "expected": {
+    "format": "weft.document",
+    "version": 1,
+    "id": "vector-case_float_image",
+    "revision": 1,
+    "normalizedHtml": "<h2>Float geometry baseline</h2>\n<p>Images float beside text with deterministic geometry.</p>\n<p><img src=\"assets/float_left.png\" width=\"120\" height=\"96\" style=\"float: left; margin: 0 16px 8px 0\">alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima mike november oscar papa quebec romeo sierra tango uniform victor whiskey xray yankee zulu alpha bravo charlie delta echo</p>\n<p>A short paragraph that closes the left float region.</p>\n<p><img src=\"assets/float_right.png\" width=\"144\" height=\"72\" style=\"float: right; margin: 0 0 8px 16px\">alpha bravo charlie delta echo foxtrot</p>\n<p style=\"clear: both\">Cleared below every float on both sides.</p>\n<hr>\n<img src=\"assets/block_hero.png\" width=\"240\" height=\"120\" style=\"display: block\">\n<p>A block-level image sits above this caption.</p>\n",
+    "supportReport": {
+      "issues": [
+        {
+          "code": "html.parse.warning",
+          "message": "Unexpected start tag (style). Expected DOCTYPE.",
+          "severity": "warning",
+          "requiresWebView": false
+        }
+      ]
+    },
+    "body": {
+      "id": 0,
+      "tag": "body",
+      "children": [
+        {
+          "id": 1,
+          "tag": "h2",
+          "children": [
+            {
+              "id": 2,
+              "text": "Float geometry baseline"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "text": "\n"
+        },
+        {
+          "id": 4,
+          "tag": "p",
+          "children": [
+            {
+              "id": 5,
+              "text": "Images float beside text with deterministic geometry."
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "text": "\n"
+        },
+        {
+          "id": 7,
+          "tag": "p",
+          "children": [
+            {
+              "id": 8,
+              "tag": "img",
+              "attributes": {
+                "src": "assets/float_left.png",
+                "width": "120",
+                "height": "96"
+              },
+              "style": {
+                "float": "left",
+                "margin": "0 16px 8px 0"
+              }
+            },
+            {
+              "id": 9,
+              "text": "alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima mike november oscar papa quebec romeo sierra tango uniform victor whiskey xray yankee zulu alpha bravo charlie delta echo"
+            }
+          ]
+        },
+        {
+          "id": 10,
+          "text": "\n"
+        },
+        {
+          "id": 11,
+          "tag": "p",
+          "children": [
+            {
+              "id": 12,
+              "text": "A short paragraph that closes the left float region."
+            }
+          ]
+        },
+        {
+          "id": 13,
+          "text": "\n"
+        },
+        {
+          "id": 14,
+          "tag": "p",
+          "children": [
+            {
+              "id": 15,
+              "tag": "img",
+              "attributes": {
+                "src": "assets/float_right.png",
+                "width": "144",
+                "height": "72"
+              },
+              "style": {
+                "float": "right",
+                "margin": "0 0 8px 16px"
+              }
+            },
+            {
+              "id": 16,
+              "text": "alpha bravo charlie delta echo foxtrot"
+            }
+          ]
+        },
+        {
+          "id": 17,
+          "text": "\n"
+        },
+        {
+          "id": 18,
+          "tag": "p",
+          "style": {
+            "clear": "both"
+          },
+          "children": [
+            {
+              "id": 19,
+              "text": "Cleared below every float on both sides."
+            }
+          ]
+        },
+        {
+          "id": 20,
+          "text": "\n"
+        },
+        {
+          "id": 21,
+          "tag": "hr"
+        },
+        {
+          "id": 22,
+          "text": "\n"
+        },
+        {
+          "id": 23,
+          "tag": "img",
+          "attributes": {
+            "src": "assets/block_hero.png",
+            "width": "240",
+            "height": "120"
+          },
+          "style": {
+            "display": "block"
+          }
+        },
+        {
+          "id": 24,
+          "text": "\n"
+        },
+        {
+          "id": 25,
+          "tag": "p",
+          "children": [
+            {
+              "id": 26,
+              "text": "A block-level image sits above this caption."
+            }
+          ]
+        },
+        {
+          "id": 27,
+          "text": "\n"
+        }
+      ]
+    },
+    "styleSheet": {
+      "rules": [
+        {
+          "selectors": [
+            {
+              "parts": [
+                {
+                  "tag": "body"
+                }
+              ]
+            }
+          ],
+          "declarations": {
+            "font-family": "\"WeftRoboto\""
+          },
+          "order": 0
+        }
+      ]
+    }
+  }
+}

@@ -9,15 +9,21 @@ import 'line_break_rules.dart';
 import 'tag_renderer.dart';
 import 'text_index.dart';
 
+/// The bounding rectangle of one laid-out box, in document coordinates.
 final class WeftLayoutBox {
+  /// Creates a box for [nodeId] at [rect].
   const WeftLayoutBox({required this.nodeId, required this.rect});
 
+  /// Id of the document node that produced this box.
   final int nodeId;
+
+  /// The box's rectangle in document coordinates.
   final ui.Rect rect;
 }
 
 /// Hit region for one laid-out custom tag (ADR 0033).
 final class WeftTagRegion {
+  /// Creates a hit region for one custom tag.
   const WeftTagRegion({
     required this.nodeId,
     required this.tag,
@@ -25,6 +31,7 @@ final class WeftTagRegion {
     this.label,
   });
 
+  /// Id of the custom tag element.
   final int nodeId;
 
   /// The custom element's tag name, e.g. `weft-badge`.
@@ -36,10 +43,14 @@ final class WeftTagRegion {
   /// Accessibility label supplied by the renderer, `aria-label`, or the tag.
   final String? label;
 
+  /// Whether [position] falls inside this region's rectangle.
   bool contains(ui.Offset position) => rect.contains(position);
 }
 
+/// Hit region for one hyperlink: the target, painted text, and the
+/// rectangles its runs cover.
 final class WeftLinkRegion {
+  /// Creates a link region covering [rects].
   WeftLinkRegion({
     required this.nodeId,
     required this.href,
@@ -47,15 +58,24 @@ final class WeftLinkRegion {
     required Iterable<ui.Rect> rects,
   }) : rects = List<ui.Rect>.unmodifiable(rects);
 
+  /// Id of the anchor element.
   final int nodeId;
+
+  /// The link target as written in the document.
   final String href;
+
+  /// The anchor's painted text.
   final String text;
+
+  /// Rectangles covered by the link's painted runs, in paint order.
   final List<ui.Rect> rects;
 
+  /// Whether [position] falls inside any of this link's rectangles.
   bool contains(ui.Offset position) {
     return rects.any((rect) => rect.contains(position));
   }
 
+  /// Returns a copy of this region translated by [offset].
   WeftLinkRegion shift(ui.Offset offset) {
     return WeftLinkRegion(
       nodeId: nodeId,
@@ -66,13 +86,23 @@ final class WeftLinkRegion {
   }
 }
 
+/// One primitive of the flat paint list the layout produces.
+///
+/// Commands are self-contained and attributable: each knows the node that
+/// produced it, the rectangle it paints into, and how to paint, shift and
+/// release itself. Paint order is list order (back to front).
 sealed class WeftPaintCommand {
+  /// Creates a command attributed to [nodeId].
   const WeftPaintCommand({required this.nodeId});
 
+  /// Id of the document node that produced this command.
   final int nodeId;
 
+  /// Paints this command at [origin] on [canvas].
   void paint(ui.Canvas canvas, ui.Offset origin);
 
+  /// Releases native resources this command holds, if any. Safe to call
+  /// more than once.
   void dispose();
 
   /// Returns an equivalent command translated by [offset]. Used by table
@@ -86,14 +116,19 @@ sealed class WeftPaintCommand {
   ui.Rect get bounds;
 }
 
+/// Paints one filled rectangle.
 final class WeftRectPaintCommand extends WeftPaintCommand {
+  /// Creates a command filling [rect] with [color].
   const WeftRectPaintCommand({
     required super.nodeId,
     required this.rect,
     required this.color,
   });
 
+  /// Rectangle to fill, in document coordinates.
   final ui.Rect rect;
+
+  /// Fill color applied to [rect].
   final ui.Color color;
 
   @override
@@ -117,7 +152,12 @@ final class WeftRectPaintCommand extends WeftPaintCommand {
   }
 }
 
+/// Paints one shaped text run through a [TextPainter].
+///
+/// The command owns its painter: disposing the command disposes the painter,
+/// so a command's painter must never be disposed separately.
 final class WeftTextPaintCommand extends WeftPaintCommand {
+  /// Creates a text command painting [painter] at [offset].
   const WeftTextPaintCommand({
     required super.nodeId,
     required this.painter,
@@ -125,7 +165,10 @@ final class WeftTextPaintCommand extends WeftPaintCommand {
     this.runs = const [],
   });
 
+  /// The shaped text to paint; owned by this command.
   final TextPainter painter;
+
+  /// Top-left corner of the painted text, in document coordinates.
   final ui.Offset offset;
 
   /// Mapping from painter text ranges back to their source document text
@@ -164,6 +207,7 @@ final class WeftTextPaintCommand extends WeftPaintCommand {
 /// text after whitespace collapsing), so the same node keeps stable
 /// coordinates across line-split painters.
 final class WeftTextPainterRun {
+  /// Creates a run mapping painter offsets back to node offsets.
   const WeftTextPainterRun({
     required this.nodeId,
     required this.painterStart,
@@ -172,21 +216,35 @@ final class WeftTextPainterRun {
     required this.nodeEnd,
   });
 
+  /// Id of the source text node.
   final NodeId nodeId;
+
+  /// Start offset of the run in the painter's text.
   final int painterStart;
+
+  /// End offset of the run in the painter's text.
   final int painterEnd;
+
+  /// Start offset of the run's source range in the node's painted text.
   final int nodeStart;
+
+  /// End offset of the run's source range in the node's painted text.
   final int nodeEnd;
 }
 
+/// Paints one resolved image into its destination rectangle.
 final class WeftImagePaintCommand extends WeftPaintCommand {
+  /// Creates a command painting [image] into [destination].
   const WeftImagePaintCommand({
     required super.nodeId,
     required this.image,
     required this.destination,
   });
 
+  /// The decoded image supplied by the host's resolver.
   final ui.Image image;
+
+  /// Rectangle the image is drawn into, in document coordinates.
   final ui.Rect destination;
 
   @override
@@ -239,8 +297,11 @@ final class WeftImagePaintCommand extends WeftPaintCommand {
 /// flat command list, and [WeftChunk.partition] only reads the document tree to
 /// map each command's node back to its top-level body child.
 final class WeftChunk {
+  /// Builds a chunk from [commands]; [bounds] is computed as their union.
   WeftChunk({required this.key, required Iterable<WeftPaintCommand> commands})
       : commands = List<WeftPaintCommand>.unmodifiable(commands),
+
+        /// Union of the chunk's command bounds, computed at construction.
         bounds = _unionBounds(commands);
 
   /// Key of the chrome chunk: body background/border commands and any command
@@ -249,6 +310,8 @@ final class WeftChunk {
   /// their zero-based ordinal as the key, which cannot collide with this.
   static const int chromeKey = -1;
 
+  /// Either [chromeKey] or the zero-based ordinal of the top-level body
+  /// child this chunk covers.
   final int key;
 
   /// Paints in document order, exactly as the flat command list would paint
@@ -259,6 +322,7 @@ final class WeftChunk {
   /// pixel the chunk can paint.
   final ui.Rect bounds;
 
+  /// Whether this chunk is the body chrome chunk ([chromeKey]).
   bool get isChrome => key == chromeKey;
 
   static ui.Rect _unionBounds(Iterable<WeftPaintCommand> commands) {
@@ -310,6 +374,8 @@ final class WeftChunk {
     return chunks;
   }
 
+  /// The ordinal of the top-level body child owning [nodeId], or null when
+  /// the node belongs to the chrome or the document has no body.
   static int? topLevelOrdinalForNode(
     WeftDocumentSnapshot document,
     NodeId nodeId,
@@ -349,14 +415,18 @@ final class _ChunkAccumulator {
   int _firstIndex = -1;
   int _lastIndex = -1;
 
+  /// Whether any command has been added.
   bool get isNotEmpty => _commands.isNotEmpty;
 
+  /// Adds [command] and records its [index] in the flat command list.
   void add(WeftPaintCommand command, int index) {
     _commands.add(command);
     _firstIndex = _firstIndex < 0 ? index : _firstIndex;
     _lastIndex = index;
   }
 
+  /// Builds the chunk, asserting non-chrome commands stayed contiguous in
+  /// the flat command list.
   WeftChunk build(int key) {
     assert(
       key == WeftChunk.chromeKey ||
@@ -420,7 +490,10 @@ final class _HitIndex {
   /// the value trades memory for lookup width, never for correctness.
   static const double _bandExtent = 512;
 
+  /// Command runs cut from the flat list, in flat-list order.
   final List<_HitSegment> segments;
+
+  /// The document's chunks, in paint order (chrome first).
   final List<WeftChunk> chunks;
 
   /// Segment indices per band, ascending, so reversing a band visits
@@ -439,6 +512,9 @@ final class _HitIndex {
   /// still resolve them against every query rather than dropping them.
   final List<int> unmappedLinks;
 
+  /// Builds the index for one layout: partitions [commands] into chunks,
+  /// cuts per-chunk segments, registers them in vertical bands and buckets
+  /// [links] by their chunk.
   static _HitIndex build({
     required WeftDocumentSnapshot document,
     required List<WeftPaintCommand> commands,
@@ -589,16 +665,31 @@ ui.Rect _paintBoundsFor(Iterable<WeftPaintCommand> commands) {
   return bounds;
 }
 
+/// Which edge of the content box a float reserves.
 enum WeftFloatExclusionSide { left, right }
 
+/// A rectangle block content must avoid, reserved by one float.
 final class WeftFloatExclusion {
+  /// Creates an exclusion on [side] covering [rect].
   const WeftFloatExclusion({required this.side, required this.rect});
 
+  /// The float's side; text wraps on the opposite edge.
   final WeftFloatExclusionSide side;
+
+  /// Rectangle the float occupies, in document coordinates.
   final ui.Rect rect;
 }
 
+/// The reusable layout output of one top-level body child, carried between
+/// incremental layouts.
+///
+/// A block stores its position and extent plus the commands, boxes, hit
+/// regions and float exclusions its subtree produced. Lazily laid-out passes
+/// may store a block without its commands ([materialized] false); a later
+/// pass materializes it when it scrolls into view.
 final class WeftCachedLayoutBlock {
+  /// Creates a cached block; [paintBounds] defaults to the union of
+  /// [commands]' bounds.
   WeftCachedLayoutBlock({
     required this.element,
     required this.left,
@@ -612,30 +703,68 @@ final class WeftCachedLayoutBlock {
     Iterable<WeftTagRegion> tagRegions = const <WeftTagRegion>[],
     Iterable<WeftFloatExclusion> floatExclusions = const [],
   })  : boxes = List<WeftLayoutBox>.unmodifiable(boxes),
+
+        /// Unmodifiable copy of the block's paint commands.
         commands = List<WeftPaintCommand>.unmodifiable(commands),
+
+        /// Unmodifiable copy of the block's link regions.
         links = List<WeftLinkRegion>.unmodifiable(links),
+
+        /// Unmodifiable copy of the block's custom tag regions.
         tagRegions = List<WeftTagRegion>.unmodifiable(tagRegions),
+
+        /// Unmodifiable copy of the block's float exclusions.
         floatExclusions =
             List<WeftFloatExclusion>.unmodifiable(floatExclusions),
+
+        /// Union of the block's command bounds, or the explicit
+        /// [paintBounds].
         paintBounds = paintBounds ?? _paintBoundsFor(commands);
 
+  /// The block's root element.
   final WeftElement element;
+
+  /// Left edge of the block's margin box, in document coordinates.
   final double left;
+
+  /// Top edge of the block's margin box, in document coordinates.
   final double top;
+
+  /// Height the block contributed to the flow, including its margins.
   final double height;
 
   /// Whether commands/boxes/links are currently held for this block. A
   /// materialized block may legally have no paint commands.
   final bool materialized;
+
+  /// Union of the block's command bounds; contains every pixel it paints.
   final ui.Rect paintBounds;
+
+  /// Boxes the block produced, in paint order.
   final List<WeftLayoutBox> boxes;
+
+  /// Commands the block produced, in paint order.
   final List<WeftPaintCommand> commands;
+
+  /// Link hit regions the block produced.
   final List<WeftLinkRegion> links;
+
+  /// Custom tag hit regions the block produced.
   final List<WeftTagRegion> tagRegions;
+
+  /// Float exclusions the block's floats reserve for later content.
   final List<WeftFloatExclusion> floatExclusions;
 }
 
+/// Everything a relayout needs to reuse the previous pass's work: the inputs
+/// that produced it and the per-block results.
+///
+/// The engine validates the inputs (snapshot instance, width, text scaling,
+/// images, line-break rules, renderer set) before reusing [blocks]; any
+/// mismatch discards the cache instead of reusing stale output.
 final class WeftIncrementalLayoutCache {
+  /// Creates a cache for one layout; collections are copied into
+  /// unmodifiable forms.
   WeftIncrementalLayoutCache({
     required this.document,
     required this.width,
@@ -649,6 +778,8 @@ final class WeftIncrementalLayoutCache {
     this.tagRenderers = const <String, WeftTagRenderer>{},
     Map<WeftElement, WeftComputedStyle>? styleCache,
   })  : images = Map<int, ui.Image>.unmodifiable(images),
+
+        /// Unmodifiable copy of the line-break rules the layout used.
         lineBreakRules = WeftLineBreakRules(
           lineStartProhibited: Set<int>.unmodifiable(
             lineBreakRules.lineStartProhibited,
@@ -657,17 +788,41 @@ final class WeftIncrementalLayoutCache {
             lineBreakRules.lineEndProhibited,
           ),
         ),
+
+        /// Unmodifiable copy of the cached blocks, in document order.
         blocks = List<WeftCachedLayoutBlock>.unmodifiable(blocks),
+
+        /// Style cache to keep across relayouts; created fresh when omitted.
         styleCache = styleCache ?? <WeftElement, WeftComputedStyle>{};
 
+  /// The snapshot the cached layout was built from; reuse requires the same
+  /// instance.
   final WeftDocumentSnapshot document;
+
+  /// Viewport width the cached layout was produced at.
   final double width;
+
+  /// Text scaling the cached layout was produced with.
   final TextScaler textScaler;
+
+  /// Decoded images available to the cached layout.
   final Map<int, ui.Image> images;
+
+  /// Kinsoku tables the cached layout was produced with.
   final WeftLineBreakRules lineBreakRules;
+
+  /// Per-block results, one per laid-out top-level body child, in document
+  /// order.
   final List<WeftCachedLayoutBlock> blocks;
+
+  /// How many of the document's leading top-level children the cached blocks
+  /// cover; a full pass lays out all of them, a lazy pass only a prefix.
   final int measuredPrefixLength;
+
+  /// Whether the cached layout was produced by a lazy viewport pass.
   final bool isLazy;
+
+  /// Total document height the pass reported, including estimated blocks.
   final double estimatedExtent;
 
   /// Renderer set that produced cached custom tag blocks. Block reuse is
@@ -682,7 +837,15 @@ final class WeftIncrementalLayoutCache {
   final Map<WeftElement, WeftComputedStyle> styleCache;
 }
 
+/// The output of one layout pass: document size, boxes, the flat paint
+/// command list, hit regions, and the text model selection resolves through.
+///
+/// The result owns its paint commands. Call [dispose] when done; pass
+/// commands to another result first with [transferCommands] if that result
+/// reuses them.
 final class WeftLayoutResult {
+  /// Creates a layout result; collections are copied into unmodifiable
+  /// lists.
   WeftLayoutResult({
     required this.size,
     required Iterable<WeftLayoutBox> boxes,
@@ -695,21 +858,46 @@ final class WeftLayoutResult {
     this.debugMaterializedBlockCount = 0,
     this.debugIsLazy = false,
   })  : boxes = List<WeftLayoutBox>.unmodifiable(boxes),
+
+        /// Unmodifiable copy of the flat paint command list.
         commands = List<WeftPaintCommand>.unmodifiable(commands),
+
+        /// Unmodifiable copy of the link hit regions.
         links = List<WeftLinkRegion>.unmodifiable(links),
+
+        /// Unmodifiable copy of the custom tag hit regions.
         tagRegions = List<WeftTagRegion>.unmodifiable(tagRegions);
 
+  /// Total document size: [ui.Size.width] is the layout width, the height
+  /// the measured (or estimated) extent.
   final ui.Size size;
+
+  /// Laid-out boxes in paint order.
   final List<WeftLayoutBox> boxes;
+
+  /// The flat paint list, in back-to-front paint order.
   final List<WeftPaintCommand> commands;
+
+  /// Link hit regions in paint order (later regions paint on top).
   final List<WeftLinkRegion> links;
 
   /// Custom tag hit regions in paint order (later regions paint on top).
   final List<WeftTagRegion> tagRegions;
+
+  /// Debug counter: top-level blocks copied from the previous result.
   final int debugReusedBlockCount;
+
+  /// Debug counter: top-level blocks laid out fresh in this pass.
   final int debugLaidOutBlockCount;
+
+  /// Debug counter: reused blocks materialized into paint commands.
   final int debugMaterializedBlockCount;
+
+  /// Debug flag: whether this pass was a lazy viewport pass.
   final bool debugIsLazy;
+
+  /// Cache this pass seeded for the next incremental layout. Null when the
+  /// pass cannot seed reuse, e.g. after [transferCommands].
   WeftIncrementalLayoutCache? incrementalCache;
 
   /// The logical text model for this layout, used to resolve selection
@@ -748,6 +936,10 @@ final class WeftLayoutResult {
     );
   }
 
+  /// The topmost link whose rectangles contain [position], or null.
+  ///
+  /// With a document attached the query runs against the chunk-culled index
+  /// and returns exactly what the full back-to-front scan would.
   WeftLinkRegion? linkAt(ui.Offset position) {
     final index = _hits;
     if (index == null) {
@@ -976,12 +1168,16 @@ final class WeftLayoutResult {
   var _disposed = false;
   final Set<WeftPaintCommand> _transferredCommands = <WeftPaintCommand>{};
 
+  /// Hands ownership of [commands] to another result so [dispose] skips
+  /// them. A result that transferred commands cannot seed another
+  /// incremental layout.
   void transferCommands(Iterable<WeftPaintCommand> commands) {
     assert(!_disposed);
     _transferredCommands.addAll(commands);
     incrementalCache = null;
   }
 
+  /// Disposes every paint command still owned by this result. Idempotent.
   void dispose() {
     if (_disposed) return;
     _disposed = true;

@@ -1,0 +1,471 @@
+{
+  "id": "case_table_cols",
+  "source": "conformance/cases/table_cols.html",
+  "normalizer": {
+    "customTags": []
+  },
+  "snapshot": {
+    "id": "vector-case_table_cols",
+    "revision": 1
+  },
+  "input": "<style>\n  body { font-family: \"WeftRoboto\"; }\n  table { border-collapse: collapse; }\n  td, th { border: 1px solid #d0d7de; padding: 6px 10px; vertical-align: top; }\n  th { font-weight: 700; text-align: left; }\n  col.narrow { width: 80px; }\n  col.wide { width: 110px; }\n  col.share { width: 25%; }\n</style>\n<h2 data-geo=\"title\">Column track geometry baseline</h2>\n<table data-geo=\"t1\" style=\"width: 360px\">\n  <caption data-geo=\"cap\">Quarterly forecast</caption>\n  <colgroup>\n    <col class=\"narrow\">\n    <col class=\"wide\">\n  </colgroup>\n  <col class=\"share\">\n  <colgroup span=\"2\"></colgroup>\n  <thead>\n    <tr><th data-geo=\"h1\">Sku</th><th data-geo=\"h2\">Stock</th><th data-geo=\"h3\">Share</th><th data-geo=\"h4\">A</th><th data-geo=\"h5\">B</th></tr>\n  </thead>\n  <tbody>\n    <tr><td data-geo=\"r1\">North</td><td data-geo=\"u1\">1,240</td><td data-geo=\"v1\">48,200</td><td data-geo=\"w1\">A</td><td data-geo=\"x1\">B</td></tr>\n    <tr><td data-geo=\"r2\">South</td><td data-geo=\"u2\">2,410</td><td data-geo=\"v2\">31,900</td><td data-geo=\"w2\" colspan=\"2\">Merged</td></tr>\n  </tbody>\n</table>\n<p data-geo=\"after\">Paragraph after the tracked table.</p>\n",
+  "expected": {
+    "format": "weft.document",
+    "version": 1,
+    "id": "vector-case_table_cols",
+    "revision": 1,
+    "normalizedHtml": "<h2>Column track geometry baseline</h2>\n<table style=\"width: 360px\">\n  <caption>Quarterly forecast</caption>\n  <colgroup><col class=\"narrow\"><col class=\"wide\"></colgroup>\n  <colgroup><col class=\"share\"></colgroup><colgroup span=\"2\"></colgroup>\n  <thead>\n    <tr><th>Sku</th><th>Stock</th><th>Share</th><th>A</th><th>B</th></tr>\n  </thead>\n  <tbody>\n    <tr><td>North</td><td>1,240</td><td>48,200</td><td>A</td><td>B</td></tr>\n    <tr><td>South</td><td>2,410</td><td>31,900</td><td colspan=\"2\">Merged</td></tr>\n  </tbody>\n</table>\n<p>Paragraph after the tracked table.</p>\n",
+    "supportReport": {
+      "issues": [
+        {
+          "code": "html.parse.warning",
+          "message": "Unexpected start tag (style). Expected DOCTYPE.",
+          "severity": "warning",
+          "requiresWebView": false
+        }
+      ]
+    },
+    "body": {
+      "id": 0,
+      "tag": "body",
+      "children": [
+        {
+          "id": 1,
+          "tag": "h2",
+          "children": [
+            {
+              "id": 2,
+              "text": "Column track geometry baseline"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "text": "\n"
+        },
+        {
+          "id": 4,
+          "tag": "table",
+          "style": {
+            "width": "360px"
+          },
+          "children": [
+            {
+              "id": 5,
+              "text": "\n  "
+            },
+            {
+              "id": 6,
+              "tag": "caption",
+              "children": [
+                {
+                  "id": 7,
+                  "text": "Quarterly forecast"
+                }
+              ]
+            },
+            {
+              "id": 8,
+              "text": "\n  "
+            },
+            {
+              "id": 9,
+              "tag": "colgroup",
+              "children": [
+                {
+                  "id": 11,
+                  "tag": "col",
+                  "attributes": {
+                    "class": "narrow"
+                  }
+                },
+                {
+                  "id": 13,
+                  "tag": "col",
+                  "attributes": {
+                    "class": "wide"
+                  }
+                }
+              ]
+            },
+            {
+              "id": 15,
+              "text": "\n  "
+            },
+            {
+              "id": 16,
+              "tag": "colgroup",
+              "children": [
+                {
+                  "id": 17,
+                  "tag": "col",
+                  "attributes": {
+                    "class": "share"
+                  }
+                }
+              ]
+            },
+            {
+              "id": 19,
+              "tag": "colgroup",
+              "attributes": {
+                "span": "2"
+              }
+            },
+            {
+              "id": 20,
+              "text": "\n  "
+            },
+            {
+              "id": 21,
+              "tag": "thead",
+              "children": [
+                {
+                  "id": 22,
+                  "text": "\n    "
+                },
+                {
+                  "id": 23,
+                  "tag": "tr",
+                  "children": [
+                    {
+                      "id": 24,
+                      "tag": "th",
+                      "children": [
+                        {
+                          "id": 25,
+                          "text": "Sku"
+                        }
+                      ]
+                    },
+                    {
+                      "id": 26,
+                      "tag": "th",
+                      "children": [
+                        {
+                          "id": 27,
+                          "text": "Stock"
+                        }
+                      ]
+                    },
+                    {
+                      "id": 28,
+                      "tag": "th",
+                      "children": [
+                        {
+                          "id": 29,
+                          "text": "Share"
+                        }
+                      ]
+                    },
+                    {
+                      "id": 30,
+                      "tag": "th",
+                      "children": [
+                        {
+                          "id": 31,
+                          "text": "A"
+                        }
+                      ]
+                    },
+                    {
+                      "id": 32,
+                      "tag": "th",
+                      "children": [
+                        {
+                          "id": 33,
+                          "text": "B"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": 34,
+                  "text": "\n  "
+                }
+              ]
+            },
+            {
+              "id": 35,
+              "text": "\n  "
+            },
+            {
+              "id": 36,
+              "tag": "tbody",
+              "children": [
+                {
+                  "id": 37,
+                  "text": "\n    "
+                },
+                {
+                  "id": 38,
+                  "tag": "tr",
+                  "children": [
+                    {
+                      "id": 39,
+                      "tag": "td",
+                      "children": [
+                        {
+                          "id": 40,
+                          "text": "North"
+                        }
+                      ]
+                    },
+                    {
+                      "id": 41,
+                      "tag": "td",
+                      "children": [
+                        {
+                          "id": 42,
+                          "text": "1,240"
+                        }
+                      ]
+                    },
+                    {
+                      "id": 43,
+                      "tag": "td",
+                      "children": [
+                        {
+                          "id": 44,
+                          "text": "48,200"
+                        }
+                      ]
+                    },
+                    {
+                      "id": 45,
+                      "tag": "td",
+                      "children": [
+                        {
+                          "id": 46,
+                          "text": "A"
+                        }
+                      ]
+                    },
+                    {
+                      "id": 47,
+                      "tag": "td",
+                      "children": [
+                        {
+                          "id": 48,
+                          "text": "B"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": 49,
+                  "text": "\n    "
+                },
+                {
+                  "id": 50,
+                  "tag": "tr",
+                  "children": [
+                    {
+                      "id": 51,
+                      "tag": "td",
+                      "children": [
+                        {
+                          "id": 52,
+                          "text": "South"
+                        }
+                      ]
+                    },
+                    {
+                      "id": 53,
+                      "tag": "td",
+                      "children": [
+                        {
+                          "id": 54,
+                          "text": "2,410"
+                        }
+                      ]
+                    },
+                    {
+                      "id": 55,
+                      "tag": "td",
+                      "children": [
+                        {
+                          "id": 56,
+                          "text": "31,900"
+                        }
+                      ]
+                    },
+                    {
+                      "id": 57,
+                      "tag": "td",
+                      "attributes": {
+                        "colspan": "2"
+                      },
+                      "children": [
+                        {
+                          "id": 58,
+                          "text": "Merged"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": 59,
+                  "text": "\n  "
+                }
+              ]
+            },
+            {
+              "id": 60,
+              "text": "\n"
+            }
+          ]
+        },
+        {
+          "id": 61,
+          "text": "\n"
+        },
+        {
+          "id": 62,
+          "tag": "p",
+          "children": [
+            {
+              "id": 63,
+              "text": "Paragraph after the tracked table."
+            }
+          ]
+        },
+        {
+          "id": 64,
+          "text": "\n"
+        }
+      ]
+    },
+    "styleSheet": {
+      "rules": [
+        {
+          "selectors": [
+            {
+              "parts": [
+                {
+                  "tag": "body"
+                }
+              ]
+            }
+          ],
+          "declarations": {
+            "font-family": "\"WeftRoboto\""
+          },
+          "order": 0
+        },
+        {
+          "selectors": [
+            {
+              "parts": [
+                {
+                  "tag": "table"
+                }
+              ]
+            }
+          ],
+          "declarations": {
+            "border-collapse": "collapse"
+          },
+          "order": 1
+        },
+        {
+          "selectors": [
+            {
+              "parts": [
+                {
+                  "tag": "td"
+                }
+              ]
+            },
+            {
+              "parts": [
+                {
+                  "tag": "th"
+                }
+              ]
+            }
+          ],
+          "declarations": {
+            "border": "1px solid #d0d7de",
+            "padding": "6px 10px",
+            "vertical-align": "top"
+          },
+          "order": 2
+        },
+        {
+          "selectors": [
+            {
+              "parts": [
+                {
+                  "tag": "th"
+                }
+              ]
+            }
+          ],
+          "declarations": {
+            "font-weight": "700",
+            "text-align": "left"
+          },
+          "order": 3
+        },
+        {
+          "selectors": [
+            {
+              "parts": [
+                {
+                  "tag": "col",
+                  "classes": [
+                    "narrow"
+                  ]
+                }
+              ]
+            }
+          ],
+          "declarations": {
+            "width": "80px"
+          },
+          "order": 4
+        },
+        {
+          "selectors": [
+            {
+              "parts": [
+                {
+                  "tag": "col",
+                  "classes": [
+                    "wide"
+                  ]
+                }
+              ]
+            }
+          ],
+          "declarations": {
+            "width": "110px"
+          },
+          "order": 5
+        },
+        {
+          "selectors": [
+            {
+              "parts": [
+                {
+                  "tag": "col",
+                  "classes": [
+                    "share"
+                  ]
+                }
+              ]
+            }
+          ],
+          "declarations": {
+            "width": "25%"
+          },
+          "order": 6
+        }
+      ]
+    }
+  }
+}

@@ -6,9 +6,13 @@ import 'package:weft_runtime_api/weft_runtime_api.dart';
 /// backend limit; the session maps it to `RuntimeFailureKind.memoryLimit`,
 /// mirroring how a real engine surfaces allocation failure.
 final class FakeMemoryLimitExceeded implements Exception {
+  /// Creates the error from the failing allocation size and the heap ceiling.
   FakeMemoryLimitExceeded(this.requested, this.limitBytes);
 
+  /// Bytes the scripted behavior asked [FakeScriptContext.allocate] to add.
   final int requested;
+
+  /// Session heap ceiling the allocation ran past.
   final int limitBytes;
 
   @override
@@ -54,24 +58,50 @@ final class FakeScriptContext {
     }
   }
 
+  /// Builds a successful result carrying [value]; `null` crosses the
+  /// boundary as JS `undefined`.
   JsResult success([JsValue value]) => JsResult.success(value);
 
+  /// Builds the [RuntimeFailureKind.timeout] error a session surfaces when
+  /// a script runs past its wall-clock deadline; lets tests stage that
+  /// shape without real waiting.
   JsResult timeoutFailure([String message = 'Script exceeded its deadline.']) =>
+
+      /// Envelope builder stamps the executing behavior's [scriptId].
       JsResult.error(_failure(RuntimeFailureKind.timeout, message));
 
+  /// Builds the [RuntimeFailureKind.memoryLimit] error a session surfaces
+  /// when an allocation blows past the heap limit.
   JsResult memoryFailure([String message = 'Fake heap limit exceeded.']) =>
+
+      /// Envelope builder stamps the executing behavior's [scriptId].
       JsResult.error(_failure(RuntimeFailureKind.memoryLimit, message));
 
+  /// Builds the [RuntimeFailureKind.stackOverflow] error for scripts that
+  /// recurse past the engine stack limit.
   JsResult stackFailure([String message = 'stack overflow']) =>
+
+      /// Envelope builder stamps the executing behavior's [scriptId].
       JsResult.error(_failure(RuntimeFailureKind.stackOverflow, message));
 
+  /// Builds the [RuntimeFailureKind.microtaskBudget] error for scripts that
+  /// chain more promise continuations than the budget allows.
   JsResult microtaskFailure([String message = 'Microtask budget exceeded.']) =>
+
+      /// Envelope builder stamps the executing behavior's [scriptId].
       JsResult.error(_failure(RuntimeFailureKind.microtaskBudget, message));
 
+  /// Builds a [RuntimeFailureKind.scriptError] error carrying [message] as
+  /// the failure text.
   JsResult scriptFailure(String message) =>
+
+      /// Envelope builder stamps the executing behavior's [scriptId].
       JsResult.error(_failure(RuntimeFailureKind.scriptError, message));
 
+  /// Shared envelope builder: every fake failure names the executed script.
   RuntimeFailure _failure(RuntimeFailureKind kind, String message) =>
+
+      /// Results stay error-shaped exactly like real backend failures.
       RuntimeFailure(kind: kind, message: message, scriptId: scriptId);
 }
 
@@ -84,6 +114,9 @@ final class FakeScriptContext {
 /// limits through the context helpers; the real enforcement evidence lives in
 /// the QuickJS FFI tests.
 final class FakeRuntimeBackend implements JsRuntimeBackend {
+  /// Creates a backend whose behavior map is fixed at construction; ids
+  /// missing from [behaviors] fail as script errors, except the bootstrap
+  /// id which defaults to a no-op success.
   FakeRuntimeBackend({
     required Map<String, FakeScriptBehavior> behaviors,
     this.heapLimitBytes = 8 * 1024 * 1024,
@@ -95,6 +128,9 @@ final class FakeRuntimeBackend implements JsRuntimeBackend {
   static const bootstrapScriptId = 'weft/bootstrap';
 
   final Map<String, FakeScriptBehavior> _behaviors;
+
+  /// Fake heap ceiling [FakeScriptContext.allocate] grows against; it never
+  /// shrinks within a session.
   final int heapLimitBytes;
   final StreamController<EventEnvelope> _events;
 
@@ -127,6 +163,8 @@ final class _FakeJsSession implements JsSession {
   @override
   final String id;
 
+  /// Dispatches one capability call with the next session-scoped sequence
+  /// number; tracked as in-flight so [settle] waits for it.
   Future<JsValue> issueBridge(
     String capability,
     String method,

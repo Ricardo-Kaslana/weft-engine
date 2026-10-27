@@ -1,0 +1,51 @@
+{
+  "id": "synthetic_entities",
+  "source": "inline",
+  "normalizer": {
+    "customTags": []
+  },
+  "snapshot": {
+    "id": "vector-synthetic_entities",
+    "revision": 1
+  },
+  "input": "<body><p title=\"a&amp;b\">&lt;tag&gt; &amp; &#x1F600; &quot;q&quot;</p></body>",
+  "expected": {
+    "format": "weft.document",
+    "version": 1,
+    "id": "vector-synthetic_entities",
+    "revision": 1,
+    "normalizedHtml": "<p title=\"a&amp;b\">&lt;tag&gt; &amp; 😀 \"q\"</p>",
+    "supportReport": {
+      "issues": [
+        {
+          "code": "html.parse.warning",
+          "message": "Unexpected start tag (body). Expected DOCTYPE.",
+          "severity": "warning",
+          "requiresWebView": false
+        }
+      ]
+    },
+    "body": {
+      "id": 0,
+      "tag": "body",
+      "children": [
+        {
+          "id": 1,
+          "tag": "p",
+          "attributes": {
+            "title": "a&b"
+          },
+          "children": [
+            {
+              "id": 2,
+              "text": "<tag> & 😀 \"q\""
+            }
+          ]
+        }
+      ]
+    },
+    "styleSheet": {
+      "rules": []
+    }
+  }
+}

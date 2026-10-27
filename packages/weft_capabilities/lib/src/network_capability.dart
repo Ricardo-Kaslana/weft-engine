@@ -13,6 +13,8 @@ import 'capability_policy.dart';
 ///   redirect that leaves the whitelist fails the request instead of
 ///   delivering its body.
 final class WeftNetworkPolicy {
+  /// Creates a policy; schemes must be lowercase, and an empty host whitelist
+  /// allows no requests at all.
   WeftNetworkPolicy({
     this.allowedSchemes = const {'https'},
     this.allowedHosts = const <String>{},
@@ -27,9 +29,16 @@ final class WeftNetworkPolicy {
     }
   }
 
+  /// URL schemes a request may use; defaults to HTTPS only.
   final Set<String> allowedSchemes;
+
+  /// Exact hostnames a request may target; empty allows nothing.
   final Set<String> allowedHosts;
+
+  /// Largest accepted response body; larger bodies fail the fetch.
   final int maxResponseBytes;
+
+  /// Maximum redirect hops a response may report.
   final int maxRedirects;
 
   /// Validates one URL hop; throws [WeftNetworkPolicyError] on violation.
@@ -49,6 +58,7 @@ final class WeftNetworkPolicy {
     }
   }
 
+  /// Non-throwing form of [validate]: true when [uri] passes the policy.
   bool allows(Uri uri) {
     try {
       validate(uri);
@@ -61,14 +71,20 @@ final class WeftNetworkPolicy {
 
 /// A single-hop request the capability passes to the host client.
 final class WeftNetworkRequest {
+  /// Creates a request; defaults to a GET with no headers.
   const WeftNetworkRequest({
     required this.url,
     this.method = 'GET',
     this.headers = const <String, String>{},
   });
 
+  /// URL to request; the capability validates it against the policy first.
   final Uri url;
+
+  /// HTTP method; v1 issues GET only.
   final String method;
+
+  /// Request headers; defaults to empty.
   final Map<String, String> headers;
 }
 
@@ -76,6 +92,7 @@ final class WeftNetworkRequest {
 /// followed (in order, including the initial URL when it redirected); the
 /// capability validates each hop against the policy.
 final class WeftNetworkResponse {
+  /// Creates a response; fields other than [status] and [body] default empty.
   const WeftNetworkResponse({
     required this.status,
     required this.body,
@@ -83,9 +100,16 @@ final class WeftNetworkResponse {
     this.redirectChain = const <Uri>[],
   });
 
+  /// HTTP status code reported by the host client.
   final int status;
+
+  /// Response headers; defaults to empty.
   final Map<String, String> headers;
+
+  /// Response body as text; checked against the policy's size limit.
   final String body;
+
+  /// Every URL the client followed, in order; each hop is re-validated.
   final List<Uri> redirectChain;
 }
 
@@ -93,15 +117,19 @@ final class WeftNetworkResponse {
 /// clients itself; hosts inject their own client with their own auth and
 /// caching.
 abstract interface class WeftNetworkClient {
+  /// Performs [request] and resolves with the response; implementations must
+  /// report every redirect hop so the capability can validate each one.
   Future<WeftNetworkResponse> request(WeftNetworkRequest request);
 }
 
+/// Lifecycle stage recorded for one fetch in the [WeftNetworkJournal].
 enum WeftNetworkOutcome { requested, completed, blocked, failed }
 
 /// Audit record of one network side effect. Entries survive recovery so the
 /// orchestrator can prove that no request is silently replayed and hosts can
 /// reconcile side effects after a crash.
 final class WeftNetworkJournalEntry {
+  /// Creates an entry describing one fetch attempt.
   const WeftNetworkJournalEntry({
     required this.sessionId,
     required this.sequence,
@@ -110,22 +138,38 @@ final class WeftNetworkJournalEntry {
     this.detail,
   });
 
+  /// Session that issued the fetch.
   final String sessionId;
+
+  /// Bridge call sequence pairing this entry with its gateway exchange.
   final int sequence;
+
+  /// Requested URL, or the final URL for a completed redirect chain.
   final String url;
+
+  /// What happened to the request.
   final WeftNetworkOutcome outcome;
+
+  /// Optional context such as the failure reason or response status.
   final String? detail;
 }
 
+/// In-memory audit log of network side effects for one document runtime.
+///
+/// Hosts persist these entries across recovery so a settled fetch is never
+/// silently replayed after a crash.
 final class WeftNetworkJournal {
   final List<WeftNetworkJournalEntry> _entries = <WeftNetworkJournalEntry>[];
 
+  /// All recorded entries in order, oldest first.
   List<WeftNetworkJournalEntry> get entries => List.unmodifiable(_entries);
 
+  /// Number of entries whose outcome is [WeftNetworkOutcome.completed].
   int get completedCount => _entries
       .where((entry) => entry.outcome == WeftNetworkOutcome.completed)
       .length;
 
+  /// Appends one entry to the log.
   void record(WeftNetworkJournalEntry entry) => _entries.add(entry);
 }
 
@@ -134,16 +178,23 @@ final class WeftNetworkJournal {
 /// Methods: `fetch(url, options?)` — GET only in v1. Resolves with
 /// `{status, body, url}`.
 final class NetworkCapabilityModule implements CapabilityModule {
+  /// Creates the module; a fresh journal is created when none is injected.
   NetworkCapabilityModule({
     required this.client,
     required this.policy,
     WeftNetworkJournal? journal,
   }) : journal = journal ?? WeftNetworkJournal();
 
+  /// Namespace this module answers on: [WeftCapabilityIds.network].
   static const namespace = WeftCapabilityIds.network;
 
+  /// Host transport used for every fetch.
   final WeftNetworkClient client;
+
+  /// URL and response rules validated before and after the client runs.
   final WeftNetworkPolicy policy;
+
+  /// Audit log receiving one entry per fetch attempt.
   final WeftNetworkJournal journal;
 
   @override

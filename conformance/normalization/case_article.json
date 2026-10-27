@@ -1,0 +1,273 @@
+{
+  "id": "case_article",
+  "source": "conformance/cases/article.html",
+  "normalizer": {
+    "customTags": []
+  },
+  "snapshot": {
+    "id": "vector-case_article",
+    "revision": 1
+  },
+  "input": "<style>\n  .lead { color: #57606a; font-size: 18px; }\n  .note {\n    background-color: #fff8c5;\n    border: 1px solid #d4a72c;\n    padding: 12px;\n  }\n</style>\n<h1>受控内容渲染</h1>\n<p class=\"lead\">这是一篇用于验证标题、段落、列表、引用、代码和链接的基础文章。</p>\n<h2>内容结构</h2>\n<ul>\n  <li>支持受控 HTML 标签和基础 CSS。</li>\n  <li>链接具有按行命中区域，导航交由宿主处理。</li>\n  <li>复杂内容通过支持度报告显式回退。</li>\n</ul>\n<blockquote>\n  <p>内容正确性优先于新增能力。</p>\n</blockquote>\n<h2>代码示例</h2>\n<pre><code>final snapshot = normalizer.normalize(html, id: 'article');</code></pre>\n<p class=\"note\">查看 <a href=\"https://example.com/weft/reference\">参考文档</a> 了解当前能力边界。</p>\n",
+  "expected": {
+    "format": "weft.document",
+    "version": 1,
+    "id": "vector-case_article",
+    "revision": 1,
+    "normalizedHtml": "<h1>受控内容渲染</h1>\n<p class=\"lead\">这是一篇用于验证标题、段落、列表、引用、代码和链接的基础文章。</p>\n<h2>内容结构</h2>\n<ul>\n  <li>支持受控 HTML 标签和基础 CSS。</li>\n  <li>链接具有按行命中区域，导航交由宿主处理。</li>\n  <li>复杂内容通过支持度报告显式回退。</li>\n</ul>\n<blockquote>\n  <p>内容正确性优先于新增能力。</p>\n</blockquote>\n<h2>代码示例</h2>\n<pre><code>final snapshot = normalizer.normalize(html, id: 'article');</code></pre>\n<p class=\"note\">查看 <a href=\"https://example.com/weft/reference\">参考文档</a> 了解当前能力边界。</p>\n",
+    "supportReport": {
+      "issues": [
+        {
+          "code": "html.parse.warning",
+          "message": "Unexpected start tag (style). Expected DOCTYPE.",
+          "severity": "warning",
+          "requiresWebView": false
+        }
+      ]
+    },
+    "body": {
+      "id": 0,
+      "tag": "body",
+      "children": [
+        {
+          "id": 1,
+          "tag": "h1",
+          "children": [
+            {
+              "id": 2,
+              "text": "受控内容渲染"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "text": "\n"
+        },
+        {
+          "id": 4,
+          "tag": "p",
+          "attributes": {
+            "class": "lead"
+          },
+          "children": [
+            {
+              "id": 5,
+              "text": "这是一篇用于验证标题、段落、列表、引用、代码和链接的基础文章。"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "text": "\n"
+        },
+        {
+          "id": 7,
+          "tag": "h2",
+          "children": [
+            {
+              "id": 8,
+              "text": "内容结构"
+            }
+          ]
+        },
+        {
+          "id": 9,
+          "text": "\n"
+        },
+        {
+          "id": 10,
+          "tag": "ul",
+          "children": [
+            {
+              "id": 11,
+              "text": "\n  "
+            },
+            {
+              "id": 12,
+              "tag": "li",
+              "children": [
+                {
+                  "id": 13,
+                  "text": "支持受控 HTML 标签和基础 CSS。"
+                }
+              ]
+            },
+            {
+              "id": 14,
+              "text": "\n  "
+            },
+            {
+              "id": 15,
+              "tag": "li",
+              "children": [
+                {
+                  "id": 16,
+                  "text": "链接具有按行命中区域，导航交由宿主处理。"
+                }
+              ]
+            },
+            {
+              "id": 17,
+              "text": "\n  "
+            },
+            {
+              "id": 18,
+              "tag": "li",
+              "children": [
+                {
+                  "id": 19,
+                  "text": "复杂内容通过支持度报告显式回退。"
+                }
+              ]
+            },
+            {
+              "id": 20,
+              "text": "\n"
+            }
+          ]
+        },
+        {
+          "id": 21,
+          "text": "\n"
+        },
+        {
+          "id": 22,
+          "tag": "blockquote",
+          "children": [
+            {
+              "id": 23,
+              "text": "\n  "
+            },
+            {
+              "id": 24,
+              "tag": "p",
+              "children": [
+                {
+                  "id": 25,
+                  "text": "内容正确性优先于新增能力。"
+                }
+              ]
+            },
+            {
+              "id": 26,
+              "text": "\n"
+            }
+          ]
+        },
+        {
+          "id": 27,
+          "text": "\n"
+        },
+        {
+          "id": 28,
+          "tag": "h2",
+          "children": [
+            {
+              "id": 29,
+              "text": "代码示例"
+            }
+          ]
+        },
+        {
+          "id": 30,
+          "text": "\n"
+        },
+        {
+          "id": 31,
+          "tag": "pre",
+          "children": [
+            {
+              "id": 32,
+              "tag": "code",
+              "children": [
+                {
+                  "id": 33,
+                  "text": "final snapshot = normalizer.normalize(html, id: 'article');"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": 34,
+          "text": "\n"
+        },
+        {
+          "id": 35,
+          "tag": "p",
+          "attributes": {
+            "class": "note"
+          },
+          "children": [
+            {
+              "id": 36,
+              "text": "查看 "
+            },
+            {
+              "id": 37,
+              "tag": "a",
+              "attributes": {
+                "href": "https://example.com/weft/reference"
+              },
+              "children": [
+                {
+                  "id": 38,
+                  "text": "参考文档"
+                }
+              ]
+            },
+            {
+              "id": 39,
+              "text": " 了解当前能力边界。"
+            }
+          ]
+        },
+        {
+          "id": 40,
+          "text": "\n"
+        }
+      ]
+    },
+    "styleSheet": {
+      "rules": [
+        {
+          "selectors": [
+            {
+              "parts": [
+                {
+                  "classes": [
+                    "lead"
+                  ]
+                }
+              ]
+            }
+          ],
+          "declarations": {
+            "color": "#57606a",
+            "font-size": "18px"
+          },
+          "order": 0
+        },
+        {
+          "selectors": [
+            {
+              "parts": [
+                {
+                  "classes": [
+                    "note"
+                  ]
+                }
+              ]
+            }
+          ],
+          "declarations": {
+            "background-color": "#fff8c5",
+            "border": "1px solid #d4a72c",
+            "padding": "12px"
+          },
+          "order": 1
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "id": "synthetic_parse_warnings",
+  "source": "inline",
+  "normalizer": {
+    "customTags": []
+  },
+  "snapshot": {
+    "id": "vector-synthetic_parse_warnings",
+    "revision": 1
+  },
+  "input": "<body><p>unclosed <em>emphasis</p></body>",
+  "expected": {
+    "format": "weft.document",
+    "version": 1,
+    "id": "vector-synthetic_parse_warnings",
+    "revision": 1,
+    "normalizedHtml": "<p>unclosed <em>emphasis</em></p>",
+    "supportReport": {
+      "issues": [
+        {
+          "code": "html.parse.warning",
+          "message": "Unexpected start tag (body). Expected DOCTYPE.",
+          "severity": "warning",
+          "requiresWebView": false
+        },
+        {
+          "code": "html.parse.warning",
+          "message": "Unexpected end tag (p). Ignored.",
+          "severity": "warning",
+          "requiresWebView": false
+        }
+      ]
+    },
+    "body": {
+      "id": 0,
+      "tag": "body",
+      "children": [
+        {
+          "id": 1,
+          "tag": "p",
+          "children": [
+            {
+              "id": 2,
+              "text": "unclosed "
+            },
+            {
+              "id": 3,
+              "tag": "em",
+              "children": [
+                {
+                  "id": 4,
+                  "text": "emphasis"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "styleSheet": {
+      "rules": []
+    }
+  }
+}

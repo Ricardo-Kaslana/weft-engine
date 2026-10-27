@@ -29,6 +29,9 @@ dart format --output=none --set-exit-if-changed .
 step "dart analyze"
 dart analyze
 
+step "doc coverage"
+dart run tool/doc_coverage.dart
+
 step "package tests (dart run tool/verify.dart)"
 dart run tool/verify.dart 2>&1 | tr -d '\r' | tail -5
 

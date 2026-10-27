@@ -4,6 +4,7 @@
 /// `String.codeUnitAt`, which is how the line-by-line layout path inspects
 /// break candidates.
 final class WeftLineBreakRules {
+  /// Creates rules with the given prohibition tables.
   const WeftLineBreakRules({
     this.lineStartProhibited = defaultLineStart,
     this.lineEndProhibited = defaultLineEnd,

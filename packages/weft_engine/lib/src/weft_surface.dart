@@ -42,6 +42,7 @@ const double kWeftCopyButtonVerticalGap = 8;
 /// suggestions for the view layer — [RenderWeftSurface] never paints these
 /// widgets itself.
 final class WeftSelectionControlsGeometry {
+  /// Creates the geometry from the selection's rectangles.
   const WeftSelectionControlsGeometry({
     required this.startAnchor,
     required this.endAnchor,
@@ -77,6 +78,7 @@ final class WeftSelectionControlsGeometry {
 /// through [RenderWeftSurface.selectionControlsGeometry]. The show* flags
 /// here gate that query so the view layer can turn chrome off.
 class WeftSurface extends StatefulWidget {
+  /// Creates a surface that lays out and paints [document].
   const WeftSurface({
     super.key,
     required this.document,
@@ -99,20 +101,46 @@ class WeftSurface extends StatefulWidget {
     this.onTagTap,
   });
 
+  /// The normalized document snapshot to lay out and paint.
   final WeftDocumentSnapshot document;
+
+  /// The active selection, or null when nothing is selected.
   final TextSelectionRange? selection;
+
+  /// Text scaling applied to the laid-out text.
   final TextScaler textScaler;
+
+  /// Resolves document images; null leaves every image unresolved so its
+  /// alternative text paints instead.
   final WeftImageResolver? imageResolver;
+
+  /// Called when a tap lands on a link region.
   final ValueChanged<WeftLinkRegion>? onLinkTap;
 
   /// Activates links through assistive technology. Defaults to [onLinkTap];
   /// WeftView supplies this separately so pointer gestures keep one owner.
   final ValueChanged<WeftLinkRegion>? onSemanticsLinkTap;
+
+  /// Called when copy is triggered through assistive technology, with the
+  /// logical text to copy.
   final ValueChanged<String>? onSemanticsCopy;
+
+  /// Whether the surface lays out lazily, materializing only blocks near the
+  /// viewport. Requires [viewportHeight].
   final bool enableLazyLayout;
+
+  /// Document pixels laid out beyond the visible viewport before and after.
   final double lazyOverscan;
+
+  /// Height of the visible viewport in pixels; required for lazy layout.
   final double? viewportHeight;
+
+  /// Initial scroll offset within the document, for hosts that manage their
+  /// own scrolling.
   final double initialViewportPixels;
+
+  /// Called when a lazy layout corrects its estimated extent, so the host
+  /// can adjust its scroll metrics.
   final ValueChanged<double>? onLazyExtentCorrection;
 
   /// Whether [RenderWeftSurface.selectionControlsGeometry] exposes drag
@@ -211,21 +239,53 @@ class _RawWeftSurface extends LeafRenderObjectWidget {
     this.onTagTap,
   });
 
+  /// The normalized document snapshot to lay out and paint.
   final WeftDocumentSnapshot document;
+
+  /// The active selection, or null when nothing is selected.
   final TextSelectionRange? selection;
+
+  /// Text scaling applied to the laid-out text.
   final TextScaler textScaler;
+
+  /// Resolves document images; null leaves every image unresolved.
   final WeftImageResolver? imageResolver;
+
+  /// Activates links through assistive technology.
   final ValueChanged<WeftLinkRegion>? onSemanticsLinkTap;
+
+  /// Called when copy is triggered through assistive technology, with the
+  /// logical text to copy.
   final ValueChanged<String>? onSemanticsCopy;
+
+  /// Whether the render object lays out lazily; requires [viewportHeight].
   final bool enableLazyLayout;
+
+  /// Document pixels laid out beyond the visible viewport before and after.
   final double lazyOverscan;
+
+  /// Height of the visible viewport in pixels; required for lazy layout.
   final double? viewportHeight;
+
+  /// Initial scroll offset within the document.
   final double initialViewportPixels;
+
+  /// Called when a lazy layout corrects its estimated extent.
   final ValueChanged<double>? onLazyExtentCorrection;
+
+  /// Whether drag handle touch targets are exposed to the view layer.
   final bool showSelectionHandles;
+
+  /// Whether a collapsed selection paints a caret bar on the canvas.
   final bool showCaret;
+
+  /// Whether a copy button placement is suggested to the view layer.
   final bool showCopyButton;
+
+  /// Trusted custom tag renderers (ADR 0033).
   final Map<String, WeftTagRenderer> tagRenderers;
+
+  /// Called when a tap lands on a custom tag region and not on a link.
   final ValueChanged<WeftTagRegion>? onTagTap;
 
   @override
@@ -276,7 +336,15 @@ class _RawWeftSurface extends LeafRenderObjectWidget {
   }
 }
 
+/// Render object that lays out and paints one normalized document on a
+/// single surface.
+///
+/// Beyond painting, it answers hit queries (links, tags, text anchors),
+/// exposes selection geometry to the view layer, and publishes a semantic
+/// forest for the document. Hosts drive scrolling through
+/// [setViewportPixels] and lazy layout through the enable/lazy properties.
 class RenderWeftSurface extends RenderBox {
+  /// Creates a render object for [document].
   RenderWeftSurface({
     required WeftDocumentSnapshot document,
     TextSelectionRange? selection,
@@ -389,8 +457,12 @@ class RenderWeftSurface extends RenderBox {
   Map<Key, SemanticsNode> _semanticsChildNodes = <Key, SemanticsNode>{};
   Map<Key, ui.Rect> _semanticAbsoluteRects = <Key, ui.Rect>{};
 
+  /// The document snapshot being laid out.
   WeftDocumentSnapshot get document => _document;
 
+  /// Sets the document snapshot; identical snapshots keep the current
+  /// layout, and a changed document id also drops resolved images and
+  /// semantics state and exits lazy mode.
   set document(WeftDocumentSnapshot value) {
     if (identical(_document, value)) return;
     final documentIdChanged = _document.id != value.id;
@@ -406,8 +478,11 @@ class RenderWeftSurface extends RenderBox {
     }
   }
 
+  /// The active selection.
   TextSelectionRange? get selection => _selection;
 
+  /// Sets the selection; a non-null selection forces the next layout to be
+  /// a full (non-lazy) layout.
   set selection(TextSelectionRange? value) {
     if (_selection == value) return;
     _selection = value;
@@ -416,40 +491,52 @@ class RenderWeftSurface extends RenderBox {
     markNeedsSemanticsUpdate();
   }
 
+  /// Callback for link activations through assistive technology.
   ValueChanged<WeftLinkRegion>? get onSemanticsLinkTap => _onSemanticsLinkTap;
 
+  /// Sets the callback and refreshes semantics.
   set onSemanticsLinkTap(ValueChanged<WeftLinkRegion>? value) {
     if (identical(_onSemanticsLinkTap, value)) return;
     _onSemanticsLinkTap = value;
     markNeedsSemanticsUpdate();
   }
 
+  /// Callback for copy actions through assistive technology.
   ValueChanged<String>? get onSemanticsCopy => _onSemanticsCopy;
 
+  /// Sets the callback and refreshes semantics.
   set onSemanticsCopy(ValueChanged<String>? value) {
     if (identical(_onSemanticsCopy, value)) return;
     _onSemanticsCopy = value;
     markNeedsSemanticsUpdate();
   }
 
+  /// Trusted custom tag renderers (ADR 0033).
   Map<String, WeftTagRenderer> get tagRenderers => _tagRenderers;
 
+  /// Sets the renderers and relayouts; the map instance participates in
+  /// block reuse decisions.
   set tagRenderers(Map<String, WeftTagRenderer> value) {
     if (identical(_tagRenderers, value)) return;
     _tagRenderers = value;
     markNeedsLayout();
   }
 
+  /// Callback for taps that land on a custom tag region and not on a link.
   ValueChanged<WeftTagRegion>? get onTagTap => _onTagTap;
 
+  /// Sets the callback and refreshes semantics.
   set onTagTap(ValueChanged<WeftTagRegion>? value) {
     if (identical(_onTagTap, value)) return;
     _onTagTap = value;
     markNeedsSemanticsUpdate();
   }
 
+  /// Whether lazy layout is enabled.
   bool get enableLazyLayout => _enableLazyLayout;
 
+  /// Enables or disables lazy layout; disabling also exits the current lazy
+  /// state.
   set enableLazyLayout(bool value) {
     if (_enableLazyLayout == value) return;
     _enableLazyLayout = value;
@@ -457,16 +544,21 @@ class RenderWeftSurface extends RenderBox {
     _invalidateLayout();
   }
 
+  /// Document pixels laid out beyond the visible viewport.
   double get lazyOverscan => _lazyOverscan;
 
+  /// Sets the overscan, clamped to zero or more.
   set lazyOverscan(double value) {
     if (_lazyOverscan == value) return;
     _lazyOverscan = math.max(0, value);
     markNeedsLayout();
   }
 
+  /// Height of the visible viewport in pixels, or null when the host does
+  /// not track one.
   double? get viewportHeight => _viewportHeight;
 
+  /// Sets the viewport height; null or non-positive values exit lazy mode.
   set viewportHeight(double? value) {
     if (_viewportHeight == value) return;
     _viewportHeight = value;
@@ -474,10 +566,14 @@ class RenderWeftSurface extends RenderBox {
     markNeedsLayout();
   }
 
+  /// Sets the callback invoked when a lazy pass corrects its estimated
+  /// extent.
   set onLazyExtentCorrection(ValueChanged<double>? value) {
     _onLazyExtentCorrection = value;
   }
 
+  /// Updates the scroll offset within the document and triggers a relayout
+  /// when the viewport moves beyond the measured lazy window.
   void setViewportPixels(double value) {
     if (_viewportPixels == value) return;
     _viewportPixels = value;
@@ -508,16 +604,20 @@ class RenderWeftSurface extends RenderBox {
     if (hadLazyLayout) _invalidateLayout();
   }
 
+  /// Text scaling applied to the laid-out text.
   TextScaler get textScaler => _textScaler;
 
+  /// Sets the text scaling and relayouts.
   set textScaler(TextScaler value) {
     if (_textScaler == value) return;
     _textScaler = value;
     _invalidateLayout();
   }
 
+  /// Resolves document images.
   WeftImageResolver? get imageResolver => _imageResolver;
 
+  /// Sets the resolver, drops every resolved image, and relayouts.
   set imageResolver(WeftImageResolver? value) {
     if (identical(_imageResolver, value)) return;
     _imageResolver = value;
@@ -525,8 +625,11 @@ class RenderWeftSurface extends RenderBox {
     _clearImages();
   }
 
+  /// Configuration used to resolve images (device pixel ratio, locale, and
+  /// so on).
   ImageConfiguration get imageConfiguration => _imageConfiguration;
 
+  /// Sets the configuration, drops every resolved image, and relayouts.
   set imageConfiguration(ImageConfiguration value) {
     if (_imageConfiguration == value) return;
     _imageConfiguration = value;
@@ -539,6 +642,7 @@ class RenderWeftSurface extends RenderBox {
   /// here; the flag only gates the geometry query.
   bool get showSelectionHandles => _showSelectionHandles;
 
+  /// Sets whether handle touch targets are exposed; repaints.
   set showSelectionHandles(bool value) {
     if (_showSelectionHandles == value) return;
     _showSelectionHandles = value;
@@ -548,6 +652,7 @@ class RenderWeftSurface extends RenderBox {
   /// Whether a collapsed selection paints a caret bar on the canvas.
   bool get showCaret => _showCaret;
 
+  /// Sets whether a collapsed selection paints a caret bar; repaints.
   set showCaret(bool value) {
     if (_showCaret == value) return;
     _showCaret = value;
@@ -557,15 +662,18 @@ class RenderWeftSurface extends RenderBox {
   /// Whether [selectionControlsGeometry] suggests a copy button placement.
   bool get showCopyButton => _showCopyButton;
 
+  /// Sets whether a copy button placement is suggested; repaints.
   set showCopyButton(bool value) {
     if (_showCopyButton == value) return;
     _showCopyButton = value;
     markNeedsPaint();
   }
 
+  /// The current layout result, for tests.
   @visibleForTesting
   WeftLayoutResult? get debugLayout => _layout;
 
+  /// Number of images resolved so far, for tests.
   @visibleForTesting
   int get debugResolvedImageCount {
     return _images.values.where((entry) => entry.info != null).length;
@@ -589,21 +697,28 @@ class RenderWeftSurface extends RenderBox {
   @visibleForTesting
   int get debugCachedChunkPictureCount => _chunkPictures.length;
 
+  /// Current chunk list, for tests.
   @visibleForTesting
   List<WeftChunk>? get debugChunks => _chunks;
 
+  /// Whether the next layout must be a full (non-lazy) layout, for tests.
   @visibleForTesting
   bool get debugFullLayoutRequired => _fullLayoutRequired;
 
+  /// Why a full layout was required, for tests.
   @visibleForTesting
   String? get debugFullLayoutReason => _debugFullLayoutReason;
 
+  /// Current scroll offset within the document, for tests.
   @visibleForTesting
   double get debugViewportPixels => _viewportPixels;
 
+  /// Whether lazy layout is following the document's bottom edge after a
+  /// downward extent correction, for tests.
   @visibleForTesting
   bool get debugFollowLazyBottom => _followLazyBottom;
 
+  /// Extent correction awaiting its post-frame callback, for tests.
   @visibleForTesting
   double get debugPendingLazyCorrection => _pendingLazyCorrection;
 
@@ -1071,10 +1186,13 @@ class RenderWeftSurface extends RenderBox {
     _images.clear();
   }
 
+  /// The link region at [position] in surface-local coordinates, or null.
   WeftLinkRegion? linkAt(Offset position) {
     return _layout?.linkAt(position);
   }
 
+  /// The custom tag region at [position] in surface-local coordinates, or
+  /// null.
   WeftTagRegion? tagAt(Offset position) {
     return _layout?.tagAt(position);
   }

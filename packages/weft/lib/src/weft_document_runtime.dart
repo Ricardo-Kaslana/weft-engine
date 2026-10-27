@@ -7,6 +7,8 @@ import 'package:weft_runtime_api/weft_runtime_api.dart';
 /// inject them here, keeping the engine core free of I/O (architecture doc,
 /// section 2).
 final class WeftRuntimeServices {
+  /// Creates a service bundle; every field is optional because each
+  /// capability declares what it actually needs.
   const WeftRuntimeServices({
     this.stateStore,
     this.networkClient,
@@ -30,6 +32,7 @@ final class WeftRuntimeServices {
 
 /// Report of a [WeftDocumentRuntime.recover] operation.
 final class WeftRecoveryReport {
+  /// Creates a recovery report.
   const WeftRecoveryReport({
     required this.previousSessionId,
     required this.sessionId,
@@ -37,18 +40,29 @@ final class WeftRecoveryReport {
     required this.retainedNetworkEntries,
   });
 
+  /// Session id before recovery; differs from [sessionId] whenever the
+  /// runtime actually replaced the underlying session.
   final String previousSessionId;
+
+  /// Session id after recovery.
   final String sessionId;
+
+  /// Bridge journal entries retained across recovery (dedup input).
   final int retainedBridgeEntries;
+
+  /// Network audit entries retained across recovery.
   final int retainedNetworkEntries;
 
+  /// Whether recovery actually swapped the session.
   bool get replacedSession => previousSessionId != sessionId;
 }
 
 /// Raised when a session (fresh or recovered) cannot finish its bootstrap.
 final class WeftRuntimeStartupError implements Exception {
+  /// Wraps the underlying [RuntimeFailure] from the bootstrap execute.
   WeftRuntimeStartupError(this.failure);
 
+  /// The failure that aborted startup.
   final RuntimeFailure failure;
 
   @override
@@ -160,14 +174,21 @@ final class WeftDocumentRuntime {
   JsSession _session = _NoSession();
   int _outboundSequence = 1;
 
+  /// The capability gateway; hosts use it to feed bridge calls that
+  /// arrive outside a script execution.
   CapabilityGateway get gateway => _gateway;
 
+  /// Network audit journal; survives [recover] so side effects stay
+  /// auditable across sessions.
   WeftNetworkJournal get networkJournal => _networkJournal;
 
+  /// The immutable capability policy this runtime enforces.
   CapabilityPolicy get policy => _policy;
 
+  /// The document this runtime is bound to.
   String get documentId => _documentId;
 
+  /// Id of the live session (or the placeholder before open).
   String get sessionId => _session.id;
 
   Future<void> _openSession() async {
@@ -233,6 +254,8 @@ final class WeftDocumentRuntime {
     );
   }
 
+  /// Disposes the underlying session; bridge calls after disposal are
+  /// rejected by the backend contract.
   Future<void> dispose() async {
     await _session.dispose();
   }

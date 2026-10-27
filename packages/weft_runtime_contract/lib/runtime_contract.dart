@@ -7,23 +7,51 @@ import 'package:weft_runtime_api/weft_runtime_api.dart';
 /// to whatever their execution model needs (JS sources for QuickJS, Dart
 /// behaviors for the fake).
 abstract final class ContractScriptIds {
+  /// Id of the unit that must evaluate to `42`: the plain
+  /// execute-and-return-value path.
   static const returnsValue = 'contract/returns-value';
+
+  /// Id of the unit that throws with `boom` in its message, proving script
+  /// errors surface as [RuntimeFailureKind.scriptError].
   static const throwsScriptError = 'contract/throws-script-error';
+
+  /// Id of the unit that loops forever, proving the wall-clock budget cuts
+  /// execution off with [RuntimeFailureKind.timeout].
   static const infiniteLoop = 'contract/infinite-loop';
+
+  /// Id of the unit that allocates without bound, proving the heap limit
+  /// answers with [RuntimeFailureKind.memoryLimit].
   static const memoryBomb = 'contract/memory-bomb';
+
+  /// Id of the unit that recurses without bound, proving the engine reports
+  /// [RuntimeFailureKind.stackOverflow] as its own kind.
   static const deepRecursion = 'contract/deep-recursion';
+
+  /// Id of the unit that schedules microtasks without end, proving the
+  /// [RuntimeFailureKind.microtaskBudget] ceiling applies.
   static const microtaskChain = 'contract/microtask-chain';
+
+  /// Id of the unit that calls the [ContractBridge] echo method and returns
+  /// the argument it receives, exercising the full bridge round trip.
   static const bridgeEcho = 'contract/bridge-echo';
 }
 
 /// The capability/method pair the bridge contract test uses.
 abstract final class ContractBridge {
+  /// Capability namespace the bridge round trip must target.
   static const capability = 'contract.cap';
+
+  /// Method invoked on [capability]; the recording dispatcher resolves it.
   static const method = 'echo';
+
+  /// Payload carried by the call; the contract bridge echoes the first
+  /// element back to the script.
   static const arguments = <JsValue>['hello'];
 }
 
 final class _RecordingBridge implements BridgeDispatcher {
+  /// Every [BridgeCall] the session dispatched, in arrival order, for the
+  /// contract assertions.
   final List<BridgeCall> calls = <BridgeCall>[];
 
   @override

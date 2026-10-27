@@ -1,0 +1,58 @@
+{
+  "id": "synthetic_cjk_and_emoji",
+  "source": "inline",
+  "normalizer": {
+    "customTags": []
+  },
+  "snapshot": {
+    "id": "vector-synthetic_cjk_and_emoji",
+    "revision": 1
+  },
+  "input": "<body><p>中文排版测试，标点禁则。Emoji 😃 follows.</p><pre>pre  spaces\nkeep</pre></body>",
+  "expected": {
+    "format": "weft.document",
+    "version": 1,
+    "id": "vector-synthetic_cjk_and_emoji",
+    "revision": 1,
+    "normalizedHtml": "<p>中文排版测试，标点禁则。Emoji 😃 follows.</p><pre>pre  spaces\nkeep</pre>",
+    "supportReport": {
+      "issues": [
+        {
+          "code": "html.parse.warning",
+          "message": "Unexpected start tag (body). Expected DOCTYPE.",
+          "severity": "warning",
+          "requiresWebView": false
+        }
+      ]
+    },
+    "body": {
+      "id": 0,
+      "tag": "body",
+      "children": [
+        {
+          "id": 1,
+          "tag": "p",
+          "children": [
+            {
+              "id": 2,
+              "text": "中文排版测试，标点禁则。Emoji 😃 follows."
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "tag": "pre",
+          "children": [
+            {
+              "id": 4,
+              "text": "pre  spaces\nkeep"
+            }
+          ]
+        }
+      ]
+    },
+    "styleSheet": {
+      "rules": []
+    }
+  }
+}

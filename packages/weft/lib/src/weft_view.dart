@@ -11,6 +11,10 @@ import 'package:weft_engine/weft_engine.dart';
 import 'weft_controller.dart';
 import 'weft_selection_chrome.dart';
 
+/// Builds the surface shown when a document's [SupportReport] says Weft
+/// cannot render it (errors or `requiresWebView`). The host decides what a
+/// fallback looks like — a WebView, a dedicated library, or an error card;
+/// `example/weft_fallback` demonstrates the WebView route (ADR 0034).
 typedef WeftFallbackBuilder = Widget Function(
   BuildContext context,
   SupportReport report,
@@ -19,6 +23,7 @@ typedef WeftFallbackBuilder = Widget Function(
 /// Snapshot of the current selection reported through
 /// [WeftView.onSelectionChanged].
 final class WeftSelectionInfo {
+  /// Creates a report for a collapsed ([text] null) or expanded selection.
   const WeftSelectionInfo({required this.text, required this.isCollapsed});
 
   /// The selected logical text with block boundaries rendered as newlines,
@@ -40,7 +45,11 @@ final class WeftSelectionInfo {
   int get hashCode => Object.hash(text, isCollapsed);
 }
 
+/// The public rendering surface: renders the controller's normalized
+/// document in a single-surface engine (no per-node widgets), with
+/// selection, links, images, custom tags and lazy layout built in.
 class WeftView extends StatefulWidget {
+  /// Creates a view bound to [controller].
   const WeftView({
     super.key,
     required this.controller,
@@ -59,6 +68,8 @@ class WeftView extends StatefulWidget {
     this.onTagTap,
   });
 
+  /// Holds the document and selection this view renders and mirrors
+  /// selection changes back into.
   final WeftController controller;
 
   /// Optional controller for the view's internal vertical scroll view
@@ -68,7 +79,12 @@ class WeftView extends StatefulWidget {
   /// scroll offset, not to opt out of internal scrolling.
   final ScrollController? scrollController;
 
+  /// Builds the surface for content the [SupportReport] rejects; when
+  /// null, unsupported content shows an assertion-backed error widget.
   final WeftFallbackBuilder? fallbackBuilder;
+
+  /// Receives cleaned link hrefs on tap; the host owns navigation and
+  /// the engine never opens URLs itself.
   final ValueChanged<WeftLinkRegion>? onLinkTap;
 
   /// Reports every applied selection change as collapsed-caret or selected
@@ -77,6 +93,8 @@ class WeftView extends StatefulWidget {
   /// to a post-frame callback.
   final ValueChanged<WeftSelectionInfo?>? onSelectionChanged;
 
+  /// Supplies decoded images for `img` sources; the engine never
+  /// performs network I/O, so hosts gate allowed URLs here.
   final WeftImageResolver? imageResolver;
 
   /// Whether simple documents lazily materialize only the visible block

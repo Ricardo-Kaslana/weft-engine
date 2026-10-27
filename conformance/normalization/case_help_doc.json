@@ -1,0 +1,375 @@
+{
+  "id": "case_help_doc",
+  "source": "conformance/cases/help_doc.html",
+  "normalizer": {
+    "customTags": []
+  },
+  "snapshot": {
+    "id": "vector-case_help_doc",
+    "revision": 1
+  },
+  "input": "<h1>账户与同步帮助</h1>\n<p>本文介绍如何在不同设备间同步笔记,以及修复常见的同步失败。</p>\n<h2>开启同步</h2>\n<ol>\n  <li>打开设置,进入 <strong>账户</strong> 页面。</li>\n  <li>选择 <em>同步</em>,打开开关。</li>\n  <li>等待首次上传完成,保持网络连接。</li>\n</ol>\n<h2>命令行诊断</h2>\n<pre><code>weft sync --status\nweft sync --retry</code></pre>\n<blockquote>注意:同步失败不会丢失本地数据。</blockquote>\n<h3>冲突处理</h3>\n<p>同一笔记在两台设备上都被修改时,系统保留两个副本,你可以在\n<a href=\"https://example.com/help/conflicts\">冲突解决器</a> 中合并内容。</p>\n<hr>\n<table>\n  <tr><th>错误码</th><th>含义</th></tr>\n  <tr><td>E401</td><td>登录过期,请重新登录</td></tr>\n  <tr><td>E507</td><td>云端存储空间不足</td></tr>\n</table>\n",
+  "expected": {
+    "format": "weft.document",
+    "version": 1,
+    "id": "vector-case_help_doc",
+    "revision": 1,
+    "normalizedHtml": "<h1>账户与同步帮助</h1>\n<p>本文介绍如何在不同设备间同步笔记,以及修复常见的同步失败。</p>\n<h2>开启同步</h2>\n<ol>\n  <li>打开设置,进入 <strong>账户</strong> 页面。</li>\n  <li>选择 <em>同步</em>,打开开关。</li>\n  <li>等待首次上传完成,保持网络连接。</li>\n</ol>\n<h2>命令行诊断</h2>\n<pre><code>weft sync --status\nweft sync --retry</code></pre>\n<blockquote>注意:同步失败不会丢失本地数据。</blockquote>\n<h3>冲突处理</h3>\n<p>同一笔记在两台设备上都被修改时,系统保留两个副本,你可以在\n<a href=\"https://example.com/help/conflicts\">冲突解决器</a> 中合并内容。</p>\n<hr>\n<table>\n  <tbody><tr><th>错误码</th><th>含义</th></tr>\n  <tr><td>E401</td><td>登录过期,请重新登录</td></tr>\n  <tr><td>E507</td><td>云端存储空间不足</td></tr>\n</tbody></table>\n",
+    "supportReport": {
+      "issues": [
+        {
+          "code": "html.parse.warning",
+          "message": "Unexpected start tag (h1). Expected DOCTYPE.",
+          "severity": "warning",
+          "requiresWebView": false
+        }
+      ]
+    },
+    "body": {
+      "id": 0,
+      "tag": "body",
+      "children": [
+        {
+          "id": 1,
+          "tag": "h1",
+          "children": [
+            {
+              "id": 2,
+              "text": "账户与同步帮助"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "text": "\n"
+        },
+        {
+          "id": 4,
+          "tag": "p",
+          "children": [
+            {
+              "id": 5,
+              "text": "本文介绍如何在不同设备间同步笔记,以及修复常见的同步失败。"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "text": "\n"
+        },
+        {
+          "id": 7,
+          "tag": "h2",
+          "children": [
+            {
+              "id": 8,
+              "text": "开启同步"
+            }
+          ]
+        },
+        {
+          "id": 9,
+          "text": "\n"
+        },
+        {
+          "id": 10,
+          "tag": "ol",
+          "children": [
+            {
+              "id": 11,
+              "text": "\n  "
+            },
+            {
+              "id": 12,
+              "tag": "li",
+              "children": [
+                {
+                  "id": 13,
+                  "text": "打开设置,进入 "
+                },
+                {
+                  "id": 14,
+                  "tag": "strong",
+                  "children": [
+                    {
+                      "id": 15,
+                      "text": "账户"
+                    }
+                  ]
+                },
+                {
+                  "id": 16,
+                  "text": " 页面。"
+                }
+              ]
+            },
+            {
+              "id": 17,
+              "text": "\n  "
+            },
+            {
+              "id": 18,
+              "tag": "li",
+              "children": [
+                {
+                  "id": 19,
+                  "text": "选择 "
+                },
+                {
+                  "id": 20,
+                  "tag": "em",
+                  "children": [
+                    {
+                      "id": 21,
+                      "text": "同步"
+                    }
+                  ]
+                },
+                {
+                  "id": 22,
+                  "text": ",打开开关。"
+                }
+              ]
+            },
+            {
+              "id": 23,
+              "text": "\n  "
+            },
+            {
+              "id": 24,
+              "tag": "li",
+              "children": [
+                {
+                  "id": 25,
+                  "text": "等待首次上传完成,保持网络连接。"
+                }
+              ]
+            },
+            {
+              "id": 26,
+              "text": "\n"
+            }
+          ]
+        },
+        {
+          "id": 27,
+          "text": "\n"
+        },
+        {
+          "id": 28,
+          "tag": "h2",
+          "children": [
+            {
+              "id": 29,
+              "text": "命令行诊断"
+            }
+          ]
+        },
+        {
+          "id": 30,
+          "text": "\n"
+        },
+        {
+          "id": 31,
+          "tag": "pre",
+          "children": [
+            {
+              "id": 32,
+              "tag": "code",
+              "children": [
+                {
+                  "id": 33,
+                  "text": "weft sync --status\nweft sync --retry"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": 34,
+          "text": "\n"
+        },
+        {
+          "id": 35,
+          "tag": "blockquote",
+          "children": [
+            {
+              "id": 36,
+              "text": "注意:同步失败不会丢失本地数据。"
+            }
+          ]
+        },
+        {
+          "id": 37,
+          "text": "\n"
+        },
+        {
+          "id": 38,
+          "tag": "h3",
+          "children": [
+            {
+              "id": 39,
+              "text": "冲突处理"
+            }
+          ]
+        },
+        {
+          "id": 40,
+          "text": "\n"
+        },
+        {
+          "id": 41,
+          "tag": "p",
+          "children": [
+            {
+              "id": 42,
+              "text": "同一笔记在两台设备上都被修改时,系统保留两个副本,你可以在\n"
+            },
+            {
+              "id": 43,
+              "tag": "a",
+              "attributes": {
+                "href": "https://example.com/help/conflicts"
+              },
+              "children": [
+                {
+                  "id": 44,
+                  "text": "冲突解决器"
+                }
+              ]
+            },
+            {
+              "id": 45,
+              "text": " 中合并内容。"
+            }
+          ]
+        },
+        {
+          "id": 46,
+          "text": "\n"
+        },
+        {
+          "id": 47,
+          "tag": "hr"
+        },
+        {
+          "id": 48,
+          "text": "\n"
+        },
+        {
+          "id": 49,
+          "tag": "table",
+          "children": [
+            {
+              "id": 50,
+              "text": "\n  "
+            },
+            {
+              "id": 51,
+              "tag": "tbody",
+              "children": [
+                {
+                  "id": 52,
+                  "tag": "tr",
+                  "children": [
+                    {
+                      "id": 53,
+                      "tag": "th",
+                      "children": [
+                        {
+                          "id": 54,
+                          "text": "错误码"
+                        }
+                      ]
+                    },
+                    {
+                      "id": 55,
+                      "tag": "th",
+                      "children": [
+                        {
+                          "id": 56,
+                          "text": "含义"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": 57,
+                  "text": "\n  "
+                },
+                {
+                  "id": 58,
+                  "tag": "tr",
+                  "children": [
+                    {
+                      "id": 59,
+                      "tag": "td",
+                      "children": [
+                        {
+                          "id": 60,
+                          "text": "E401"
+                        }
+                      ]
+                    },
+                    {
+                      "id": 61,
+                      "tag": "td",
+                      "children": [
+                        {
+                          "id": 62,
+                          "text": "登录过期,请重新登录"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": 63,
+                  "text": "\n  "
+                },
+                {
+                  "id": 64,
+                  "tag": "tr",
+                  "children": [
+                    {
+                      "id": 65,
+                      "tag": "td",
+                      "children": [
+                        {
+                          "id": 66,
+                          "text": "E507"
+                        }
+                      ]
+                    },
+                    {
+                      "id": 67,
+                      "tag": "td",
+                      "children": [
+                        {
+                          "id": 68,
+                          "text": "云端存储空间不足"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": 69,
+                  "text": "\n"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": 70,
+          "text": "\n"
+        }
+      ]
+    },
+    "styleSheet": {
+      "rules": []
+    }
+  }
+}

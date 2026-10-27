@@ -10,18 +10,24 @@ final RegExp _trailingCollapsibleWhitespace = RegExp(r'\s+$');
 /// One text node in the logical text stream, with the node's painted text
 /// (whitespace collapsed for `white-space: normal`, raw otherwise).
 final class WeftTextEntry {
+  /// Creates an entry for one text node at [globalStart] in the stream.
   const WeftTextEntry({
     required this.nodeId,
     required this.text,
     required this.globalStart,
   });
 
+  /// Id of the text node this entry was built from.
   final NodeId nodeId;
+
+  /// The node's painted text, with whitespace collapsed when the node's
+  /// style calls for it.
   final String text;
 
   /// Offset of this entry's text inside the logical stream.
   final int globalStart;
 
+  /// Offset just past this entry's text in the logical stream.
   int get globalEnd => globalStart + text.length;
 }
 
@@ -39,14 +45,21 @@ final class WeftTextIndex {
   /// Text entries in reading order.
   final List<WeftTextEntry> entries;
 
+  /// Maps each text node id to its entry in [entries].
   final Map<NodeId, WeftTextEntry> entryByNode;
   final String _logical;
 
+  /// Length of the logical text stream in UTF-16 code units.
   int get length => _logical.length;
 
   /// The whole logical text of the document.
   String get text => _logical;
 
+  /// Builds the index for one document snapshot by walking its body.
+  ///
+  /// The [styleResolver] decides which nodes are hidden and how their text
+  /// is painted; block boundaries and `<br>` elements contribute the
+  /// newlines that join entries in the logical stream.
   static WeftTextIndex build({
     required WeftDocumentSnapshot document,
     required WeftStyleResolver styleResolver,

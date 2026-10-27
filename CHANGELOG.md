@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased (Stage 5)
+
+- Document snapshot JSON wire format (`WeftDocumentJson`): canonical deterministic encoding, strict decode with format/version gates — a server may normalize once and clients consume the snapshot directly (ADR 0034).
+- Normalization consistency vectors: 21 pinned vectors under `conformance/normalization/` (conformance corpus + synthetic cases incl. custom tags, nested-table fallback, CJK, entities); CI re-normalizes every input byte-for-byte, regeneration requires reviewed diffs.
+- Seed-based fuzzing: CI suite (400+ iterations x 2 seeds) plus `tool/fuzz.dart` release sweep CLI; hardened two real defects it found — uncapped diagnostic paths bypassing `maxIssues`, and `package:html`'s `ParseError.toString()` crashing on hostile input (diagnostics now degrade to the runtime type).
+- Capability policy matrix tests: all 8 subsets of the built-in capabilities — enabled probes pass, disabled namespaces are gateway-rejected with zero network side effects; JS is closed entirely by not opening a `WeftDocumentRuntime`.
+- WebView fallback example (`example/weft_fallback`): `decideWeftFallback` render/webview/error-card decision, `WeftFallbackCoordinator` with injectable platform WebView; `webview_flutter` stays an example-only dependency.
+- Release runbook (`docs/release-runbook.md`): unified version policy, compatibility anchor table (`WeftDocumentJson.version=1`, `bridgeVersion: 1`, `weft/bootstrap`), release checklist, rollback levels — with an automated rollback rehearsal test (`release_compat_test.dart`).
+- API doc coverage gate (`tool/doc_coverage.dart`, wired into `tool/check.sh`): every exported public declaration must carry dartdoc; the public API surface is now fully documented.
+- Device matrix plan (`docs/device-matrix.md`) with device tiers, runbook and pass criteria; `weft_lab` gained a performance-overlay toggle for device runs.
+
 ## Unreleased (Stage 3 & 4)
 
 - Added stable logical text index with 100k-character cross-paragraph selection, copy, and remapping on streaming updates; selection chrome with drag handles, caret, and copy button (ADR 0013/0015/0019).

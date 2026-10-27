@@ -9,7 +9,11 @@ import 'style_sheet.dart';
 import 'style_sheet_parser.dart';
 import 'support_report.dart';
 
+/// Resource and size caps for one normalization run. Every limit trips
+/// an explicit diagnostic — the engine degrades loudly, never silently
+/// (docs/content-normalization.md).
 final class WeftNormalizationLimits {
+  /// Creates limits; defaults are sized for article/help content.
   const WeftNormalizationLimits({
     this.maxInputLength = 2 * 1024 * 1024,
     this.maxStyleLength = 256 * 1024,
@@ -19,20 +23,38 @@ final class WeftNormalizationLimits {
     this.maxIssues = 100,
   });
 
+  /// Rejects inputs longer than this before parsing (error + webview
+  /// fallback).
   final int maxInputLength;
+
+  /// Total `<style>` budget across the document.
   final int maxStyleLength;
+
+  /// Per-element inline `style` budget.
   final int maxInlineStyleLength;
+
+  /// Node cap; exceeding it stops the walk with `html.node.limit`.
   final int maxNodes;
+
+  /// Nesting cap; exceeding it stops the walk with `html.depth.limit`.
   final int maxDepth;
+
+  /// Diagnostic cap — hostile input must not inflate the report without
+  /// bound. Every issue path respects this.
   final int maxIssues;
 }
 
+/// Turns raw HTML + `<style>` into an immutable [WeftDocumentSnapshot]:
+/// whitelisted tags, sanitized attributes, filtered declarations,
+/// structured diagnostics for everything dropped (ADR 0006/0034).
 final class WeftNormalizer {
+  /// Creates a normalizer; the instance is stateless and reusable.
   const WeftNormalizer({
     this.limits = const WeftNormalizationLimits(),
     this.customTags = const <String>{},
   });
 
+  /// Resource limits applied to every [normalize] call.
   final WeftNormalizationLimits limits;
 
   /// Tags preserved as opaque, attribute-driven leaf elements instead of
@@ -42,6 +64,12 @@ final class WeftNormalizer {
   /// responsibility (ADR 0033).
   final Set<String> customTags;
 
+  /// Parses and normalizes [html] into an immutable snapshot.
+  ///
+  /// Never throws for content problems: parse failures, missing bodies
+  /// and limit violations come back as error-severity issues with
+  /// `requiresWebView` set. `id`/`revision` are host identity carried
+  /// onto the snapshot for caching and streaming.
   WeftDocumentSnapshot normalize(
     String html, {
     required String id,
@@ -70,6 +98,17 @@ final class WeftNormalizer {
 
     final parser = html_parser.HtmlParser(html);
     late final html_dom.Document document;
+    // Every issue path must respect limits.maxIssues; parse errors and
+    // stylesheet diagnostics arrive outside the tree builder, so they go
+    // through the same capped sink (hostile input must not inflate the
+    // support report without bound).
+    void addIssues(Iterable<SupportIssue> newIssues) {
+      for (final issue in newIssues) {
+        if (issues.length >= limits.maxIssues) return;
+        issues.add(issue);
+      }
+    }
+
     try {
       document = parser.parse();
     } on Object catch (error) {
@@ -92,12 +131,12 @@ final class WeftNormalizer {
     }
 
     for (final error in parser.errors.take(20)) {
-      issues.add(
+      addIssues([
         SupportIssue(
           code: 'html.parse.warning',
-          message: error.toString(),
+          message: _safeDescribe(error),
         ),
-      );
+      ]);
     }
 
     if (document.querySelectorAll('script').isNotEmpty) {
@@ -133,7 +172,7 @@ final class WeftNormalizer {
     }
 
     final parsedStyle = WeftStyleSheetParser.parse(styleBuffer.toString());
-    issues.addAll(parsedStyle.issues);
+    addIssues(parsedStyle.issues);
 
     final body = document.body;
     final builder = _TreeBuilder(
@@ -163,6 +202,18 @@ final class WeftNormalizer {
       body: root,
       styleSheet: parsedStyle.sheet,
     );
+  }
+
+  /// Diagnostic rendering must never crash normalization, even when an
+  /// upstream error object has a broken toString (the html package can
+  /// produce ParseErrors whose message interpolation throws on hostile
+  /// markup); fall back to the runtime type so the issue stays reportable.
+  static String _safeDescribe(Object error) {
+    try {
+      return error.toString();
+    } on Object {
+      return error.runtimeType.toString();
+    }
   }
 
   static String _serializeNode(WeftNode node) {
@@ -223,6 +274,8 @@ final class _TreeBuilder {
   var _stopped = false;
   var _tableDepth = 0;
 
+  /// Builds the normalized body element, or null when limits were
+  /// exhausted before allocation.
   WeftElement? build(html_dom.Element body) {
     final rootId = _allocateNode(force: true);
     if (rootId == null) return null;

@@ -1,0 +1,262 @@
+{
+  "id": "case_nested_lists",
+  "source": "conformance/cases/nested_lists.html",
+  "normalizer": {
+    "customTags": []
+  },
+  "snapshot": {
+    "id": "vector-case_nested_lists",
+    "revision": 1
+  },
+  "input": "<h1>嵌套列表</h1>\n<p>下面的内容包含无序列表、有序列表和列表内引用。</p>\n<ul>\n  <li>第一层无序项目\n    <ul>\n      <li>第二层项目 A</li>\n      <li>第二层项目 B</li>\n    </ul>\n  </li>\n  <li>另一个第一层项目</li>\n</ul>\n<ol>\n  <li>第一步\n    <ol>\n      <li>子步骤</li>\n    </ol>\n  </li>\n  <li>第二步</li>\n  <li>第三步</li>\n</ol>\n<blockquote>\n  <p>引用块内部可以包含普通段落。</p>\n</blockquote>\n",
+  "expected": {
+    "format": "weft.document",
+    "version": 1,
+    "id": "vector-case_nested_lists",
+    "revision": 1,
+    "normalizedHtml": "<h1>嵌套列表</h1>\n<p>下面的内容包含无序列表、有序列表和列表内引用。</p>\n<ul>\n  <li>第一层无序项目\n    <ul>\n      <li>第二层项目 A</li>\n      <li>第二层项目 B</li>\n    </ul>\n  </li>\n  <li>另一个第一层项目</li>\n</ul>\n<ol>\n  <li>第一步\n    <ol>\n      <li>子步骤</li>\n    </ol>\n  </li>\n  <li>第二步</li>\n  <li>第三步</li>\n</ol>\n<blockquote>\n  <p>引用块内部可以包含普通段落。</p>\n</blockquote>\n",
+    "supportReport": {
+      "issues": [
+        {
+          "code": "html.parse.warning",
+          "message": "Unexpected start tag (h1). Expected DOCTYPE.",
+          "severity": "warning",
+          "requiresWebView": false
+        }
+      ]
+    },
+    "body": {
+      "id": 0,
+      "tag": "body",
+      "children": [
+        {
+          "id": 1,
+          "tag": "h1",
+          "children": [
+            {
+              "id": 2,
+              "text": "嵌套列表"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "text": "\n"
+        },
+        {
+          "id": 4,
+          "tag": "p",
+          "children": [
+            {
+              "id": 5,
+              "text": "下面的内容包含无序列表、有序列表和列表内引用。"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "text": "\n"
+        },
+        {
+          "id": 7,
+          "tag": "ul",
+          "children": [
+            {
+              "id": 8,
+              "text": "\n  "
+            },
+            {
+              "id": 9,
+              "tag": "li",
+              "children": [
+                {
+                  "id": 10,
+                  "text": "第一层无序项目\n    "
+                },
+                {
+                  "id": 11,
+                  "tag": "ul",
+                  "children": [
+                    {
+                      "id": 12,
+                      "text": "\n      "
+                    },
+                    {
+                      "id": 13,
+                      "tag": "li",
+                      "children": [
+                        {
+                          "id": 14,
+                          "text": "第二层项目 A"
+                        }
+                      ]
+                    },
+                    {
+                      "id": 15,
+                      "text": "\n      "
+                    },
+                    {
+                      "id": 16,
+                      "tag": "li",
+                      "children": [
+                        {
+                          "id": 17,
+                          "text": "第二层项目 B"
+                        }
+                      ]
+                    },
+                    {
+                      "id": 18,
+                      "text": "\n    "
+                    }
+                  ]
+                },
+                {
+                  "id": 19,
+                  "text": "\n  "
+                }
+              ]
+            },
+            {
+              "id": 20,
+              "text": "\n  "
+            },
+            {
+              "id": 21,
+              "tag": "li",
+              "children": [
+                {
+                  "id": 22,
+                  "text": "另一个第一层项目"
+                }
+              ]
+            },
+            {
+              "id": 23,
+              "text": "\n"
+            }
+          ]
+        },
+        {
+          "id": 24,
+          "text": "\n"
+        },
+        {
+          "id": 25,
+          "tag": "ol",
+          "children": [
+            {
+              "id": 26,
+              "text": "\n  "
+            },
+            {
+              "id": 27,
+              "tag": "li",
+              "children": [
+                {
+                  "id": 28,
+                  "text": "第一步\n    "
+                },
+                {
+                  "id": 29,
+                  "tag": "ol",
+                  "children": [
+                    {
+                      "id": 30,
+                      "text": "\n      "
+                    },
+                    {
+                      "id": 31,
+                      "tag": "li",
+                      "children": [
+                        {
+                          "id": 32,
+                          "text": "子步骤"
+                        }
+                      ]
+                    },
+                    {
+                      "id": 33,
+                      "text": "\n    "
+                    }
+                  ]
+                },
+                {
+                  "id": 34,
+                  "text": "\n  "
+                }
+              ]
+            },
+            {
+              "id": 35,
+              "text": "\n  "
+            },
+            {
+              "id": 36,
+              "tag": "li",
+              "children": [
+                {
+                  "id": 37,
+                  "text": "第二步"
+                }
+              ]
+            },
+            {
+              "id": 38,
+              "text": "\n  "
+            },
+            {
+              "id": 39,
+              "tag": "li",
+              "children": [
+                {
+                  "id": 40,
+                  "text": "第三步"
+                }
+              ]
+            },
+            {
+              "id": 41,
+              "text": "\n"
+            }
+          ]
+        },
+        {
+          "id": 42,
+          "text": "\n"
+        },
+        {
+          "id": 43,
+          "tag": "blockquote",
+          "children": [
+            {
+              "id": 44,
+              "text": "\n  "
+            },
+            {
+              "id": 45,
+              "tag": "p",
+              "children": [
+                {
+                  "id": 46,
+                  "text": "引用块内部可以包含普通段落。"
+                }
+              ]
+            },
+            {
+              "id": 47,
+              "text": "\n"
+            }
+          ]
+        },
+        {
+          "id": 48,
+          "text": "\n"
+        }
+      ]
+    },
+    "styleSheet": {
+      "rules": []
+    }
+  }
+}

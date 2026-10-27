@@ -21,6 +21,8 @@ jobs:
         run: dart format --output=none --set-exit-if-changed .
       - name: Analyze workspace
         run: dart analyze
+      - name: API doc coverage gate
+        run: dart run tool/doc_coverage.dart
       - name: Run package tests
         run: dart run tool/verify.dart
 

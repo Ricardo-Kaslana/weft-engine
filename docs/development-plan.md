@@ -87,11 +87,20 @@
 - 契约与示例：`packages/weft_runtime_contract` 契约套件同时覆盖 FakeRuntime 与 QuickJS FFI 后端；`packages/weft_runtime_fake` 脚本化后端用于编排测试与实验室；`example/weft_lab` 提供 `weft-badge` 自定义标签渲染器 + FakeRuntime 状态/事件演示。
 - 自定义标签：`WeftNormalizer.customTags` 保留属性驱动叶子元素（内容丢弃有诊断），`WeftTagRenderer`（rect/text ops + semanticsLabel）由引擎钳制、归属 NodeId 并转常规命令；`WeftLayoutResult.tagRegions/tagAt`、`onTagTap`、语义标签齐备；渲染器集合换实例即整页重排。
 
-## 阶段 5：回退、硬化与发布（未开始）
+## 阶段 5：回退、硬化与发布（已完成）
 
-完成服务端/客户端规范化一致性、WebView 回退示例、模糊测试、真机矩阵、API 文档和发布回退流程。
+完成服务端/客户端规范化一致性、WebView 回退示例、模糊测试、真机矩阵、API 文档和发布回退流程（ADR 0034）。
 
-主要验收：全部门禁通过，发布产物版本兼容明确，JS 和单能力可独立关闭，回滚路径经过演练。
+主要验收证据：
+
+- 快照线格式：`WeftDocumentSnapshot` 获得规范 JSON 编解码（`WeftDocumentJson`，format+version 门禁，确定性编码、严格解码）；服务端规范化一次、客户端解码消费的一致性由 `conformance/normalization/` 下 21 个固化向量保证（11 个 conformance 语料 + 10 个合成用例），测试逐字节复现，重新生成需人工审查 diff。
+- 模糊测试：`packages/weft_document/test/fuzz_test.dart`（CI 层，种子化 400+ 迭代 × 2 种子）+ `tool/fuzz.dart`（发布层，默认 2 万迭代；发布清单要求 5 万）；发布前硬化扫描发现并修复两个真实问题——诊断列表两条路径绕过 `maxIssues` 上限、`package:html` 的 `ParseError.toString()` 在敌意输入下自身崩溃（诊断生成改防御性处理）。20000 迭代扫描全净。
+- 能力开关矩阵：8 个策略子集全覆盖（启用的能力探针通过、禁用的被网关拒绝且网络客户端调用数严格等于策略允许数）；JS 整体关闭 = 不开 `WeftDocumentRuntime`，`WeftView` 无 runtime 依赖。
+- WebView 回退示例：`example/weft_fallback`，`decideWeftFallback` 三路决策（原生渲染 / requiresWebView → 宿主 WebView / 错误卡片），`webview_flutter` 只进示例包，widget 测试经注入占位走完整决策路径。
+- 发布回退：`docs/release-runbook.md`（统一版本号策略、兼容锚点表、发布清单、回滚层级）；回滚演练自动化在 `packages/weft_document/test/release_compat_test.dart`（旧向量逐字节复现、新版本快照被拒、外格式被拒）。
+- API 文档：`tool/doc_coverage.dart` 门禁（导出面的公开声明零文档缺口），已接入 `tool/check.sh`；公开 API dartdoc 已补全。
+- 真机矩阵：`docs/device-matrix.md` 定义设备档位、执行步骤、通过标准与结果表；`weft_lab` 增加性能浮层开关。真机首轮融资数据待设备轮填入（CI 不可替代）。
+- 门禁：`tool/check.sh`（format、analyze、447 项测试、doc coverage、像素黄金）全绿。
 
 ## 并行规则
 

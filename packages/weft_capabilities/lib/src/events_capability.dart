@@ -8,10 +8,13 @@ import 'capability_policy.dart';
 /// Methods: `emit(name, payload)`. Delivery into JS (host -> script) is the
 /// runtime's [send] path handled by the bootstrap `__weftOnEvent` dispatcher.
 final class EventsCapabilityModule implements CapabilityModule {
+  /// Creates the module; every emitted event is forwarded to [onEmit].
   EventsCapabilityModule({required this.onEmit});
 
+  /// Namespace this module answers on: [WeftCapabilityIds.events].
   static const namespace = WeftCapabilityIds.events;
 
+  /// Host callback receiving every emitted event name and payload.
   final void Function(String name, Map<String, JsValue> payload) onEmit;
 
   @override

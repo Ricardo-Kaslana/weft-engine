@@ -4,7 +4,7 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 
 ## 当前状态
 
-开发计划 **阶段 0–4 已完成**（静态渲染、内容排版、长文档与性能、受限 JS 与能力扩展），可用于受控内容子集的实验和内部验证，尚不是稳定版本。阶段 5（回退、硬化与发布）未开始。
+开发计划 **阶段 0–5 已完成**（静态渲染、内容排版、长文档与性能、受限 JS 与能力扩展、回退硬化与发布），可用于受控内容子集的实验和内部验证，尚不是稳定版本。
 
 已实现：
 
@@ -38,12 +38,16 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - 自定义标签：`WeftNormalizer.customTags` 白名单 + 受信任 Dart `WeftTagRenderer`（rect/text ops、语义标签、`onTagTap`），由引擎钳制并转为常规绘制命令。
 - 后端契约：`weft_runtime_contract` 契约套件同时覆盖 QuickJS FFI 与脚本化 FakeRuntime（`weft_runtime_fake`），替换后端不修改引擎核心。
 - `float_image` 一致性案例：Chrome 生成的浏览器几何基线（块、图片、逐行词盒误差 ≤ 0.5px）与 Flutter 像素黄金双重门禁；图片按 1:1 对齐整像素绘制。
+- 受限 JS 运行时（ADR 0033）：vendor 的 QuickJS 2024-01-13 经 C 垫片 + dart:ffi 驱动，墙钟/内存/栈/微任务四类预算原生强制；`weft.state/events/net` 能力按策略开关（未启用在 JS 中不可见），恢复不重放网络副作用；自定义标签渲染器扩展。
+- 快照 JSON 线格式（ADR 0034）：`WeftDocumentJson` 确定性编码 + format/version 门禁，服务端可规范化一次、客户端直接解码消费；`conformance/normalization/` 下 21 个一致性向量逐字节约束服务端/客户端规范化一致性。
+- 硬化与模糊测试（ADR 0034）：种子化 fuzz 覆盖规范化管线（CI 快跑 + `tool/fuzz.dart` 发布前长跑）；能力策略 8 子集矩阵；公开 API 文档门禁（`tool/doc_coverage.dart`）。
+- WebView 回退示例（ADR 0034）：`example/weft_fallback` 演示 requiresWebView → 宿主 WebView 的决策与接入；发布手册 `docs/release-runbook.md` 固化版本锚点、发布清单与回滚演练；真机矩阵计划见 `docs/device-matrix.md`。
 - `table_basic`/`table_cols` 一致性案例：表格浏览器几何基线（单元格 ≤ 1.5px、行/列结构精确断言），覆盖 collapse/separate、跨列跨行、caption 与 colgroup/col 列宽。
 - 单一 `RenderObject` 渲染表面、可滚动公开视图和真实文本/背景/图片绘制指令。
 - 中英文内容、窄宽度换行及 300 段长文档的布局烟测。
 - 六类代表性内容语料，以及 Chrome/Edge 诊断参考截图生成器。
 - Apache 2.0 Roboto/Roboto Mono 固定字体、三个 Flutter 像素黄金基线（含图片/浮动案例）、确定性 PNG 图片资产和 Windows CI 门禁。
-- Dart Pub workspace、400+ 项常规自动测试（weft_engine 243、weft 50、weft_quickjs 22、weft_capabilities 15、weft_document 15、weft_runtime_fake 12、weft_runtime_contract 9 等）、3 项像素测试、浏览器几何基线测试和 GitHub Actions CI。
+- Dart Pub workspace、447 项常规自动测试（weft_engine 243、weft_document 77、weft 59、weft_quickjs 22、weft_capabilities 15、weft_runtime_fake 12、weft_runtime_contract 9、weft_runtime_api 2 等）、3 项像素测试、浏览器几何基线测试、规范化一致性向量、模糊测试、API 文档门禁和 GitHub Actions CI。
 
 尚未实现：
 
@@ -70,6 +74,7 @@ packages/
   weft_runtime_fake/    脚本化 FakeRuntime 后端
   weft_runtime_contract/  后端中立 JsSession 契约测试套件
 example/weft_lab/       开发、示例和图片资源实验室
+example/weft_fallback/  WebView 回退示例（requiresWebView 决策演示）
 conformance/            语料、固定字体、Flutter 基线和浏览器参考输入
 docs/                   架构、规范、计划和管理文档
 tool/verify.dart        全包测试入口

@@ -1,0 +1,102 @@
+{
+  "id": "synthetic_lists_and_quotes",
+  "source": "inline",
+  "normalizer": {
+    "customTags": []
+  },
+  "snapshot": {
+    "id": "vector-synthetic_lists_and_quotes",
+    "revision": 1
+  },
+  "input": "<body><ol start=\"3\"><li>one<ul><li>nested</li></ul></li></ol><blockquote><p>quote</p></blockquote><pre><code>x = 1;</code></pre></body>",
+  "expected": {
+    "format": "weft.document",
+    "version": 1,
+    "id": "vector-synthetic_lists_and_quotes",
+    "revision": 1,
+    "normalizedHtml": "<ol><li>one<ul><li>nested</li></ul></li></ol><blockquote><p>quote</p></blockquote><pre><code>x = 1;</code></pre>",
+    "supportReport": {
+      "issues": [
+        {
+          "code": "html.parse.warning",
+          "message": "Unexpected start tag (body). Expected DOCTYPE.",
+          "severity": "warning",
+          "requiresWebView": false
+        }
+      ]
+    },
+    "body": {
+      "id": 0,
+      "tag": "body",
+      "children": [
+        {
+          "id": 1,
+          "tag": "ol",
+          "children": [
+            {
+              "id": 2,
+              "tag": "li",
+              "children": [
+                {
+                  "id": 3,
+                  "text": "one"
+                },
+                {
+                  "id": 4,
+                  "tag": "ul",
+                  "children": [
+                    {
+                      "id": 5,
+                      "tag": "li",
+                      "children": [
+                        {
+                          "id": 6,
+                          "text": "nested"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "tag": "blockquote",
+          "children": [
+            {
+              "id": 8,
+              "tag": "p",
+              "children": [
+                {
+                  "id": 9,
+                  "text": "quote"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": 10,
+          "tag": "pre",
+          "children": [
+            {
+              "id": 11,
+              "tag": "code",
+              "children": [
+                {
+                  "id": 12,
+                  "text": "x = 1;"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "styleSheet": {
+      "rules": []
+    }
+  }
+}

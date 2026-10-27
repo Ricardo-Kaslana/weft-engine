@@ -5,7 +5,12 @@ import 'css_spec.dart';
 import 'style_sheet.dart';
 import 'support_report.dart';
 
+/// Parses a `<style>` sheet into structured rules via csslib. Selector
+/// constructs outside the subset (pseudo-classes, attribute selectors,
+/// sibling combinators, at-rules) are dropped with diagnostics rather
+/// than silently mis-matched.
 abstract final class WeftStyleSheetParser {
+  /// Parses [source]; an empty sheet parses to an empty result.
   static WeftParsedStyleSheet parse(String source) {
     if (source.trim().isEmpty) {
       return WeftParsedStyleSheet(

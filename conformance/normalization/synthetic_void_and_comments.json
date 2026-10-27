@@ -1,0 +1,68 @@
+{
+  "id": "synthetic_void_and_comments",
+  "source": "inline",
+  "normalizer": {
+    "customTags": []
+  },
+  "snapshot": {
+    "id": "vector-synthetic_void_and_comments",
+    "revision": 1
+  },
+  "input": "<body><p>line<br>break</p><!-- hidden --><hr><img src=\"https://example.com/x.png\" alt=\"x\"></body>",
+  "expected": {
+    "format": "weft.document",
+    "version": 1,
+    "id": "vector-synthetic_void_and_comments",
+    "revision": 1,
+    "normalizedHtml": "<p>line<br>break</p><hr><img src=\"https://example.com/x.png\" alt=\"x\">",
+    "supportReport": {
+      "issues": [
+        {
+          "code": "html.parse.warning",
+          "message": "Unexpected start tag (body). Expected DOCTYPE.",
+          "severity": "warning",
+          "requiresWebView": false
+        }
+      ]
+    },
+    "body": {
+      "id": 0,
+      "tag": "body",
+      "children": [
+        {
+          "id": 1,
+          "tag": "p",
+          "children": [
+            {
+              "id": 2,
+              "text": "line"
+            },
+            {
+              "id": 3,
+              "tag": "br"
+            },
+            {
+              "id": 4,
+              "text": "break"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "tag": "hr"
+        },
+        {
+          "id": 6,
+          "tag": "img",
+          "attributes": {
+            "src": "https://example.com/x.png",
+            "alt": "x"
+          }
+        }
+      ]
+    },
+    "styleSheet": {
+      "rules": []
+    }
+  }
+}

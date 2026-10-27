@@ -6,9 +6,13 @@ import 'capability_errors.dart';
 
 /// One settled bridge exchange, retained for dedup across recovery.
 final class BridgeJournalEntry {
+  /// Creates an entry pairing the settled call with its result.
   const BridgeJournalEntry({required this.call, required this.result});
 
+  /// The settled bridge call.
   final BridgeCall call;
+
+  /// Result returned to the script, replayed verbatim on redelivery.
   final JsValue result;
 }
 
@@ -22,6 +26,8 @@ final class BridgeJournalEntry {
 ///   pair returns the recorded result **without** invoking the module again,
 ///   which is what makes network side effects idempotent across recovery.
 final class CapabilityGateway implements BridgeDispatcher {
+  /// Creates a gateway; every installed module's namespace must be enabled by
+  /// [policy], otherwise construction throws.
   CapabilityGateway({
     required CapabilityPolicy policy,
     required Map<String, CapabilityModule> modules,
@@ -42,11 +48,14 @@ final class CapabilityGateway implements BridgeDispatcher {
 
   final CapabilityPolicy _policy;
   final Map<String, CapabilityModule> _modules;
+
+  /// Maximum number of settled calls retained; the oldest are evicted first.
   final int journalCapacity;
 
   final Map<String, BridgeJournalEntry> _journal =
       <String, BridgeJournalEntry>{};
 
+  /// The policy this gateway enforces on every dispatch.
   CapabilityPolicy get policy => _policy;
 
   /// All settled calls in insertion order (oldest first).

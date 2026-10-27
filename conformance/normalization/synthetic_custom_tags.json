@@ -1,0 +1,85 @@
+{
+  "id": "synthetic_custom_tags",
+  "source": "inline",
+  "normalizer": {
+    "customTags": [
+      "weft-badge"
+    ]
+  },
+  "snapshot": {
+    "id": "vector-synthetic_custom_tags",
+    "revision": 1
+  },
+  "input": "<head><style>weft-badge { color: red; }</style></head><body><p>Rating: <weft-badge data-label=\"New\" style=\"background: #fee\">badge text</weft-badge></p></body>",
+  "expected": {
+    "format": "weft.document",
+    "version": 1,
+    "id": "vector-synthetic_custom_tags",
+    "revision": 1,
+    "normalizedHtml": "<p>Rating: <weft-badge data-label=\"New\"></weft-badge></p>",
+    "supportReport": {
+      "issues": [
+        {
+          "code": "html.parse.warning",
+          "message": "Unexpected start tag (head). Expected DOCTYPE.",
+          "severity": "warning",
+          "requiresWebView": false
+        },
+        {
+          "code": "html.tag.custom.contentIgnored",
+          "message": "Content inside custom element \"weft-badge\" is ignored; custom tags are attribute-driven.",
+          "severity": "warning",
+          "requiresWebView": false
+        },
+        {
+          "code": "css.property.unsupported",
+          "message": "CSS property \"background\" is outside the supported subset.",
+          "severity": "warning",
+          "requiresWebView": false
+        }
+      ]
+    },
+    "body": {
+      "id": 0,
+      "tag": "body",
+      "children": [
+        {
+          "id": 1,
+          "tag": "p",
+          "children": [
+            {
+              "id": 2,
+              "text": "Rating: "
+            },
+            {
+              "id": 3,
+              "tag": "weft-badge",
+              "attributes": {
+                "data-label": "New"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "styleSheet": {
+      "rules": [
+        {
+          "selectors": [
+            {
+              "parts": [
+                {
+                  "tag": "weft-badge"
+                }
+              ]
+            }
+          ],
+          "declarations": {
+            "color": "red"
+          },
+          "order": 0
+        }
+      ]
+    }
+  }
+}

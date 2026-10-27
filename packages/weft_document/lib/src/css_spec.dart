@@ -1,4 +1,7 @@
+/// The CSS property whitelist — the supported subset this engine commits
+/// to laying out. Everything else is dropped with `css.property.unsupported`.
 abstract final class WeftCssSpec {
+  /// Properties accepted on selectors and inline styles.
   static const supportedProperties = <String>{
     'background-color',
     'border',
@@ -39,6 +42,7 @@ abstract final class WeftCssSpec {
     'width',
   };
 
+  /// Whether [property] (case-insensitive) is in the supported subset.
   static bool supportsProperty(String property) {
     return supportedProperties.contains(property.toLowerCase());
   }

@@ -8,8 +8,10 @@ import 'capability_policy.dart';
 /// The store is scoped to one document runtime; the engine never persists it
 /// or shares it across documents.
 abstract interface class WeftStateStore {
+  /// Returns the value stored for [key], or null when absent.
   JsValue? get(String key);
 
+  /// Stores [value] under [key], replacing any previous entry.
   void set(String key, JsValue value);
 }
 
@@ -28,10 +30,13 @@ final class MemoryWeftStateStore implements WeftStateStore {
 ///
 /// Methods: `get(key)`, `set(key, value)`. Values must be JSON-compatible.
 final class StateCapabilityModule implements CapabilityModule {
+  /// Creates the module backed by [store].
   StateCapabilityModule({required this.store});
 
+  /// Namespace this module answers on: [WeftCapabilityIds.state].
   static const namespace = WeftCapabilityIds.state;
 
+  /// Storage backing every get and set for this document runtime.
   final WeftStateStore store;
 
   @override

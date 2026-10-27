@@ -2,6 +2,7 @@ library weft_document;
 
 export 'src/css_declaration_parser.dart';
 export 'src/css_spec.dart';
+export 'src/document_json.dart';
 export 'src/document_node.dart';
 export 'src/document_snapshot.dart';
 export 'src/html_spec.dart';

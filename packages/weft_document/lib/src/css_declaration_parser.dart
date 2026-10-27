@@ -1,17 +1,28 @@
 import 'css_spec.dart';
 import 'support_report.dart';
 
+/// Result of parsing a declaration list: supported declarations plus
+/// diagnostics for everything dropped.
 final class WeftDeclarationParseResult {
+  /// Creates a parse result.
   WeftDeclarationParseResult({
     required Map<String, String> declarations,
     required Iterable<SupportIssue> issues,
   })  : declarations = Map<String, String>.unmodifiable(declarations),
         issues = List<SupportIssue>.unmodifiable(issues);
 
+  /// Supported declarations in source order; unsupported ones are absent.
   final Map<String, String> declarations;
+
+  /// One diagnostic per dropped or degraded declaration (deduped per
+  /// property name).
   final List<SupportIssue> issues;
 }
 
+/// Splits an inline `style` value (or declaration list) into supported
+/// `property: value` declarations, dropping everything outside the subset
+/// with an explicit diagnostic (comments removed, `!important` stripped
+/// and reported, url()/var()/calc() values rejected).
 abstract final class WeftDeclarationParser {
   static const _commentPattern = r'/\*[\s\S]*?\*/';
   static const _importantPattern = r'!\s*important\s*$';

@@ -1,0 +1,54 @@
+{
+  "id": "synthetic_unsupported_elements",
+  "source": "inline",
+  "normalizer": {
+    "customTags": []
+  },
+  "snapshot": {
+    "id": "vector-synthetic_unsupported_elements",
+    "revision": 1
+  },
+  "input": "<body><video src=\"a.mp4\"></video><iframe src=\"b\"></iframe><form><input type=\"text\"><button>go</button></form></body>",
+  "expected": {
+    "format": "weft.document",
+    "version": 1,
+    "id": "vector-synthetic_unsupported_elements",
+    "revision": 1,
+    "normalizedHtml": "",
+    "supportReport": {
+      "issues": [
+        {
+          "code": "html.parse.warning",
+          "message": "Unexpected start tag (body). Expected DOCTYPE.",
+          "severity": "warning",
+          "requiresWebView": false
+        },
+        {
+          "code": "html.tag.requiresFallback",
+          "message": "Element \"video\" requires a fallback renderer.",
+          "severity": "warning",
+          "requiresWebView": true
+        },
+        {
+          "code": "html.tag.requiresFallback",
+          "message": "Element \"iframe\" requires a fallback renderer.",
+          "severity": "warning",
+          "requiresWebView": true
+        },
+        {
+          "code": "html.tag.requiresFallback",
+          "message": "Element \"form\" requires a fallback renderer.",
+          "severity": "warning",
+          "requiresWebView": true
+        }
+      ]
+    },
+    "body": {
+      "id": 0,
+      "tag": "body"
+    },
+    "styleSheet": {
+      "rules": []
+    }
+  }
+}

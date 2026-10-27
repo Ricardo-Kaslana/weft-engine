@@ -1,0 +1,331 @@
+{
+  "id": "case_typography",
+  "source": "conformance/cases/typography.html",
+  "normalizer": {
+    "customTags": []
+  },
+  "snapshot": {
+    "id": "vector-case_typography",
+    "revision": 1
+  },
+  "input": "<style>\n  .center { text-align: center; }\n  .right { text-align: right; }\n  .spaced { line-height: 1.8; }\n</style>\n<h1>一级标题 Heading</h1>\n<h2>二级标题</h2>\n<h3>三级标题</h3>\n<p>普通文本包含 <strong>粗体</strong>、<em>斜体</em>、<u>下划线</u>、<s>删除线</s>、\n<small>小字号</small>、<code>inline code</code>、H<sub>2</sub>O 和 x<sup>2</sup>。</p>\n<p class=\"center\">居中对齐的段落用于检查行宽与多行文本。</p>\n<p class=\"right\">右对齐段落。</p>\n<p class=\"spaced\">较大的行高会改变块高度，但不应改变字符顺序。</p>\n<hr>\n<p>分隔线之后还有一段文本。</p>\n",
+  "expected": {
+    "format": "weft.document",
+    "version": 1,
+    "id": "vector-case_typography",
+    "revision": 1,
+    "normalizedHtml": "<h1>一级标题 Heading</h1>\n<h2>二级标题</h2>\n<h3>三级标题</h3>\n<p>普通文本包含 <strong>粗体</strong>、<em>斜体</em>、<u>下划线</u>、<s>删除线</s>、\n<small>小字号</small>、<code>inline code</code>、H<sub>2</sub>O 和 x<sup>2</sup>。</p>\n<p class=\"center\">居中对齐的段落用于检查行宽与多行文本。</p>\n<p class=\"right\">右对齐段落。</p>\n<p class=\"spaced\">较大的行高会改变块高度，但不应改变字符顺序。</p>\n<hr>\n<p>分隔线之后还有一段文本。</p>\n",
+    "supportReport": {
+      "issues": [
+        {
+          "code": "html.parse.warning",
+          "message": "Unexpected start tag (style). Expected DOCTYPE.",
+          "severity": "warning",
+          "requiresWebView": false
+        }
+      ]
+    },
+    "body": {
+      "id": 0,
+      "tag": "body",
+      "children": [
+        {
+          "id": 1,
+          "tag": "h1",
+          "children": [
+            {
+              "id": 2,
+              "text": "一级标题 Heading"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "text": "\n"
+        },
+        {
+          "id": 4,
+          "tag": "h2",
+          "children": [
+            {
+              "id": 5,
+              "text": "二级标题"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "text": "\n"
+        },
+        {
+          "id": 7,
+          "tag": "h3",
+          "children": [
+            {
+              "id": 8,
+              "text": "三级标题"
+            }
+          ]
+        },
+        {
+          "id": 9,
+          "text": "\n"
+        },
+        {
+          "id": 10,
+          "tag": "p",
+          "children": [
+            {
+              "id": 11,
+              "text": "普通文本包含 "
+            },
+            {
+              "id": 12,
+              "tag": "strong",
+              "children": [
+                {
+                  "id": 13,
+                  "text": "粗体"
+                }
+              ]
+            },
+            {
+              "id": 14,
+              "text": "、"
+            },
+            {
+              "id": 15,
+              "tag": "em",
+              "children": [
+                {
+                  "id": 16,
+                  "text": "斜体"
+                }
+              ]
+            },
+            {
+              "id": 17,
+              "text": "、"
+            },
+            {
+              "id": 18,
+              "tag": "u",
+              "children": [
+                {
+                  "id": 19,
+                  "text": "下划线"
+                }
+              ]
+            },
+            {
+              "id": 20,
+              "text": "、"
+            },
+            {
+              "id": 21,
+              "tag": "s",
+              "children": [
+                {
+                  "id": 22,
+                  "text": "删除线"
+                }
+              ]
+            },
+            {
+              "id": 23,
+              "text": "、\n"
+            },
+            {
+              "id": 24,
+              "tag": "small",
+              "children": [
+                {
+                  "id": 25,
+                  "text": "小字号"
+                }
+              ]
+            },
+            {
+              "id": 26,
+              "text": "、"
+            },
+            {
+              "id": 27,
+              "tag": "code",
+              "children": [
+                {
+                  "id": 28,
+                  "text": "inline code"
+                }
+              ]
+            },
+            {
+              "id": 29,
+              "text": "、H"
+            },
+            {
+              "id": 30,
+              "tag": "sub",
+              "children": [
+                {
+                  "id": 31,
+                  "text": "2"
+                }
+              ]
+            },
+            {
+              "id": 32,
+              "text": "O 和 x"
+            },
+            {
+              "id": 33,
+              "tag": "sup",
+              "children": [
+                {
+                  "id": 34,
+                  "text": "2"
+                }
+              ]
+            },
+            {
+              "id": 35,
+              "text": "。"
+            }
+          ]
+        },
+        {
+          "id": 36,
+          "text": "\n"
+        },
+        {
+          "id": 37,
+          "tag": "p",
+          "attributes": {
+            "class": "center"
+          },
+          "children": [
+            {
+              "id": 38,
+              "text": "居中对齐的段落用于检查行宽与多行文本。"
+            }
+          ]
+        },
+        {
+          "id": 39,
+          "text": "\n"
+        },
+        {
+          "id": 40,
+          "tag": "p",
+          "attributes": {
+            "class": "right"
+          },
+          "children": [
+            {
+              "id": 41,
+              "text": "右对齐段落。"
+            }
+          ]
+        },
+        {
+          "id": 42,
+          "text": "\n"
+        },
+        {
+          "id": 43,
+          "tag": "p",
+          "attributes": {
+            "class": "spaced"
+          },
+          "children": [
+            {
+              "id": 44,
+              "text": "较大的行高会改变块高度，但不应改变字符顺序。"
+            }
+          ]
+        },
+        {
+          "id": 45,
+          "text": "\n"
+        },
+        {
+          "id": 46,
+          "tag": "hr"
+        },
+        {
+          "id": 47,
+          "text": "\n"
+        },
+        {
+          "id": 48,
+          "tag": "p",
+          "children": [
+            {
+              "id": 49,
+              "text": "分隔线之后还有一段文本。"
+            }
+          ]
+        },
+        {
+          "id": 50,
+          "text": "\n"
+        }
+      ]
+    },
+    "styleSheet": {
+      "rules": [
+        {
+          "selectors": [
+            {
+              "parts": [
+                {
+                  "classes": [
+                    "center"
+                  ]
+                }
+              ]
+            }
+          ],
+          "declarations": {
+            "text-align": "center"
+          },
+          "order": 0
+        },
+        {
+          "selectors": [
+            {
+              "parts": [
+                {
+                  "classes": [
+                    "right"
+                  ]
+                }
+              ]
+            }
+          ],
+          "declarations": {
+            "text-align": "right"
+          },
+          "order": 1
+        },
+        {
+          "selectors": [
+            {
+              "parts": [
+                {
+                  "classes": [
+                    "spaced"
+                  ]
+                }
+              ]
+            }
+          ],
+          "declarations": {
+            "line-height": "1.8"
+          },
+          "order": 2
+        }
+      ]
+    }
+  }
+}

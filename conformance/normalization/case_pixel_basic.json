@@ -1,0 +1,322 @@
+{
+  "id": "case_pixel_basic",
+  "source": "conformance/cases/pixel_basic.html",
+  "normalizer": {
+    "customTags": []
+  },
+  "snapshot": {
+    "id": "vector-case_pixel_basic",
+    "revision": 1
+  },
+  "input": "<style>\n  body { font-family: \"WeftRoboto\"; }\n  pre, code { font-family: \"WeftRobotoMono\"; }\n  .lead { color: #57606a; font-size: 18px; }\n  .note {\n    width: 280px;\n    padding: 12px;\n    border: 2px solid #d4a72c;\n    background-color: #fff8c5;\n  }\n</style>\n<h1>Weft rendering baseline</h1>\n<p class=\"lead\">A deterministic article fragment for pixel regression checks.</p>\n<h2>Inline content</h2>\n<p>Plain text, <strong>bold words</strong>, <em>italic words</em>,\n<u>underlined text</u>, and a <a href=\"https://example.com/golden\">reference link</a>.</p>\n<ul>\n  <li>First list item</li>\n  <li>Second list item</li>\n</ul>\n<blockquote>\n  <p style=\"margin: 0\">Content correctness takes priority over feature count.</p>\n</blockquote>\n<p class=\"note\">A bordered callout with padding and a maximum line length.</p>\n",
+  "expected": {
+    "format": "weft.document",
+    "version": 1,
+    "id": "vector-case_pixel_basic",
+    "revision": 1,
+    "normalizedHtml": "<h1>Weft rendering baseline</h1>\n<p class=\"lead\">A deterministic article fragment for pixel regression checks.</p>\n<h2>Inline content</h2>\n<p>Plain text, <strong>bold words</strong>, <em>italic words</em>,\n<u>underlined text</u>, and a <a href=\"https://example.com/golden\">reference link</a>.</p>\n<ul>\n  <li>First list item</li>\n  <li>Second list item</li>\n</ul>\n<blockquote>\n  <p style=\"margin: 0\">Content correctness takes priority over feature count.</p>\n</blockquote>\n<p class=\"note\">A bordered callout with padding and a maximum line length.</p>\n",
+    "supportReport": {
+      "issues": [
+        {
+          "code": "html.parse.warning",
+          "message": "Unexpected start tag (style). Expected DOCTYPE.",
+          "severity": "warning",
+          "requiresWebView": false
+        }
+      ]
+    },
+    "body": {
+      "id": 0,
+      "tag": "body",
+      "children": [
+        {
+          "id": 1,
+          "tag": "h1",
+          "children": [
+            {
+              "id": 2,
+              "text": "Weft rendering baseline"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "text": "\n"
+        },
+        {
+          "id": 4,
+          "tag": "p",
+          "attributes": {
+            "class": "lead"
+          },
+          "children": [
+            {
+              "id": 5,
+              "text": "A deterministic article fragment for pixel regression checks."
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "text": "\n"
+        },
+        {
+          "id": 7,
+          "tag": "h2",
+          "children": [
+            {
+              "id": 8,
+              "text": "Inline content"
+            }
+          ]
+        },
+        {
+          "id": 9,
+          "text": "\n"
+        },
+        {
+          "id": 10,
+          "tag": "p",
+          "children": [
+            {
+              "id": 11,
+              "text": "Plain text, "
+            },
+            {
+              "id": 12,
+              "tag": "strong",
+              "children": [
+                {
+                  "id": 13,
+                  "text": "bold words"
+                }
+              ]
+            },
+            {
+              "id": 14,
+              "text": ", "
+            },
+            {
+              "id": 15,
+              "tag": "em",
+              "children": [
+                {
+                  "id": 16,
+                  "text": "italic words"
+                }
+              ]
+            },
+            {
+              "id": 17,
+              "text": ",\n"
+            },
+            {
+              "id": 18,
+              "tag": "u",
+              "children": [
+                {
+                  "id": 19,
+                  "text": "underlined text"
+                }
+              ]
+            },
+            {
+              "id": 20,
+              "text": ", and a "
+            },
+            {
+              "id": 21,
+              "tag": "a",
+              "attributes": {
+                "href": "https://example.com/golden"
+              },
+              "children": [
+                {
+                  "id": 22,
+                  "text": "reference link"
+                }
+              ]
+            },
+            {
+              "id": 23,
+              "text": "."
+            }
+          ]
+        },
+        {
+          "id": 24,
+          "text": "\n"
+        },
+        {
+          "id": 25,
+          "tag": "ul",
+          "children": [
+            {
+              "id": 26,
+              "text": "\n  "
+            },
+            {
+              "id": 27,
+              "tag": "li",
+              "children": [
+                {
+                  "id": 28,
+                  "text": "First list item"
+                }
+              ]
+            },
+            {
+              "id": 29,
+              "text": "\n  "
+            },
+            {
+              "id": 30,
+              "tag": "li",
+              "children": [
+                {
+                  "id": 31,
+                  "text": "Second list item"
+                }
+              ]
+            },
+            {
+              "id": 32,
+              "text": "\n"
+            }
+          ]
+        },
+        {
+          "id": 33,
+          "text": "\n"
+        },
+        {
+          "id": 34,
+          "tag": "blockquote",
+          "children": [
+            {
+              "id": 35,
+              "text": "\n  "
+            },
+            {
+              "id": 36,
+              "tag": "p",
+              "style": {
+                "margin": "0"
+              },
+              "children": [
+                {
+                  "id": 37,
+                  "text": "Content correctness takes priority over feature count."
+                }
+              ]
+            },
+            {
+              "id": 38,
+              "text": "\n"
+            }
+          ]
+        },
+        {
+          "id": 39,
+          "text": "\n"
+        },
+        {
+          "id": 40,
+          "tag": "p",
+          "attributes": {
+            "class": "note"
+          },
+          "children": [
+            {
+              "id": 41,
+              "text": "A bordered callout with padding and a maximum line length."
+            }
+          ]
+        },
+        {
+          "id": 42,
+          "text": "\n"
+        }
+      ]
+    },
+    "styleSheet": {
+      "rules": [
+        {
+          "selectors": [
+            {
+              "parts": [
+                {
+                  "tag": "body"
+                }
+              ]
+            }
+          ],
+          "declarations": {
+            "font-family": "\"WeftRoboto\""
+          },
+          "order": 0
+        },
+        {
+          "selectors": [
+            {
+              "parts": [
+                {
+                  "tag": "pre"
+                }
+              ]
+            },
+            {
+              "parts": [
+                {
+                  "tag": "code"
+                }
+              ]
+            }
+          ],
+          "declarations": {
+            "font-family": "\"WeftRobotoMono\""
+          },
+          "order": 1
+        },
+        {
+          "selectors": [
+            {
+              "parts": [
+                {
+                  "classes": [
+                    "lead"
+                  ]
+                }
+              ]
+            }
+          ],
+          "declarations": {
+            "color": "#57606a",
+            "font-size": "18px"
+          },
+          "order": 2
+        },
+        {
+          "selectors": [
+            {
+              "parts": [
+                {
+                  "classes": [
+                    "note"
+                  ]
+                }
+              ]
+            }
+          ],
+          "declarations": {
+            "width": "280px",
+            "padding": "12px",
+            "border": "2px solid #d4a72c",
+            "background-color": "#fff8c5"
+          },
+          "order": 3
+        }
+      ]
+    }
+  }
+}

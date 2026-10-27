@@ -1,0 +1,66 @@
+{
+  "id": "synthetic_nested_table_fallback",
+  "source": "inline",
+  "normalizer": {
+    "customTags": []
+  },
+  "snapshot": {
+    "id": "vector-synthetic_nested_table_fallback",
+    "revision": 1
+  },
+  "input": "<body><table><tr><td><table><tr><td>inner</td></tr></table></td></tr></table></body>",
+  "expected": {
+    "format": "weft.document",
+    "version": 1,
+    "id": "vector-synthetic_nested_table_fallback",
+    "revision": 1,
+    "normalizedHtml": "<table><tbody><tr><td></td></tr></tbody></table>",
+    "supportReport": {
+      "issues": [
+        {
+          "code": "html.parse.warning",
+          "message": "Unexpected start tag (body). Expected DOCTYPE.",
+          "severity": "warning",
+          "requiresWebView": false
+        },
+        {
+          "code": "html.table.nested",
+          "message": "Nested tables are not supported and require a fallback renderer.",
+          "severity": "warning",
+          "requiresWebView": true
+        }
+      ]
+    },
+    "body": {
+      "id": 0,
+      "tag": "body",
+      "children": [
+        {
+          "id": 1,
+          "tag": "table",
+          "children": [
+            {
+              "id": 2,
+              "tag": "tbody",
+              "children": [
+                {
+                  "id": 3,
+                  "tag": "tr",
+                  "children": [
+                    {
+                      "id": 4,
+                      "tag": "td"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "styleSheet": {
+      "rules": []
+    }
+  }
+}

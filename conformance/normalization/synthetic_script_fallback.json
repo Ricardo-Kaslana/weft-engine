@@ -1,0 +1,54 @@
+{
+  "id": "synthetic_script_fallback",
+  "source": "inline",
+  "normalizer": {
+    "customTags": []
+  },
+  "snapshot": {
+    "id": "vector-synthetic_script_fallback",
+    "revision": 1
+  },
+  "input": "<body><p>visible</p><script>alert(1)</script><noscript>no</noscript></body>",
+  "expected": {
+    "format": "weft.document",
+    "version": 1,
+    "id": "vector-synthetic_script_fallback",
+    "revision": 1,
+    "normalizedHtml": "<p>visible</p>",
+    "supportReport": {
+      "issues": [
+        {
+          "code": "html.parse.warning",
+          "message": "Unexpected start tag (body). Expected DOCTYPE.",
+          "severity": "warning",
+          "requiresWebView": false
+        },
+        {
+          "code": "html.script.unsupported",
+          "message": "Scripts require the runtime milestone and a WebView fallback.",
+          "severity": "warning",
+          "requiresWebView": true
+        }
+      ]
+    },
+    "body": {
+      "id": 0,
+      "tag": "body",
+      "children": [
+        {
+          "id": 1,
+          "tag": "p",
+          "children": [
+            {
+              "id": 2,
+              "text": "visible"
+            }
+          ]
+        }
+      ]
+    },
+    "styleSheet": {
+      "rules": []
+    }
+  }
+}

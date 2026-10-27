@@ -1,6 +1,6 @@
 name: weft_capabilities
 description: Built-in capability identifiers and policy contracts for Weft.
-version: 0.1.0-dev.1
+version: 0.5.0-dev.1
 publish_to: none
 resolution: workspace
 
