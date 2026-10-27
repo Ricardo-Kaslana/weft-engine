@@ -7,7 +7,7 @@
 - **已实现**：有代码路径和自动测试。
 - **部分实现**：主路径可用，但缺少浏览器完整行为。
 - **阶段 1 后续**：尚未实现，暂按未知元素或回退处理。
-- **阶段 2/4**：按里程碑实现。
+- **部分实现（阶段 4）**：主路径已交付并验收（ADR 0033），边界见各行说明。
 - **不支持**：由宿主通过回退或专用组件处理。
 
 ## HTML
@@ -26,7 +26,8 @@
 | 图片 | `img` | 部分实现 | `src/alt/width/height`、块级替换盒、左右 Float、`clear` 和宿主资源解析；img 默认 `display: inline`，以原子参与基线混排，`display: block` 退回块级替换盒（ADR 0018） |
 | 表格 | `table/thead/tbody/tfoot/tr/th/td/caption`、`colgroup/col` | 部分实现 | 槽位网格、`colspan/rowspan`、隐式行、caption、separate/collapse 边框与 `vertical-align`；`colgroup/col` 声明列轨道（px 固定列、百分比列、span，ADR 0022）；嵌套表格触发回退 |
 | 单元格跨距 | `colspan/rowspan` | 已实现 | 1..1000 清洗、跨列跨行、悬空 rowspan 生成隐式行 |
-| 脚本 | 可信 `ScriptUnit` | 阶段 4 | 当前任何 `script` 都要求回退 |
+| 脚本 | 可信 `ScriptUnit` | 部分实现 | `<script>` 标签仍触发回退；受信任脚本由宿主经 `WeftDocumentRuntime` 执行（QuickJS FFI，ADR 0033）：墙钟/内存/栈/微任务预算内中断，能力经 `weft.*` 白名单暴露 |
+| 自定义标签 | 宿主白名单 `<weft-*>` | 部分实现 | `WeftNormalizer.customTags` 保留属性驱动叶子元素（内容丢弃有诊断），`WeftTagRenderer` 输出 rect/text ops 由引擎绘制；无渲染器时空盒；不支持行内混排与 Float 环绕 |
 | Canvas、WebGL、iframe、对象嵌入 | 不进入引擎 | 不支持 | 触发 `requiresWebView` |
 | 表单、富文本编辑 | 不进入引擎 | 不支持 | 触发 `requiresWebView` |
 
@@ -159,6 +160,17 @@
 当前已支持图片的左右浮动、逐行可用行框、`clear`、同侧堆叠、对侧并排、跨段落环绕和文档滚动高度。
 
 尚未支持任意元素的 Float、浮动与表格/行内格式化上下文的交互、`clear` 的 margin 合并细节。Float 的定位与排除区在 `layout_engine.dart` 的 `_FloatContext` 中维护，后续表格和 Flexbox 必须复用同一套行框可用区查询，不得另建绕过机制。行内图片以原子参与浮动旁的逐行排版（见 ADR 0018）。
+
+## 受限 JavaScript（阶段 4，ADR 0033）
+
+当前能力：
+
+- 受信任脚本由宿主经 `WeftDocumentRuntime` 执行：单文档 Context、`weft.state/events/net` 能力桥（网络仅 GET）、恢复不重放网络副作用且 `(sessionId, sequence)` 可去重。
+- 墙钟/内存/栈/微任务四类预算由 QuickJS 原生层强制，能力调用风暴有单轮上限；未启用能力在 JS 中不可见。
+
+尚未实现：
+
+- `weft.net` 的 POST、请求体与取消令牌；`<script>` 标签仍触发回退（不存在声明式脚本执行）。
 
 ## 不支持输入处理
 

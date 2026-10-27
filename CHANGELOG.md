@@ -1,6 +1,17 @@
 # Changelog
 
-## Unreleased
+## Unreleased (Stage 3 & 4)
+
+- Added stable logical text index with 100k-character cross-paragraph selection, copy, and remapping on streaming updates; selection chrome with drag handles, caret, and copy button (ADR 0013/0015/0019).
+- Added chunked painting with visible-window culling, single-surface semantics (headings, tables, lists, links, images, selection actions), and anchor navigation with async frame-budgeted measurement (ADR 0017/0020/0024/0026/0028/0030/0027/0029/0031).
+- Added progressive lazy layout for long documents, deep-jump framing, identical-snapshot reuse, and corpus structural gates (lossless, non-overlapping, in-bounds) with hostile-input diagnostics (ADR 0025/0031/0032).
+- Added the vendored QuickJS 2024-01-13 engine behind a flat C shim (`native/weft_glue.c`) with native wall-clock, heap, stack, and microtask budget enforcement (ADR 0033).
+- Added the per-document JS host `WeftDocumentRuntime` with `weft.state`/`weft.events`/`weft.net` capability modules, policy-gated visibility, redirect whitelist enforcement, network journaling, recovery without replay, and `(sessionId, sequence)` dedup.
+- Added `WeftTagRenderer` custom tags: normalizer allowlist, attribute-driven leaf elements, engine-clamped paint ops, hit regions, tap callbacks, and semantics labels.
+- Added the backend-neutral `weft_runtime_contract` suite and the scripted `weft_runtime_fake` backend; the QuickJS FFI and fake backends pass the same contract tests.
+- Added a stage-4 Weft Lab demo (badge renderer plus FakeRuntime state/events) and the QuickJS native build script with a CI build step.
+
+## Unreleased (Stage 1 & 2)
 
 - Added controlled HTML normalization with tag/attribute filtering, URL checks, node limits, structured support diagnostics, and explicit fallback for complex content.
 - Added structured CSS selector parsing, declaration filtering, specificity-aware cascade, inline styles, inheritance, and shorthand expansion for margins and padding.

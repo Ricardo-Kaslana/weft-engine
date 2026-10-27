@@ -20,7 +20,7 @@ dart analyze
 dart run tool/verify.dart
 ```
 
-当前主 CI 覆盖格式、静态分析、纯 Dart 测试和 Flutter 单元/Widget 测试，共 73 项；另有 Windows 独立执行的 2 项 Flutter 像素基线测试：
+当前主 CI 覆盖格式、静态分析、纯 Dart 测试和 Flutter 单元/Widget 测试，共 400+ 项（weft_engine 243、weft 50、weft_quickjs 22、weft_capabilities 15、weft_document 15、weft_runtime_fake 12、weft_runtime_contract 9 等，QuickJS FFI 测试在 native 库缺失时跳过）；另有 Windows 独立执行的 3 项 Flutter 像素基线测试：
 
 - 规范化：标签、属性、URL、未知元素、回退能力、节点上限、图片地址与尺寸。
 - CSS：选择器结构、后代/子代匹配、特异性、内联覆盖、声明过滤。
@@ -123,3 +123,5 @@ flutter test test/perf_gate_test.dart --no-pub --timeout 120s     # CI 门禁
 ## Runtime 安全测试
 
 至少包含无限循环、递归爆栈、内存炸弹、微任务风暴、超大桥接消息、队列积压、非法 URL、重定向越权、取消、销毁竞争和恢复后的副作用去重。测试必须验证整个宿主没有继续暴露已撤销能力。
+
+阶段 4 已交付（ADR 0033，证据见 `packages/weft_quickjs/test/quickjs_session_test.dart`、`packages/weft_capabilities/test/capability_modules_test.dart`、`packages/weft/test/weft_document_runtime_test.dart`）：无限循环墙钟中断、内存炸弹、递归爆栈、微任务风暴、非法协议与重定向越权拦截、恢复后的副作用去重、销毁后的执行拒绝、`weft_runtime_contract` 的后端中立契约套件。尚未覆盖：超大桥接消息、队列积压与取消令牌。

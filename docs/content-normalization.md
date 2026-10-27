@@ -6,6 +6,8 @@
 
 阶段 2 已支持 `img` 标签的 `src/alt/width/height` 规范化，并继续对脚本、表格、Canvas 等复杂内容生成回退诊断。服务端参考实现、策略版本迁移和双端一致性语料尚未交付。
 
+阶段 4 增加自定义标签白名单（ADR 0033）：`WeftNormalizer(customTags: {...})` 把命中的未知标签保留为属性驱动的叶子元素——class/id/style 与任意安全命名的属性（值截断，`on*` 与 `style` 除外，`href/src` 走既有清洗）保留，内部内容丢弃并产出 `html.tag.custom.contentIgnored` 诊断；不在白名单的未知标签保持原 unwrap 行为。
+
 ## 输入与输出
 
 输入至少包含原始 HTML、可选可信样式、策略版本和内容 ID。输出契约为：

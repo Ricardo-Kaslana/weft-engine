@@ -4,7 +4,7 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 
 ## 当前状态
 
-当前为 **阶段 2（进行中）：图片资源与 Float 文字环绕**，可用于受控内容子集的实验和内部验证，尚不是稳定版本。
+开发计划 **阶段 0–4 已完成**（静态渲染、内容排版、长文档与性能、受限 JS 与能力扩展），可用于受控内容子集的实验和内部验证，尚不是稳定版本。阶段 5（回退、硬化与发布）未开始。
 
 已实现：
 
@@ -32,13 +32,18 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - 阶段 0–3 验收证据（ADR 0032）：商品/帮助文档语料的无丢失/无重叠/无越界结构断言、敌意输入诊断扫描、10 万字符随机跨段选区与复制（代理对安全）、流式选区重映射/安全清除、滚动缓存预算稳定、晚解码 Float 等价，以及"标签→Widget"基线与滚动帧耗时两个基准工具。
 - 锚点导航（ADR 0027/0029）：`scrollToAnchor` / `scrollToNode` 精确定位，异步版本逐帧测量深链前缀并保持当前内容；无效或取消请求安全返回 false。
 - 性能门禁：布局/绘制/命中 14 场景基准工具与 10 倍宽上限的 CI 稳定门禁（见 docs/testing-strategy.md）；命中解析经分块索引裁剪（ADR 0020），`WeftView.scrollController` 可注入。
+- 受限 JavaScript（ADR 0033）：vendor QuickJS + C 垫片 + `dart:ffi` 真实执行；墙钟/内存/栈/微任务四类预算原生强制，无限循环与内存炸弹在配置预算内中断且界面保留最后可用帧。
+- 单文档能力宿主：`weft.state/events/net` 模块经版本化能力桥暴露，未启用能力在 JS 中不可见；网络仅 GET、scheme/host 白名单、逐跳重定向校验与副作用审计。
+- 会话恢复不自动重放网络副作用；网关按 `(sessionId, sequence)` 去重重投递命令，网络客户端跨恢复恰好调用一次。
+- 自定义标签：`WeftNormalizer.customTags` 白名单 + 受信任 Dart `WeftTagRenderer`（rect/text ops、语义标签、`onTagTap`），由引擎钳制并转为常规绘制命令。
+- 后端契约：`weft_runtime_contract` 契约套件同时覆盖 QuickJS FFI 与脚本化 FakeRuntime（`weft_runtime_fake`），替换后端不修改引擎核心。
 - `float_image` 一致性案例：Chrome 生成的浏览器几何基线（块、图片、逐行词盒误差 ≤ 0.5px）与 Flutter 像素黄金双重门禁；图片按 1:1 对齐整像素绘制。
 - `table_basic`/`table_cols` 一致性案例：表格浏览器几何基线（单元格 ≤ 1.5px、行/列结构精确断言），覆盖 collapse/separate、跨列跨行、caption 与 colgroup/col 列宽。
 - 单一 `RenderObject` 渲染表面、可滚动公开视图和真实文本/背景/图片绘制指令。
 - 中英文内容、窄宽度换行及 300 段长文档的布局烟测。
 - 六类代表性内容语料，以及 Chrome/Edge 诊断参考截图生成器。
 - Apache 2.0 Roboto/Roboto Mono 固定字体、三个 Flutter 像素黄金基线（含图片/浮动案例）、确定性 PNG 图片资产和 Windows CI 门禁。
-- Dart Pub workspace、270+ 项常规自动测试（weft_engine 234、weft 39）、3 项像素测试、浏览器几何基线测试和 GitHub Actions CI。
+- Dart Pub workspace、400+ 项常规自动测试（weft_engine 243、weft 50、weft_quickjs 22、weft_capabilities 15、weft_document 15、weft_runtime_fake 12、weft_runtime_contract 9 等）、3 项像素测试、浏览器几何基线测试和 GitHub Actions CI。
 
 尚未实现：
 
@@ -47,8 +52,8 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - 表格的嵌套表格（触发回退）与浏览器级 auto 列宽分配精度。
 - 选择工具条（完整菜单）、chrome 动画打磨和语义角色/live region 增强。
 - 基于块 metrics 的窗口直物化与精确 O(1)/O(log N) 随机跳转，以及 body 直属 Float/表内行/图片解码资源虚拟化。
-- QuickJS 原生库、FFI 绑定和真实脚本执行。
-- 状态、事件、网络能力包的具体实现。
+- QuickJS 的 Android/iOS 平台构建接入（CMake/Podspec，阶段 5 发布工作；桌面/CI 已从 vendor 源码构建）。
+- 模糊测试、真机矩阵与发布回退演练（阶段 5）。
 
 `example/weft_lab` 已展示真实可滚动的静态文章，但仍不用于验收完整 HTML/CSS 兼容性。当前限制与后续顺序见 `docs/supported-subset.md` 和 `docs/development-plan.md`。
 
@@ -60,8 +65,10 @@ packages/
   weft_document/        纯 Dart 文档、支持度和逻辑文本模型
   weft_engine/          Flutter 布局、渲染与交互层
   weft_runtime_api/     Runtime、桥接和能力扩展抽象
-  weft_quickjs/         QuickJS 原生适配边界
-  weft_capabilities/    内置能力标识与装载策略
+  weft_quickjs/         QuickJS 源码、C 垫片与 dart:ffi 后端
+  weft_capabilities/    能力模块、装载策略与桥接网关
+  weft_runtime_fake/    脚本化 FakeRuntime 后端
+  weft_runtime_contract/  后端中立 JsSession 契约测试套件
 example/weft_lab/       开发、示例和图片资源实验室
 conformance/            语料、固定字体、Flutter 基线和浏览器参考输入
 docs/                   架构、规范、计划和管理文档

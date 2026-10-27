@@ -100,7 +100,7 @@ docs/adr/               架构决策记录
 - CJK 像素基线（跨引擎像素验收已按 ADR 0032 重定界为结构几何门禁；真机帧计时仍以 weft_lab 为准）。
 - 表格：嵌套表格（触发回退）、浏览器级 auto 列宽分配精度、`col` 的 min/max 语义。
 - Semantics 的 headingLevel、跨行跨列语义索引、CSS 列表样式/起始序号、可编辑 selection/caret 动作、RTL/语言属性、live region 与语义虚拟化。
-- QuickJS 原生执行、状态/事件/网络能力包。
+- 受限 JS 的既有边界：bridge 风暴上限按单轮计数、`weft.net` 仅 GET、自定义标签不支持行内混排与 Float 环绕、JSON 编组把 undefined 折叠为 null（ADR 0033 后续小节）。
 
 ## 关键约束
 
@@ -116,6 +116,9 @@ docs/adr/               架构决策记录
 ```bash
 # 一键门禁 = format + analyze + verify + golden；--fast 跳过像素门禁
 tool/check.sh
+
+# QuickJS 原生库（首次克隆或改动 native/ 后执行；缺失时 FFI 测试跳过并给出本命令）
+packages/weft_quickjs/tool/build_native.sh
 
 # 逐项运行
 flutter pub get
