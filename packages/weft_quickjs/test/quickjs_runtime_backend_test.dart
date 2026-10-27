@@ -15,6 +15,9 @@ final class _FakeSession implements JsSession {
   Future<void> send(EventEnvelope event) async {}
 
   @override
+  Future<void> settle() async {}
+
+  @override
   Future<void> dispose() async {}
 }
 

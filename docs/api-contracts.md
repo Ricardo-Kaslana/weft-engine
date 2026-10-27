@@ -110,9 +110,11 @@ abstract interface class JsSession {
 }
 ```
 
-`RuntimeConfig` 固定文档 ID、JS 堆、栈和已启用能力集合。`ExecutionBudget` 限制单次执行时间和微任务批次。所有桥接参数使用可序列化值，禁止传递任意 Dart 对象。
+`RuntimeConfig` 固定文档 ID、JS 堆、栈和已启用能力集合。`ExecutionBudget` 限制单次执行时间（墙钟）和微任务批次。所有桥接参数使用可序列化值，禁止传递任意 Dart 对象。
 
-`JsResult` 以 `RuntimeFailure` 表示超时、内存、栈、脚本、桥接和销毁错误，不允许把超限静默当成普通脚本返回值。
+`JsResult` 以 `RuntimeFailure` 表示超时、内存、栈、微任务预算、脚本、桥接和销毁错误，不允许把超限静默当成普通脚本返回值。事件投递等 `Future<void>` 操作以 `JsSessionFailure` 抛出失败。
+
+`QuickJsFfiBackend`（ADR 0033）用 vendor 的 QuickJS + C 垫片真实执行：先运行 `packages/weft_quickjs/tool/build_native.sh`（或设 `WEFT_QUICKJS_LIBRARY`），库缺失时报错并给出构建命令。`QuickJsRuntimeBackend`/`QuickJsNativeAdapter` 仍是平台定制的委托接缝。
 
 ## 已建立：能力扩展
 
@@ -125,19 +127,28 @@ abstract interface class CapabilityModule {
 
 `CapabilityDescriptor` 包含命名空间、API 版本和方法集合。`CapabilityPolicy` 是不可变装载策略，自定义命名空间与内置能力使用同一机制。
 
-内置命名空间预留为 `weft.state`、`weft.events` 和 `weft.net`；当前只有标识和策略，没有具体实现。
+内置命名空间 `weft.state`、`weft.events`、`weft.net` 已有具体实现（ADR 0033）：
 
-## 已建立：QuickJS 边界
+- `WeftDocumentRuntime.open({backend, documentId, policy, services, networkPolicy})` 打开单文档运行时：为启用能力装配模块、执行能力引导、暴露 `execute/sendEvent/recover/dispose` 与 `networkJournal`。
+- `weft.state`：`get/set`，宿主 `WeftStateStore`（默认内存实现）。
+- `weft.events`：`emit(name, payload)` 到宿主回调；宿主 `sendEvent` 经 `__weftOnEvent` 分发给 JS 的 `weft.events.on` 订阅者。
+- `weft.net`：`fetch(url)` 仅 GET。`WeftNetworkPolicy`（scheme/host 白名单、重定向上限、响应体上限）在调用宿主 `WeftNetworkClient` 前后强制；每次副作用记入 `WeftNetworkJournal`。恢复不重放；网关按 `(sessionId, sequence)` 去重重投递命令。
+- `weftCapabilityBootstrap(enabled)` 生成的引导脚本只安装启用命名空间；未启用能力在 JS 中不可见，网关拒绝为第二道闸。
 
-`QuickJsRuntimeBackend` 将 `open` 委托给 `QuickJsNativeAdapter`。该适配器是 FFI 实现的接缝，使核心契约测试可以使用 FakeRuntime/NativeAdapter。
+## 已建立：自定义标签
 
-这层委托不表示 QuickJS 已可用。原生库、线程约束、中断和内存限制必须另行实现并验收。
+```dart
+final layout = WeftLayoutEngine(
+  tagRenderers: {'weft-badge': const WeftBadgeTagRenderer()},
+).layout(document, width: 320);
+```
+
+宿主在 `WeftNormalizer(customTags: {...})` 白名单中保留自定义标签（属性驱动叶子元素，内容丢弃有诊断），并为同一标签注册 `WeftTagRenderer`：`layout(context) → WeftTagLayout{height, ops, semanticsLabel}`，ops 为 `WeftTagRectOp`/`WeftTagTextOp`，由引擎钳制到内容盒并转为常规绘制命令（分块、命中与复用不受影响）。`WeftLayoutResult.tagRegions/tagAt` 提供命中；`WeftSurface/WeftView` 的 `onTagTap` 回调宿主，语义树输出渲染器标签。渲染器抛异常退化为空盒；渲染器集合实例变更触发整页重排。内容信任边界：属性值是未清洗字符串，渲染器不得将其用于安全决策。
 
 ## 规划中：扩展与资源接口
 
 以下接口只在对应里程碑进入代码：
 
-- `TagRenderer`：自定义标签的布局、绘制、命中和语义。
 - `LayoutAlgorithm`：按约束生成 Fragment，未来支持 Flexbox。
 - `TextShaper`：替换当前直接使用的 `TextPainter` 测量与整形。
 - `ResourceProvider`：统一的受控资源加载、取消、缓存和释放；当前只有图片的 `WeftImageResolver`。

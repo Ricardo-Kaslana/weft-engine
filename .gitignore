@@ -13,3 +13,4 @@ Thumbs.db
 .workbuddy/
 __pycache__/
 *.pyc
+packages/weft_quickjs/native/build/

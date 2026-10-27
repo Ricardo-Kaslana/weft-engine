@@ -6,6 +6,7 @@ import 'package:weft_document/weft_document.dart';
 
 import 'computed_style.dart';
 import 'line_break_rules.dart';
+import 'tag_renderer.dart';
 import 'text_index.dart';
 
 final class WeftLayoutBox {
@@ -13,6 +14,29 @@ final class WeftLayoutBox {
 
   final int nodeId;
   final ui.Rect rect;
+}
+
+/// Hit region for one laid-out custom tag (ADR 0033).
+final class WeftTagRegion {
+  const WeftTagRegion({
+    required this.nodeId,
+    required this.tag,
+    required this.rect,
+    this.label,
+  });
+
+  final int nodeId;
+
+  /// The custom element's tag name, e.g. `weft-badge`.
+  final String tag;
+
+  /// The tag's content-box rectangle in layout coordinates.
+  final ui.Rect rect;
+
+  /// Accessibility label supplied by the renderer, `aria-label`, or the tag.
+  final String? label;
+
+  bool contains(ui.Offset position) => rect.contains(position);
 }
 
 final class WeftLinkRegion {
@@ -585,10 +609,12 @@ final class WeftCachedLayoutBlock {
     required Iterable<WeftLayoutBox> boxes,
     required Iterable<WeftPaintCommand> commands,
     required Iterable<WeftLinkRegion> links,
+    Iterable<WeftTagRegion> tagRegions = const <WeftTagRegion>[],
     Iterable<WeftFloatExclusion> floatExclusions = const [],
   })  : boxes = List<WeftLayoutBox>.unmodifiable(boxes),
         commands = List<WeftPaintCommand>.unmodifiable(commands),
         links = List<WeftLinkRegion>.unmodifiable(links),
+        tagRegions = List<WeftTagRegion>.unmodifiable(tagRegions),
         floatExclusions =
             List<WeftFloatExclusion>.unmodifiable(floatExclusions),
         paintBounds = paintBounds ?? _paintBoundsFor(commands);
@@ -605,6 +631,7 @@ final class WeftCachedLayoutBlock {
   final List<WeftLayoutBox> boxes;
   final List<WeftPaintCommand> commands;
   final List<WeftLinkRegion> links;
+  final List<WeftTagRegion> tagRegions;
   final List<WeftFloatExclusion> floatExclusions;
 }
 
@@ -619,6 +646,7 @@ final class WeftIncrementalLayoutCache {
     required this.measuredPrefixLength,
     required this.isLazy,
     required this.estimatedExtent,
+    this.tagRenderers = const <String, WeftTagRenderer>{},
     Map<WeftElement, WeftComputedStyle>? styleCache,
   })  : images = Map<int, ui.Image>.unmodifiable(images),
         lineBreakRules = WeftLineBreakRules(
@@ -642,6 +670,10 @@ final class WeftIncrementalLayoutCache {
   final bool isLazy;
   final double estimatedExtent;
 
+  /// Renderer set that produced cached custom tag blocks. Block reuse is
+  /// disabled when the map identity changes.
+  final Map<String, WeftTagRenderer> tagRenderers;
+
   /// Computed styles keyed by element identity, filled by layout passes and
   /// reused while [document] stays the same instance. Valid because computed
   /// styles derive only from the snapshot; width, text scaling and images do
@@ -656,6 +688,7 @@ final class WeftLayoutResult {
     required Iterable<WeftLayoutBox> boxes,
     required Iterable<WeftPaintCommand> commands,
     required Iterable<WeftLinkRegion> links,
+    Iterable<WeftTagRegion> tagRegions = const <WeftTagRegion>[],
     this.textIndex,
     this.debugReusedBlockCount = 0,
     this.debugLaidOutBlockCount = 0,
@@ -663,12 +696,16 @@ final class WeftLayoutResult {
     this.debugIsLazy = false,
   })  : boxes = List<WeftLayoutBox>.unmodifiable(boxes),
         commands = List<WeftPaintCommand>.unmodifiable(commands),
-        links = List<WeftLinkRegion>.unmodifiable(links);
+        links = List<WeftLinkRegion>.unmodifiable(links),
+        tagRegions = List<WeftTagRegion>.unmodifiable(tagRegions);
 
   final ui.Size size;
   final List<WeftLayoutBox> boxes;
   final List<WeftPaintCommand> commands;
   final List<WeftLinkRegion> links;
+
+  /// Custom tag hit regions in paint order (later regions paint on top).
+  final List<WeftTagRegion> tagRegions;
   final int debugReusedBlockCount;
   final int debugLaidOutBlockCount;
   final int debugMaterializedBlockCount;
@@ -731,6 +768,14 @@ final class WeftLayoutResult {
       }
     }
     return best;
+  }
+
+  /// The topmost custom tag region containing [position], or null.
+  WeftTagRegion? tagAt(ui.Offset position) {
+    for (final region in tagRegions.reversed) {
+      if (region.contains(position)) return region;
+    }
+    return null;
   }
 
   /// Visual rectangles covering the painted text of [nodeId] between

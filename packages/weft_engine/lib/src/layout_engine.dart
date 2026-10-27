@@ -8,13 +8,20 @@ import 'computed_style.dart';
 import 'layout_result.dart';
 import 'line_break_rules.dart';
 import 'style_resolver.dart';
+import 'tag_renderer.dart';
 import 'text_index.dart';
 
 part 'inline_flow.part.dart';
 part 'table_layout.part.dart';
 
 final class WeftLayoutEngine {
-  const WeftLayoutEngine();
+  const WeftLayoutEngine(
+      {this.tagRenderers = const <String, WeftTagRenderer>{}});
+
+  /// Trusted renderers for custom tags. A normalized custom tag without a
+  /// renderer lays out as an empty block; hosts keep this map in sync with
+  /// `WeftNormalizer.customTags` (ADR 0033).
+  final Map<String, WeftTagRenderer> tagRenderers;
 
   /// Reuses unchanged top-level blocks from [previous] when all inputs match.
   /// Dispose [previous] after this call; a result that transferred commands
@@ -105,7 +112,10 @@ final class WeftLayoutEngine {
     final styleCache = sameSnapshot
         ? previousCache.styleCache
         : <WeftElement, WeftComputedStyle>{};
-    final styleResolver = WeftStyleResolver(document.styleSheet);
+    final styleResolver = WeftStyleResolver(
+      document.styleSheet,
+      customTags: tagRenderers.keys.toSet(),
+    );
     final lazy = viewportStart != null &&
         viewportEnd != null &&
         _supportsLazyLayout(
@@ -122,6 +132,7 @@ final class WeftLayoutEngine {
       images: images,
       lineBreakRules: lineBreakRules,
       allowLazy: lazy,
+      tagRenderers: tagRenderers,
     );
     final context = _LayoutContext(
       styleResolver: styleResolver,
@@ -137,6 +148,7 @@ final class WeftLayoutEngine {
           : null,
       maxNewBlocks: lazy ? maxNewBlocks : null,
       styleCache: styleCache,
+      tagRenderers: tagRenderers,
     );
     final reusedTextIndex = sameSnapshot ? previous?.textIndex : null;
     final textIndex = reusedTextIndex ??
@@ -174,6 +186,7 @@ final class WeftLayoutEngine {
       boxes: context.boxes,
       commands: context.commands,
       links: context.links,
+      tagRegions: context.tagRegions,
       textIndex: textIndex,
       debugReusedBlockCount: context.reusedBlockCount,
       debugLaidOutBlockCount:
@@ -216,6 +229,7 @@ final class WeftLayoutEngine {
         measuredPrefixLength: context.topLevelBlocks.length,
         isLazy: lazy,
         estimatedExtent: result.size.height,
+        tagRenderers: tagRenderers,
         styleCache: context.styleCache,
       );
     }
@@ -234,8 +248,14 @@ Map<int, WeftCachedLayoutBlock> _reusableLayoutBlocks({
   required Map<int, ui.Image> images,
   required WeftLineBreakRules lineBreakRules,
   bool allowLazy = false,
+  Map<String, WeftTagRenderer> tagRenderers = const <String, WeftTagRenderer>{},
 }) {
   final cache = previous?.incrementalCache;
+  if (cache != null && !identical(cache.tagRenderers, tagRenderers)) {
+    // A different renderer set may paint custom tags differently; cached
+    // blocks cannot be reused across the change.
+    return const <int, WeftCachedLayoutBlock>{};
+  }
   final oldBody = cache?.document.body;
   final newBody = document.body;
   // An unchanged snapshot instance carries its stylesheet and body, so the
@@ -445,6 +465,7 @@ final class _LayoutContext {
     this.maxNewBlocks,
     this.lineBreakRules = const WeftLineBreakRules(),
     required this.styleCache,
+    this.tagRenderers = const <String, WeftTagRenderer>{},
   }) {
     for (final block in reusableBlocks.values) {
       _recordHeightSample(block.element, block.height);
@@ -469,9 +490,13 @@ final class _LayoutContext {
   /// resolves once; across scroll frames the map makes the block walk reuse
   /// the previous pass's styles instead of re-matching selectors.
   final Map<WeftElement, WeftComputedStyle> styleCache;
+
+  /// Renderers for custom tags, resolved once against the snapshot.
+  final Map<String, WeftTagRenderer> tagRenderers;
   final List<WeftLayoutBox> boxes = <WeftLayoutBox>[];
   final List<WeftPaintCommand> commands = <WeftPaintCommand>[];
   final List<WeftLinkRegion> links = <WeftLinkRegion>[];
+  final List<WeftTagRegion> tagRegions = <WeftTagRegion>[];
   final List<WeftCachedLayoutBlock> topLevelBlocks = <WeftCachedLayoutBlock>[];
   final Set<WeftPaintCommand> reusedCommands = <WeftPaintCommand>{};
   bool topLevelCacheEligible = true;
@@ -504,7 +529,7 @@ final class _LayoutContext {
     return style;
   }
 
-  (int, int, int, int)? _startTopLevelBlock(
+  (int, int, int, int, int)? _startTopLevelBlock(
     WeftElement parent,
     _FloatContext floats,
   ) {
@@ -513,6 +538,7 @@ final class _LayoutContext {
       commands.length,
       boxes.length,
       links.length,
+      tagRegions.length,
       floats.exclusionCount,
     );
   }
@@ -525,7 +551,7 @@ final class _LayoutContext {
     required double height,
     required int? ordinal,
     required _FloatContext floats,
-    required (int, int, int, int)? start,
+    required (int, int, int, int, int)? start,
   }) {
     if (start == null) return;
     if (isLazy) laidOutBlockCount += 1;
@@ -533,7 +559,8 @@ final class _LayoutContext {
     final blockCommands = commands.sublist(start.$1);
     final blockBoxes = boxes.sublist(start.$2);
     final blockLinks = links.sublist(start.$3);
-    final blockExclusions = floats.snapshotFrom(start.$4);
+    final blockTagRegions = tagRegions.sublist(start.$4);
+    final blockExclusions = floats.snapshotFrom(start.$5);
     final paintBounds = _commandsPaintBounds(blockCommands);
     final materialize = _shouldMaterialize(
       top: top,
@@ -548,6 +575,7 @@ final class _LayoutContext {
       commands.removeRange(start.$1, commands.length);
       boxes.removeRange(start.$2, boxes.length);
       links.removeRange(start.$3, links.length);
+      tagRegions.removeRange(start.$4, tagRegions.length);
     } else if (isLazy) {
       materializedBlockCount += 1;
     }
@@ -562,6 +590,7 @@ final class _LayoutContext {
         boxes: materialize ? blockBoxes : const [],
         commands: materialize ? blockCommands : const [],
         links: materialize ? blockLinks : const [],
+        tagRegions: materialize ? blockTagRegions : const [],
         floatExclusions: blockExclusions,
       ),
     );
@@ -594,9 +623,12 @@ final class _LayoutContext {
         materialize ? block.commands : const <WeftPaintCommand>[];
     final blockBoxes = materialize ? block.boxes : const <WeftLayoutBox>[];
     final blockLinks = materialize ? block.links : const <WeftLinkRegion>[];
+    final blockTagRegions =
+        materialize ? block.tagRegions : const <WeftTagRegion>[];
     commands.addAll(blockCommands);
     boxes.addAll(blockBoxes);
     links.addAll(blockLinks);
+    tagRegions.addAll(blockTagRegions);
     topLevelBlocks.add(
       WeftCachedLayoutBlock(
         element: child,
@@ -608,6 +640,7 @@ final class _LayoutContext {
         boxes: blockBoxes,
         commands: blockCommands,
         links: blockLinks,
+        tagRegions: blockTagRegions,
         floatExclusions: block.floatExclusions,
       ),
     );
@@ -743,17 +776,26 @@ final class _LayoutContext {
     final commandStart = commands.length;
     final childAncestors = <WeftElement>[...ancestors, element];
 
+    final tagRenderer = tagRenderers[element.tag];
     final contentHeight = element.tag == 'hr'
         ? 1.0
-        : _layoutChildren(
-            element: element,
-            style: style,
-            contentX: contentX,
-            contentY: contentY,
-            contentWidth: contentWidth,
-            childAncestors: childAncestors,
-            floats: floats,
-          );
+        : tagRenderer != null
+            ? _layoutCustomTag(
+                element: element,
+                renderer: tagRenderer,
+                contentX: contentX,
+                contentY: contentY,
+                contentWidth: contentWidth,
+              )
+            : _layoutChildren(
+                element: element,
+                style: style,
+                contentX: contentX,
+                contentY: contentY,
+                contentWidth: contentWidth,
+                childAncestors: childAncestors,
+                floats: floats,
+              );
     // An explicit CSS height overrides the content-driven height after the
     // same box-sizing conversion width uses (ADR 0009). Overflowing content
     // keeps painting below the border box; nothing is clipped or grown.
@@ -812,6 +854,84 @@ final class _LayoutContext {
     }
 
     return _BlockLayout(height: height);
+  }
+
+  /// Lays out one custom tag's content box through its trusted renderer.
+  ///
+  /// Ops are clamped to the content box, attributed to the element, and
+  /// converted into regular paint commands so chunking, hit culling and
+  /// command reuse keep working unchanged. A throwing renderer degrades to an
+  /// empty box instead of failing the whole document.
+  double _layoutCustomTag({
+    required WeftElement element,
+    required WeftTagRenderer renderer,
+    required double contentX,
+    required double contentY,
+    required double contentWidth,
+  }) {
+    final WeftTagLayout tagLayout;
+    try {
+      tagLayout = renderer.layout(WeftTagLayoutContext(
+        element: element,
+        contentWidth: contentWidth,
+        textScaler: textScaler,
+      ));
+    } catch (_) {
+      return 0;
+    }
+    final height = math.max(0.0, tagLayout.height);
+    if (contentWidth <= 0 || height <= 0) {
+      return height;
+    }
+    final contentBox = Rect.fromLTWH(contentX, contentY, contentWidth, height);
+    for (final op in tagLayout.ops) {
+      switch (op) {
+        case WeftTagRectOp():
+          final rect = Rect.fromLTWH(
+            contentX + op.rect.left,
+            contentY + op.rect.top,
+            op.rect.width,
+            op.rect.height,
+          ).intersect(contentBox);
+          if (rect.width <= 0 || rect.height <= 0) continue;
+          commands.add(WeftRectPaintCommand(
+            nodeId: element.id,
+            rect: rect,
+            color: op.color,
+          ));
+        case WeftTagTextOp():
+          if (op.text.isEmpty) continue;
+          final left = contentX + op.offset.dx;
+          final maxWidth = math.min(
+            op.maxWidth ?? double.infinity,
+            contentX + contentWidth - left,
+          );
+          if (maxWidth <= 0) continue;
+          final painter = TextPainter(
+            text: TextSpan(text: op.text, style: op.style),
+            textDirection: TextDirection.ltr,
+            textScaler: textScaler,
+          )..layout(maxWidth: maxWidth);
+          commands.add(WeftTextPaintCommand(
+            nodeId: element.id,
+            painter: painter,
+            offset: Offset(left, contentY + op.offset.dy),
+          ));
+      }
+    }
+    final rendererLabel = tagLayout.semanticsLabel?.trim() ?? '';
+    final attributeLabel = element.attribute('aria-label')?.trim() ?? '';
+    tagRegions.add(WeftTagRegion(
+      nodeId: element.id,
+      tag: element.tag,
+      rect: contentBox,
+      label: rendererLabel.isNotEmpty
+          ? rendererLabel
+          : attributeLabel.isNotEmpty
+              ? attributeLabel
+              : element.tag,
+    ));
+    return height;
   }
 
   /// Resolves the used border-box width following ADR 0009. [availableWidth]
@@ -1723,6 +1843,8 @@ final class _LayoutContext {
     if (element.tag == 'img') return false;
     // An empty list item still renders a marker, so it must be laid out.
     if (style.display == WeftDisplay.listItem) return false;
+    // Custom tags carry renderer-owned content and never collapse through.
+    if (tagRenderers.containsKey(element.tag)) return false;
     final childAncestors = <WeftElement>[...ancestors, element];
     for (final child in element.children) {
       if (child is WeftText) {

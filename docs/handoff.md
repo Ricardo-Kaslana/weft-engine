@@ -48,10 +48,10 @@
 - 分支：`main`
 - 最新提交：见 `git log`（本节只保证指南有效，不追踪哈希）
 - Flutter：3.35.5 stable；Dart：3.9.2
-- 常规测试 273 项（weft_engine 234、weft 39）、像素黄金 3 项 + 选区高亮 1 项、性能门禁 14 场景（7 布局 + 3 绘制 + 4 命中）；`dart analyze` 无问题。开发计划阶段 0–3 已完成（验收证据与重定界见 ADR 0032），阶段 4/5 未开始。
+- 常规测试 330+ 项（weft_engine 243、weft 50、weft_quickjs 22、weft_capabilities 15、weft_document 15、weft_runtime_fake 12、weft_runtime_contract 9）、像素黄金 3 项 + 选区高亮 1 项、性能门禁 14 场景（7 布局 + 3 绘制 + 4 命中）；`dart analyze` 无问题。开发计划阶段 0–4 已完成（阶段 4 见 ADR 0033），阶段 5 未开始。
 - GitHub Actions 使用 Windows 执行像素黄金门禁。
 
-已实现到 ADR 0032：分块渲染与命中裁剪（ADR 0017/0020）、行内图片（ADR 0018）、选择 chrome（ADR 0019）、块级盒模型（ADR 0021）、表格列轨道（ADR 0022）、流式顶层前缀复用（ADR 0023）、单表面 Semantics（ADR 0024/0026/0028/0030）、渐进式布局虚拟化（ADR 0025）、同步/异步锚点导航（ADR 0027/0029）懒布局异步分帧与同快照复用（ADR 0031）和阶段 0–3 验收证据与重定界（ADR 0032）。
+已实现到 ADR 0033：分块渲染与命中裁剪（ADR 0017/0020）、行内图片（ADR 0018）、选择 chrome（ADR 0019）、块级盒模型（ADR 0021）、表格列轨道（ADR 0022）、流式顶层前缀复用（ADR 0023）、单表面 Semantics（ADR 0024/0026/0028/0030）、渐进式布局虚拟化（ADR 0025）、同步/异步锚点导航（ADR 0027/0029）、懒布局异步分帧与同快照复用（ADR 0031）、阶段 0–3 验收证据与重定界（ADR 0032）和受限 JS 运行时（QuickJS FFI + 能力网关 + 恢复去重 + 自定义标签，ADR 0033）。
 
 ## 包结构
 
@@ -143,7 +143,15 @@ python tool/generate_assets.py
 
 ## 建议的下一步
 
-开发计划阶段 0–3 已完成；阶段 4（受限 JS 与能力扩展）和阶段 5（回退、硬化与发布）未开始。以下为既有技术路线的延续候选。
+开发计划阶段 0–4 已完成；阶段 5（回退、硬化与发布）未开始。以下为既有技术路线的延续候选。
+
+### A. 阶段 5：回退、硬化与发布
+
+目标：服务端/客户端规范化一致性、WebView 回退示例、模糊测试、真机矩阵、API 文档与发布回退流程；JS 与单能力可独立关闭的验证。
+
+注意：QuickJS 动态库需按平台构建（`packages/weft_quickjs/tool/build_native.sh`，CI 已从 vendor 源码构建 Linux 版）；Android/iOS 构建尚未接 CMake/Podspec，属阶段 5 发布工作。
+
+### B. 懒布局进阶
 
 ### A. 懒布局进阶
 
@@ -151,13 +159,13 @@ python tool/generate_assets.py
 
 注意：异步分帧与同快照复用已由 ADR 0031 交付（深跳/深 seed 每帧 ≤ 32 块、同快照跳过 diff/样式解析/文本索引重建）；窗口直物化的三个前置问题（负 margin/溢出破坏 top 单调性、body chrome 重算、后缀 extent 增量缓存）记录在 ADR 0031 的后续小节。先画像再动手；继续保留 canonical full 与结构计数门禁。
 
-### B. 语义增强
+### C. 语义增强
 
 目标：按产品需求补 headingLevel、table/list 角色、CSS 列表序号、语言/RTL、live region 或更细选区动作。
 
 注意：继续使用 describeSemanticsConfiguration/assembleSemanticsNode 的单表面模型；table/list role 需要真正嵌套容器节点并满足 Flutter 的严格父子校验，不要用扁平节点伪装。不要把静态文档伪装成 text field，也不要让语义节点持有旧 TextPainter。lazy 路径在 assemble 前必须升级 full。
 
-### C. 增量布局扩展
+### D. 增量布局扩展
 
 目标：在保持全量等价的前提下减少剩余 O(块数) diff/样式解析，或支持含 Float 文档与更多编辑形态。
 
@@ -177,3 +185,6 @@ python tool/generate_assets.py
 - 不要把未测后缀的估算高度当作精确块位置，也不要在 lazy 窗口外伪造命中、选择或 Semantics；需要完整几何时先升级 canonical full。
 - 分帧续推的停机条件是 `_needsLazyRelayout()`（窗口被前缀覆盖即停），不是 `measuredPrefixLength == body.children.length`：窗口末端之外的最后若干块会一直保持估算，拿前缀长度对块数做循环条件会永不终止。
 - 浏览器几何基线重新生成后必须人工审查 diff，不允许盲目覆盖。
+- 阶段 4 的 QuickJS 需要 native 库：测试在库缺失时跳过并提示 `packages/weft_quickjs/tool/build_native.sh`；不要把跳过当验收，中断/内存证据以真实 QuickJS 测试为准。
+- 能力调用风暴的上限按"单个事件循环轮次"计数（`_maxBridgeCallsPerTurn`），不是累计预算；跨轮的链式风暴由 `settle()` 的 256 轮兜底，两者都不能省。
+- 自定义标签是属性驱动的叶子元素：内容在规范化时丢弃（有诊断），不要指望布局遍历其子树，也不要忘记 `WeftNormalizer.customTags` 与引擎 `tagRenderers` 两处要同步。

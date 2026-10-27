@@ -15,6 +15,7 @@ import 'package:weft_document/weft_document.dart';
 import 'image_resources.dart';
 import 'layout_engine.dart';
 import 'layout_result.dart';
+import 'tag_renderer.dart';
 
 /// Accent color of the caret painted by [RenderWeftSurface] and of the
 /// selection handle overlays built by the weft view layer. Kept const so the
@@ -94,6 +95,8 @@ class WeftSurface extends StatefulWidget {
     this.showCaret = true,
     this.showCopyButton = true,
     this.copyButtonLabel = '复制',
+    this.tagRenderers = const <String, WeftTagRenderer>{},
+    this.onTagTap,
   });
 
   final WeftDocumentSnapshot document;
@@ -129,6 +132,14 @@ class WeftSurface extends StatefulWidget {
   /// [WeftSurface] never shows a copy button.
   final String copyButtonLabel;
 
+  /// Trusted custom tag renderers (ADR 0033). The engine renders a custom
+  /// tag as an opaque content box; hosts must also allowlist the tag in
+  /// `WeftNormalizer.customTags`.
+  final Map<String, WeftTagRenderer> tagRenderers;
+
+  /// Receives taps that land on a custom tag region and not on a link.
+  final ValueChanged<WeftTagRegion>? onTagTap;
+
   @override
   State<WeftSurface> createState() => _WeftSurfaceState();
 }
@@ -140,7 +151,12 @@ class _WeftSurfaceState extends State<WeftSurface> {
     final renderObject = _surfaceKey.currentContext?.findRenderObject();
     if (renderObject is! RenderWeftSurface) return;
     final link = renderObject.linkAt(details.localPosition);
-    if (link != null) widget.onLinkTap?.call(link);
+    if (link != null) {
+      widget.onLinkTap?.call(link);
+      return;
+    }
+    final tag = renderObject.tagAt(details.localPosition);
+    if (tag != null) widget.onTagTap?.call(tag);
   }
 
   @override
@@ -161,8 +177,10 @@ class _WeftSurfaceState extends State<WeftSurface> {
       showSelectionHandles: widget.showSelectionHandles,
       showCaret: widget.showCaret,
       showCopyButton: widget.showCopyButton,
+      tagRenderers: widget.tagRenderers,
+      onTagTap: widget.onTagTap,
     );
-    if (widget.onLinkTap == null) return surface;
+    if (widget.onLinkTap == null && widget.onTagTap == null) return surface;
     return GestureDetector(
       behavior: HitTestBehavior.deferToChild,
       excludeFromSemantics: true,
@@ -189,6 +207,8 @@ class _RawWeftSurface extends LeafRenderObjectWidget {
     this.showSelectionHandles = true,
     this.showCaret = true,
     this.showCopyButton = true,
+    this.tagRenderers = const <String, WeftTagRenderer>{},
+    this.onTagTap,
   });
 
   final WeftDocumentSnapshot document;
@@ -205,6 +225,8 @@ class _RawWeftSurface extends LeafRenderObjectWidget {
   final bool showSelectionHandles;
   final bool showCaret;
   final bool showCopyButton;
+  final Map<String, WeftTagRenderer> tagRenderers;
+  final ValueChanged<WeftTagRegion>? onTagTap;
 
   @override
   RenderWeftSurface createRenderObject(BuildContext context) {
@@ -224,6 +246,8 @@ class _RawWeftSurface extends LeafRenderObjectWidget {
       showSelectionHandles: showSelectionHandles,
       showCaret: showCaret,
       showCopyButton: showCopyButton,
+      tagRenderers: tagRenderers,
+      onTagTap: onTagTap,
     );
   }
 
@@ -246,7 +270,9 @@ class _RawWeftSurface extends LeafRenderObjectWidget {
       ..onLazyExtentCorrection = onLazyExtentCorrection
       ..showSelectionHandles = showSelectionHandles
       ..showCaret = showCaret
-      ..showCopyButton = showCopyButton;
+      ..showCopyButton = showCopyButton
+      ..tagRenderers = tagRenderers
+      ..onTagTap = onTagTap;
   }
 }
 
@@ -267,6 +293,9 @@ class RenderWeftSurface extends RenderBox {
     bool showSelectionHandles = true,
     bool showCaret = true,
     bool showCopyButton = true,
+    Map<String, WeftTagRenderer> tagRenderers =
+        const <String, WeftTagRenderer>{},
+    ValueChanged<WeftTagRegion>? onTagTap,
   })  : _document = document,
         _selection = selection,
         _textScaler = textScaler,
@@ -281,14 +310,18 @@ class RenderWeftSurface extends RenderBox {
         _imageConfiguration = imageConfiguration,
         _showSelectionHandles = showSelectionHandles,
         _showCaret = showCaret,
-        _showCopyButton = showCopyButton {
+        _showCopyButton = showCopyButton,
+        _tagRenderers = tagRenderers,
+        _onTagTap = onTagTap {
     if (selection != null) {
       _fullLayoutRequired = true;
       _debugFullLayoutReason = 'selection';
     }
   }
 
-  static const _layoutEngine = WeftLayoutEngine();
+  /// Layout engine honouring the active renderer set. Renderer identity
+  /// participates in block reuse decisions, so the map instance is kept.
+  WeftLayoutEngine get _engine => WeftLayoutEngine(tagRenderers: _tagRenderers);
 
   /// Cap on newly measured top-level blocks per frame when a scroll move
   /// lands the viewport beyond the measured frontier by more than one screen
@@ -303,6 +336,8 @@ class RenderWeftSurface extends RenderBox {
   WeftImageResolver? _imageResolver;
   ValueChanged<WeftLinkRegion>? _onSemanticsLinkTap;
   ValueChanged<String>? _onSemanticsCopy;
+  Map<String, WeftTagRenderer> _tagRenderers;
+  ValueChanged<WeftTagRegion>? _onTagTap;
   bool _enableLazyLayout;
   double _lazyOverscan;
   double? _viewportHeight;
@@ -394,6 +429,22 @@ class RenderWeftSurface extends RenderBox {
   set onSemanticsCopy(ValueChanged<String>? value) {
     if (identical(_onSemanticsCopy, value)) return;
     _onSemanticsCopy = value;
+    markNeedsSemanticsUpdate();
+  }
+
+  Map<String, WeftTagRenderer> get tagRenderers => _tagRenderers;
+
+  set tagRenderers(Map<String, WeftTagRenderer> value) {
+    if (identical(_tagRenderers, value)) return;
+    _tagRenderers = value;
+    markNeedsLayout();
+  }
+
+  ValueChanged<WeftTagRegion>? get onTagTap => _onTagTap;
+
+  set onTagTap(ValueChanged<WeftTagRegion>? value) {
+    if (identical(_onTagTap, value)) return;
+    _onTagTap = value;
     markNeedsSemanticsUpdate();
   }
 
@@ -613,7 +664,7 @@ class RenderWeftSurface extends RenderBox {
     final measureBudget =
         useLazy ? _lazyMeasureBudgetFor(previous, viewportHeight) : null;
     final current = useLazy
-        ? _layoutEngine.layoutViewport(
+        ? _engine.layoutViewport(
             _document,
             width: width,
             viewportStart: math.max(0, _viewportPixels - _lazyOverscan),
@@ -623,7 +674,7 @@ class RenderWeftSurface extends RenderBox {
             images: _resolvedImages,
             previous: previous,
           )
-        : _layoutEngine.layout(
+        : _engine.layout(
             _document,
             width: width,
             textScaler: _textScaler,
@@ -767,7 +818,7 @@ class RenderWeftSurface extends RenderBox {
     final previous = _layout;
     if (previous?.debugIsLazy != true) return;
     _markFullLayoutRequired(reason);
-    final current = _layoutEngine.layout(
+    final current = _engine.layout(
       _document,
       width: size.width,
       textScaler: _textScaler,
@@ -857,6 +908,10 @@ class RenderWeftSurface extends RenderBox {
         final link = fragment.link;
         if (link != null && _onSemanticsLinkTap != null) {
           childConfig.onTap = () => _onSemanticsLinkTap?.call(link);
+        }
+        final tag = fragment.tag;
+        if (tag != null && _onTagTap != null) {
+          childConfig.onTap = () => _onTagTap?.call(tag);
         }
         if (fragment.isSelection && _onSemanticsCopy != null) {
           childConfig.onCopy = () => _onSemanticsCopy?.call(fragment.value);
@@ -1020,6 +1075,10 @@ class RenderWeftSurface extends RenderBox {
     return _layout?.linkAt(position);
   }
 
+  WeftTagRegion? tagAt(Offset position) {
+    return _layout?.tagAt(position);
+  }
+
   /// Resolves the selection anchor at [position] in surface-local
   /// coordinates, or null when the point hits no painted text.
   TextAnchor? anchorAt(Offset position) => _layout?.anchorAt(position);
@@ -1062,7 +1121,7 @@ class RenderWeftSurface extends RenderBox {
         viewportHeight != null &&
         viewportHeight > 0) {
       _exitLazyMode();
-      final focused = _layoutEngine.layoutViewport(
+      final focused = _engine.layoutViewport(
         _document,
         width: size.width,
         viewportStart: math.max(0, _viewportPixels - _lazyOverscan),
@@ -1135,7 +1194,7 @@ class RenderWeftSurface extends RenderBox {
       final previousPrefix =
           previous!.incrementalCache?.measuredPrefixLength ?? 0;
       _exitLazyMode();
-      final focused = _layoutEngine.layoutViewport(
+      final focused = _engine.layoutViewport(
         _document,
         width: size.width,
         viewportStart: math.max(0, _viewportPixels - _lazyOverscan),
@@ -1560,6 +1619,7 @@ final class _WeftSemanticFragment {
     this.isHeader = false,
     this.headingLevel = 0,
     this.link,
+    this.tag,
     this.globalStart,
     this.globalEnd,
   });
@@ -1580,6 +1640,7 @@ final class _WeftSemanticFragment {
   final bool isHeader;
   final int headingLevel;
   final WeftLinkRegion? link;
+  final WeftTagRegion? tag;
   final int? globalStart;
   final int? globalEnd;
 
@@ -1596,6 +1657,7 @@ final class _WeftSemanticFragment {
       isHeader: isHeader,
       headingLevel: headingLevel,
       link: link,
+      tag: tag,
       globalStart: globalStart,
       globalEnd: globalEnd,
     );
@@ -1698,6 +1760,9 @@ List<_WeftSemanticFragment> _buildContentSemantics({
   final images = <int, WeftImagePaintCommand>{
     for (final command in layout.commands.whereType<WeftImagePaintCommand>())
       command.nodeId: command,
+  };
+  final tags = <int, WeftTagRegion>{
+    for (final region in layout.tagRegions) region.nodeId: region,
   };
   final fragments = <_WeftSemanticFragment>[];
   final activeContainers = <_WeftSemanticContainerSpec>[];
@@ -1829,6 +1894,27 @@ List<_WeftSemanticFragment> _buildContentSemantics({
           prefixBox,
         );
       }
+      return;
+    }
+    final tagRegion = tags[node.id];
+    if (tagRegion != null) {
+      final rect = _clippedSemanticsRect(tagRegion.rect, bounds);
+      if (rect != null && (tagRegion.label ?? '').isNotEmpty) {
+        fragments.add(
+          _WeftSemanticFragment(
+            key: ValueKey<String>('tag:${node.id}'),
+            rect: rect,
+            label: tagRegion.label!,
+            containers: List<_WeftSemanticContainerSpec>.unmodifiable(
+              activeContainers,
+            ),
+            isHeader: isHeader,
+            headingLevel: headingLevel,
+            tag: tagRegion,
+          ),
+        );
+      }
+      // Custom tag content is opaque: attribute-driven, so no subtree visit.
       return;
     }
     final link = node.tag == 'a' ? links[node.id] : currentLink;

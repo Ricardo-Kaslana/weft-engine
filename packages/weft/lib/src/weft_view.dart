@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/gestures.dart' show LongPressDownDetails;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:weft_document/weft_document.dart';
 import 'package:weft_engine/weft_engine.dart';
@@ -54,6 +55,8 @@ class WeftView extends StatefulWidget {
     this.showCaret = true,
     this.showCopyButton = true,
     this.copyButtonLabel = '复制',
+    this.tagRenderers = const <String, WeftTagRenderer>{},
+    this.onTagTap,
   });
 
   final WeftController controller;
@@ -97,6 +100,12 @@ class WeftView extends StatefulWidget {
 
   /// Label of the copy button overlay.
   final String copyButtonLabel;
+
+  /// Trusted custom tag renderers forwarded to [WeftSurface] (ADR 0033).
+  final Map<String, WeftTagRenderer> tagRenderers;
+
+  /// Receives taps on custom tag regions that are not links.
+  final ValueChanged<WeftTagRegion>? onTagTap;
 
   @override
   WeftViewState createState() => WeftViewState();
@@ -189,8 +198,20 @@ class WeftViewState extends State<WeftView> {
   TextSelectionRange? _reportedSelection;
 
   RenderWeftSurface? get _surfaceRenderObject {
-    final renderObject = _surfaceKey.currentContext?.findRenderObject();
-    return renderObject is RenderWeftSurface ? renderObject : null;
+    final context = _surfaceKey.currentContext;
+    if (context == null) return null;
+    // WeftSurface may wrap its raw render object in gesture/pointer proxies;
+    // descend until the actual surface (bounded by the tree depth).
+    RenderObject? renderObject = context.findRenderObject();
+    for (var depth = 0; depth < 8 && renderObject != null; depth++) {
+      if (renderObject is RenderWeftSurface) return renderObject;
+      if (renderObject is RenderObjectWithChildMixin<RenderObject>) {
+        renderObject = renderObject.child;
+      } else {
+        return null;
+      }
+    }
+    return null;
   }
 
   /// The single funnel for every selection this state applies: it updates
@@ -557,6 +578,8 @@ class WeftViewState extends State<WeftView> {
               showCaret: widget.showCaret,
               showCopyButton: widget.showCopyButton,
               copyButtonLabel: widget.copyButtonLabel,
+              tagRenderers: widget.tagRenderers,
+              onTagTap: widget.onTagTap,
             );
             // The view owns the content gesture surface: tap resolves links and
             // places the caret through the render object itself, so link taps,

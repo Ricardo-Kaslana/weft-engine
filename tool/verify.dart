@@ -5,6 +5,8 @@ const dartPackages = <String>[
   'packages/weft_runtime_api',
   'packages/weft_capabilities',
   'packages/weft_quickjs',
+  'packages/weft_runtime_fake',
+  'packages/weft_runtime_contract',
 ];
 
 const flutterPackages = <String>[

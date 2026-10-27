@@ -23,3 +23,7 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  weft_quickjs:
+    path: ../weft_quickjs
+  weft_runtime_fake:
+    path: ../weft_runtime_fake

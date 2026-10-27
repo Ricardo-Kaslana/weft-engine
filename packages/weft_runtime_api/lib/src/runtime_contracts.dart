@@ -38,6 +38,7 @@ enum RuntimeFailureKind {
   timeout,
   memoryLimit,
   stackOverflow,
+  microtaskBudget,
   scriptError,
   bridgeError,
   disposed,
@@ -95,12 +96,30 @@ abstract interface class BridgeDispatcher {
   Future<JsValue> dispatch(BridgeCall call);
 }
 
+/// Exception carrying a [RuntimeFailure] out of operations the [JsSession]
+/// contract types as `Future<void>` (event delivery on a disposed session,
+/// budget enforcement during event handling). Backends throw this instead of
+/// inventing their own shapes so host code can handle failures uniformly.
+final class JsSessionFailure implements Exception {
+  const JsSessionFailure(this.failure);
+
+  final RuntimeFailure failure;
+
+  @override
+  String toString() => 'JsSessionFailure(${failure.kind}: ${failure.message})';
+}
+
 abstract interface class JsSession {
   String get id;
 
   Future<JsResult> execute(ScriptUnit script, ExecutionBudget budget);
 
   Future<void> send(EventEnvelope event);
+
+  /// Waits until all in-flight capability exchanges and their promise
+  /// continuations have settled, within the continuation budget. Sessions
+  /// without asynchronous work resolve immediately.
+  Future<void> settle();
 
   Future<void> dispose();
 }

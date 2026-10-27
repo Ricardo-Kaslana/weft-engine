@@ -11,5 +11,7 @@ workspace:
   - packages/weft_capabilities
   - packages/weft_engine
   - packages/weft_quickjs
+  - packages/weft_runtime_fake
+  - packages/weft_runtime_contract
   - packages/weft
   - example/weft_lab

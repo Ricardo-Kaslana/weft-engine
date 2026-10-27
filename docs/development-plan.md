@@ -73,16 +73,19 @@
 - 连续滚动后缓存进入稳定预算：多轮往返后 Picture 缓存、物化命令与增量缓存按文档规模有界，不随轮次增长（ADR 0032）。
 - 分块渲染（ADR 0017）、命中裁剪（ADR 0020）、单表面语义（ADR 0024/0026/0028/0030）与锚点导航（ADR 0027/0029/0031）已交付并有专门测试。
 
-## 阶段 4：受限 JS 与能力扩展（未开始）
+## 阶段 4：受限 JS 与能力扩展（已完成）
 
-接入 QuickJS、单文档 Context、状态/事件/网络能力、资源中断和恢复；交付一个自定义标签和 FakeRuntime 契约示例。
+接入 QuickJS、单文档 Context、状态/事件/网络能力、资源中断和恢复；交付自定义标签和 FakeRuntime 契约示例（ADR 0033）。
 
-主要验收：
+主要验收证据：
 
-- 无限循环和内存炸弹在配置预算内中断，UI 保留最后可用帧。
-- 未启用能力不可见，白名单重定向和非法协议被拦截。
-- 恢复不自动重放网络副作用，命令序号可去重。
-- 后端替换不需要修改引擎核心。
+- QuickJS 2024-01-13 源码 vendor 至 `packages/weft_quickjs/native/`，经 C 垫片（`native/weft_glue.c`，扁平 FFI ABI + JSON 编组）与 `dart:ffi` 驱动；墙钟（中断处理器）、内存（`JS_SetMemoryLimit`）、栈（`JS_SetMaxStackSize`）与微任务（任务泵计数，新增 `RuntimeFailureKind.microtaskBudget`）四类预算原生强制。`packages/weft_quickjs/tool/build_native.sh` 构建动态库，CI 从同一源码构建。
+- 真实 QuickJS 测试：`while(true)` 在 120ms 预算内超时；内存炸弹命中堆上限；深递归报 stackOverflow；微任务链在预算处停止；能力调用风暴（单轮 4096 上限）与 `settle()` 256 轮兜底防止事件循环饿死。
+- 能力面：`weftCapabilitiesBootstrap` 只为启用命名空间安装 JS API（真实 JS 里 `typeof weft.net === 'undefined'`）；`CapabilityGateway` 按 `CapabilityPolicy` 拒绝未启用/未安装/描述符外方法。`weft.state/events/net` 模块就绪，网络仅 GET、白名单 host、逐跳重定向校验、响应体与跳数上限，`file:`/`javascript:`/`data:` 在调用宿主客户端前被拦截（客户端调用数为 0）。
+- 恢复：`WeftDocumentRuntime.recover()` 只重跑能力引导；网关按 `(sessionId, sequence)` 去重，恢复后重投递旧命令返回记账结果，网络客户端跨两轮调用恰好一次；`WeftNetworkJournal` 审计每次副作用且跨恢复保留。
+- 失败隔离：脚本失败不触发布局，表面重绘命令逐项一致（UI 保留最后可用帧）；失败经 `onRuntimeFailure` 通知宿主。
+- 契约与示例：`packages/weft_runtime_contract` 契约套件同时覆盖 FakeRuntime 与 QuickJS FFI 后端；`packages/weft_runtime_fake` 脚本化后端用于编排测试与实验室；`example/weft_lab` 提供 `weft-badge` 自定义标签渲染器 + FakeRuntime 状态/事件演示。
+- 自定义标签：`WeftNormalizer.customTags` 保留属性驱动叶子元素（内容丢弃有诊断），`WeftTagRenderer`（rect/text ops + semanticsLabel）由引擎钳制、归属 NodeId 并转常规命令；`WeftLayoutResult.tagRegions/tagAt`、`onTagTap`、语义标签齐备；渲染器集合换实例即整页重排。
 
 ## 阶段 5：回退、硬化与发布（未开始）
 

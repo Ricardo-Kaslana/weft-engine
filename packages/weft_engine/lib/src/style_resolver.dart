@@ -14,9 +14,14 @@ final RegExp _borderStyleZero = RegExp(r'(?:^|\s)0(?:\s|$)');
 final RegExp _borderWidthLength = RegExp(r'(\d+(?:\.\d+)?)(px|em|rem)');
 
 final class WeftStyleResolver {
-  const WeftStyleResolver(this.styleSheet);
+  const WeftStyleResolver(this.styleSheet,
+      {this.customTags = const <String>{}});
 
   final WeftStyleSheet styleSheet;
+
+  /// Custom tags registered with the layout engine. They render as block
+  /// boxes by default; author `display` declarations still win (ADR 0033).
+  final Set<String> customTags;
 
   WeftComputedStyle resolve(
     WeftElement element, {
@@ -25,6 +30,9 @@ final class WeftStyleResolver {
   }) {
     final builder = _StyleBuilder.fromParent(parent)
       ..applyTagDefaults(element.tag, parent);
+    if (customTags.contains(element.tag)) {
+      builder.display = WeftDisplay.block;
+    }
 
     final matched = <_MatchedRule>[];
     for (final rule in styleSheet.rules) {

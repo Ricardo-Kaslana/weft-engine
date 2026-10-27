@@ -1,6 +1,6 @@
 name: weft_quickjs
-description: QuickJS native adapter boundary for Weft; native execution is not yet included.
-version: 0.1.0-dev.1
+description: QuickJS native runtime backend for Weft, driven through dart:ffi.
+version: 0.2.0-dev.1
 publish_to: none
 resolution: workspace
 
@@ -8,6 +8,7 @@ environment:
   sdk: ">=3.5.0 <4.0.0"
 
 dependencies:
+  ffi: ^2.2.0
   weft_runtime_api:
     path: ../weft_runtime_api
 

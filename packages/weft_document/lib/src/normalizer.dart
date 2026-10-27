@@ -28,9 +28,19 @@ final class WeftNormalizationLimits {
 }
 
 final class WeftNormalizer {
-  const WeftNormalizer({this.limits = const WeftNormalizationLimits()});
+  const WeftNormalizer({
+    this.limits = const WeftNormalizationLimits(),
+    this.customTags = const <String>{},
+  });
 
   final WeftNormalizationLimits limits;
+
+  /// Tags preserved as opaque, attribute-driven leaf elements instead of
+  /// being unwrapped as unknown markup. Hosts register the matching
+  /// `WeftTagRenderer` on the layout engine; content inside a custom tag is
+  /// dropped with a diagnostic because tag presentation is the renderer's
+  /// responsibility (ADR 0033).
+  final Set<String> customTags;
 
   WeftDocumentSnapshot normalize(
     String html, {
@@ -126,7 +136,11 @@ final class WeftNormalizer {
     issues.addAll(parsedStyle.issues);
 
     final body = document.body;
-    final builder = _TreeBuilder(issues: issues, limits: limits);
+    final builder = _TreeBuilder(
+      issues: issues,
+      limits: limits,
+      customTags: customTags,
+    );
     final root = body == null ? null : builder.build(body);
 
     if (root == null) {
@@ -190,11 +204,18 @@ final class WeftNormalizer {
   }
 }
 
+final RegExp _customAttributeName = RegExp(r'^[a-z][a-z0-9_.:-]*$');
+
 final class _TreeBuilder {
-  _TreeBuilder({required this.issues, required this.limits});
+  _TreeBuilder({
+    required this.issues,
+    required this.limits,
+    required this.customTags,
+  });
 
   final List<SupportIssue> issues;
   final WeftNormalizationLimits limits;
+  final Set<String> customTags;
   final Set<String> _reportedFallbackTags = <String>{};
 
   var _nextId = 0;
@@ -270,6 +291,31 @@ final class _TreeBuilder {
           SupportIssue(
             code: 'html.table.col.unplaced',
             message: 'Element "$tag" outside of a table is not rendered.',
+          ),
+        );
+        continue;
+      }
+      if (customTags.contains(tag)) {
+        final id = _allocateNode();
+        if (id == null) break;
+        final hasContent = node.nodes.any((child) => child is html_dom.Text
+            ? child.text.trim().isNotEmpty
+            : child is html_dom.Element);
+        if (hasContent) {
+          _addIssue(
+            SupportIssue(
+              code: 'html.tag.custom.contentIgnored',
+              message: 'Content inside custom element "$tag" is ignored; '
+                  'custom tags are attribute-driven.',
+            ),
+          );
+        }
+        result.add(
+          WeftElement(
+            id: id,
+            tag: tag,
+            attributes: _sanitizeAttributes(node, tag),
+            inlineStyle: _parseInlineStyle(node),
           ),
         );
         continue;
@@ -436,6 +482,7 @@ final class _TreeBuilder {
     String tag,
   ) {
     final result = <String, String>{};
+    final isCustom = customTags.contains(tag);
     final allowed = <String>{
       ...WeftHtmlSpec.globalAttributes,
       ...?WeftHtmlSpec.tagAttributes[tag],
@@ -443,7 +490,17 @@ final class _TreeBuilder {
 
     for (final entry in element.attributes.entries) {
       final name = entry.key.toString().toLowerCase();
-      if (name == 'style' || !allowed.contains(name)) continue;
+      // Custom tags behave like custom elements: their own attributes are
+      // part of the tag's data contract and reach the trusted renderer.
+      // Event-handler-shaped names (`on*`) are still dropped; renderers that
+      // care about a value should use their own names.
+      final isCustomAttribute = isCustom &&
+          name.length <= 64 &&
+          _customAttributeName.hasMatch(name) &&
+          !name.startsWith('on');
+      if (name == 'style' || (!allowed.contains(name) && !isCustomAttribute)) {
+        continue;
+      }
       var value = entry.value.trim();
       if (name == 'class') {
         value = value.split(RegExp(r'\s+')).where((part) {
@@ -458,7 +515,8 @@ final class _TreeBuilder {
       } else if (name == 'src') {
         value = _sanitizeImageSource(value);
         if (value.isEmpty) continue;
-      } else if (name == 'alt' && value.length > 1024) {
+      } else if ((name == 'alt' || name == 'aria-label') &&
+          value.length > 1024) {
         value = value.substring(0, 1024);
       } else if ((name == 'width' || name == 'height') && tag == 'img') {
         final dimension = int.tryParse(value);
@@ -506,6 +564,8 @@ final class _TreeBuilder {
         }
         value = span.clamp(1, WeftHtmlSpec.maxSpan).toString();
       } else if (name == 'title' && value.length > 1024) {
+        value = value.substring(0, 1024);
+      } else if (isCustomAttribute && value.length > 1024) {
         value = value.substring(0, 1024);
       }
       if (value.isNotEmpty) result[name] = value;

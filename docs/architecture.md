@@ -82,22 +82,24 @@ flowchart TB
 
 当前已建立 `TextAnchor`/`TextSelectionRange` 值类型、渲染表面的选择失效入口和绘制层。布局时构建逻辑文本索引（ADR 0013）：每个文本节点一个条目、块边界与 `<br>` 产出换行、锚点无法映射时安全清除。绘制命令携带 painter 文本到节点文本的 run 映射，`WeftLayoutResult.selectionRects/selectionText` 分别给出视觉矩形与复制文本，表面绘制半透明选区高亮。手势定位锚点尚未实现，仍按阶段 3 验收。
 
-## 6. JavaScript 安全域
+## 6. JavaScript 安全域（阶段 4 已交付，ADR 0033）
 
-首个后端计划采用 QuickJS 与 `dart:ffi`。每文档独立 `JsContext`，同文档脚本顺序执行，不同文档不共享全局对象。工作池限制执行并发，异常 Runtime 不回收复用。
+首个后端采用 QuickJS 2024-01-13 与 `dart:ffi`：源码 vendor 在 `packages/weft_quickjs/native/quickjs/`，C 垫片 `weft_glue.c` 提供扁平 ABI（只有指针/整数跨界，JSON 是唯一编组格式），`QuickJsFfiSession` 负责会话生命周期。每文档独立 `JSRuntime`，同文档脚本顺序执行，不同文档不共享全局对象。
 
-JS 不获得节点、盒树或渲染对象。它只能通过版本化能力桥调用状态、事件和网络模块。声明式状态绑定由 Dart 控制器转换为文档变更，进而触发局部失效。
+预算在原生层强制：墙钟由中断处理器 + 单调时钟 deadline 覆盖一切同步执行，内存走 `JS_SetMemoryLimit`，栈走 `JS_SetMaxStackSize`，微任务由任务泵计数封顶。单轮事件循环内的能力调用风暴有 4096 次上限，`settle()` 以 256 轮兜底。
 
-当前包只定义 `JsRuntimeBackend`、`JsSession`、`QuickJsNativeAdapter` 等边界，没有原生执行实现。
+JS 不获得节点、盒树或渲染对象。它只能通过 `__weftBridge`（返回 Promise）调用启用命名空间的能力模块；引导脚本只为启用能力安装 `weft.*`，网关按策略二次拒绝。恢复只重跑能力引导并保留 `(sessionId, sequence)` 审计：重投递的命令命中去重，网络副作用永不自动重放。
+
+`QuickJsNativeAdapter` 委托边界保留给平台定制实现；引擎核心与编排层只依赖 `weft_runtime_api` 契约，FakeRuntime（`weft_runtime_fake`）与 QuickJS 通过 `weft_runtime_contract` 的同一契约套件。
 
 ## 7. 扩展点
 
 | 扩展点 | 稳定契约 | 约束 |
 |---|---|---|
-| 自定义标签 | 目标为 `TagRenderer.layout/paint/hitTest/semantics` | 受信任 Dart 代码，不由 JS 注册绘制函数 |
+| 自定义标签 | `WeftTagRenderer.layout → WeftTagLayout{height, ops, semanticsLabel}`，rect/text ops 由引擎钳制归属（ADR 0033） | 受信任 Dart 代码，不由 JS 注册；标签须同时在 `WeftNormalizer.customTags` 白名单 |
 | 布局算法 | 目标为 `LayoutAlgorithm.layout` | 按 display 注册，遵守格式化上下文和失效规则 |
 | JS 后端 | `JsRuntimeBackend/JsSession` | 必须通过同一后端契约与超限测试 |
-| JS 能力 | `CapabilityDescriptor/CapabilityModule` | 版本化 Schema，未装载不可见 |
+| JS 能力 | `CapabilityDescriptor/CapabilityModule` + `CapabilityGateway` | 版本化 Schema，未启用在 JS 中不可见；编排见 ADR 0033 |
 | 资源提供 | 目标为 `ResourceProvider` | URL 策略、取消、缓存和解码大小受控 |
 
 目标扩展接口只有进入对应里程碑并经过契约测试后才进入代码，避免占位 API 固化错误抽象。
