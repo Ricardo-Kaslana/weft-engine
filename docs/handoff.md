@@ -27,7 +27,7 @@
 - 移动端原生构建（ADR 0035）：`weft_quickjs` 声明为 ffiPlugin；Android 模块用 CMake 就地编出 `libweft_quickjs.so`（16 KB 页对齐、只导出 `weft_*`），iOS pod 把垫片静态编进 app image 并用 ObjC 锚点防止 dead-strip；加载器按平台分派，显式路径可覆盖。
 
 请继续下一个切片，优先级如下：
-1. iOS 构建与真机验证：在 macOS + Xcode 上 `pod install` 并构建，确认符号未被剥离、runtime 示例可跑；结果填进 `docs/device-matrix.md`。Android 侧已完成真机冒烟，这是当前唯一的发布阻断项。
+1. iOS 构建与真机验证（**暂缓**，2026-10-28：暂无 macOS 环境）：拿到 macOS/Xcode 后按 `docs/device-matrix.md` 的 iOS 清单执行；在此之前 iOS 不得宣称可用，若本次发布不含 iOS 产物，需在发布说明中写明。
 2. 懒布局进阶：基于块 metrics 的窗口直物化（O(log N) 随机定位），设计约束见 ADR 0031 的后续小节（负 margin/溢出破坏 top 单调性、body chrome 重算、后缀 extent 增量缓存）；以及超高顶层块/表内行/图片解码资源虚拟化。
 3. 语义增强：按产品需要补 headingLevel、语言/RTL 或 live region；保持 ADR 0024 的单表面所有权。
 4. 增量布局扩展：继续缩小 O(块数) diff/样式解析，探索行级复用；保持 ADR 0023/0025 的全量等价门禁。
@@ -110,7 +110,7 @@ docs/adr/               架构决策记录
 - 表格：嵌套表格（触发回退）、浏览器级 auto 列宽分配精度、`col` 的 min/max 语义。
 - Semantics 的 headingLevel、跨行跨列语义索引、CSS 列表样式/起始序号、可编辑 selection/caret 动作、RTL/语言属性、live region 与语义虚拟化。
 - 受限 JS 的既有边界：bridge 风暴上限按单轮计数、`weft.net` 仅 GET、自定义标签不支持行内混排与 Float 环绕、JSON 编组把 undefined 折叠为 null（ADR 0033 后续小节）。
-- 移动端验收证据：Android 已完成构建、打包与真机执行（Huawei JNY-AL10 / Android 10，加载/求值/内存与墙钟预算共 6 项冒烟全过）；iOS 构建与运行（需 macOS + Xcode + CocoaPods）尚未验证，podspec 与锚点只经过代码审查（ADR 0035）。
+- 移动端验收证据：Android 已完成构建、打包与真机执行（Huawei JNY-AL10 / Android 10，加载/求值/内存与墙钟预算共 6 项冒烟全过）；iOS 构建与运行（需 macOS + Xcode + CocoaPods）**暂缓**——podspec 与锚点只经过代码审查，未执行过 `pod install`（ADR 0035）。
 
 ## 关键约束
 
@@ -162,11 +162,13 @@ python tool/generate_assets.py
 
 开发计划阶段 0–5 已完成。以下为既有技术路线的延续候选（阶段 5 的验收边界外）。
 
-### A. iOS 构建验证（发布阻断项）
+### A. iOS 构建验证（暂缓，等待 macOS 环境）
 
 目标：在 macOS + Xcode 上完成首次 `pod install` 与构建，确认 `weft_*` 符号未被剥离，并在 iOS 真机/模拟器跑通 runtime 示例；结果写入 `docs/device-matrix.md`。
 
-注意：Android 已于 2026-10-28 在 Huawei JNY-AL10（Android 10 / arm64-v8a）跑通加载、求值与内存/墙钟预算中断；iOS 的 podspec 与锚点尚未经 Xcode 验证，若符号缺失先查 `-ObjC` 是否被宿主 Podfile 覆盖，再考虑把 vendor 源码移进 `ios/`（CocoaPods 文件模式不支持 `..`，当前用绝对路径绕过）。
+状态：2026-10-28 决定暂缓——手头没有 macOS 设备。Android 已真机验证，桌面与 CI 路径不受影响；恢复时按 device-matrix §2.2 的清单逐条执行。未验证前不得对外宣称 iOS 可用，发布说明中要写明缺席。
+
+注意：若符号缺失，先查 `-ObjC` 是否被宿主 Podfile 覆盖，再考虑把 vendor 源码移进 `ios/`（CocoaPods 文件模式不支持 `..`，当前用绝对路径绕过）。
 
 ### B. 懒布局进阶
 

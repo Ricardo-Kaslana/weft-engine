@@ -1,6 +1,6 @@
 # 0035 · QuickJS 移动平台构建（Android CMake、iOS 静态链接、加载分派）
 
-日期：2026-10-28 · 状态：已接受 · 阶段 6（发布前补齐）
+日期：2026-10-28 · 状态：已接受（Android 已验证；iOS 验证暂缓） · 阶段 6（发布前补齐）
 
 ## 背景
 
@@ -129,7 +129,9 @@ APK 仅 arm64）：
   Ruby 也无 CocoaPods，podspec 只经过代码审查与官方语法文档核对，未执行
   `pod install` / `pod lib lint`。
 
-iOS 一项记入 `docs/device-matrix.md` 的待补证据，发布前必须补齐。
+iOS 一项于 2026-10-28 决定**暂缓**（暂无 macOS 环境）：恢复步骤固化在
+`docs/device-matrix.md` §2.2，发布手册把 iOS 校验改成"仅当发布包含 iOS
+产物时"的条件项。补齐之前，iOS 不在发布范围内，也不宣称可用。
 
 ## 后续
 

@@ -44,6 +44,24 @@ nm -gU Runner.app/Runner | grep weft_
 真机首启若 `QuickJsNativeLibrary.load()` 抛 `StateError`，按错误文案给出的
 平台补救处理（重打 APK / `pod install` 后重建），不要当成性能问题排查。
 
+### 2.2 iOS 首次验证清单（暂缓，2026-10-28）
+
+暂无 macOS 环境，iOS 的构建与真机验证整体挂起。拿到机器后按顺序执行，
+哪一步失败都先解决再往下走：
+
+```bash
+cd example/weft_lab
+flutter create --platforms=ios .      # 仓库不携带平台目录
+flutter pub get
+pod install --project-directory=ios
+flutter build ios --no-codesign
+nm -gU build/ios/iphoneos/Runner.app/Runner | grep weft_   # 期望 10 个
+```
+
+符号为空或少于 10 个 → 先查 `-ObjC`（`use_frameworks!` 会改变链接形态），
+再确认 `WeftQuickJsAnchor.m` 进了 pod target，最后看 `WEFT_EXPORT` 的
+`used`。构建通过后跑一次 runtime 示例，把结果补进 §4.1。
+
 ## 3. 通过标准
 
 - 滚动帧耗时 p95 ≤ 16.7ms（A 档放宽到 p95 ≤ 33ms 且无可感知停顿）。
@@ -57,7 +75,8 @@ nm -gU Runner.app/Runner | grep weft_
 （首次真机轮结果提交时填写；CI 无法替代这一步。）
 
 移动端首轮还要单独记录「JS 原生库加载」是否通过（ADR 0035）：Android 与
-iOS 各至少一台设备跑通 runtime 示例，才算该端可用。
+iOS 各至少一台设备跑通 runtime 示例，才算该端可用。Android 已于 2026-10-28
+完成（§4.1）；iOS 暂缓（§2.2）。
 
 ### 4.1 原生库冒烟（ADR 0035）
 

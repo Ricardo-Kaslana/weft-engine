@@ -38,10 +38,11 @@
 5. CHANGELOG Unreleased 小节整理为本版本条目；ADR 若有新增已列入
    architecture.md §9。
 6. 所有包 pubspec 版本一起更新为发布版本；`dart pub get` 重新解析无冲突。
-7. 移动端原生库（ADR 0035）：`flutter build apk` 后确认 APK 内
-   `lib/<abi>/libweft_quickjs.so` 存在、恰好导出 10 个 `weft_*`、LOAD 段
-   16 KB 对齐；iOS 在 macOS 上 `pod install` 后 `nm` 查可执行文件确认
-   符号未被剥离。
+7. 移动端原生库（ADR 0035）：Android 必查——`flutter build apk` 后确认
+   APK 内 `lib/<abi>/libweft_quickjs.so` 存在、恰好导出 10 个 `weft_*`、
+   LOAD 段 16 KB 对齐。iOS **若本次发布包含 iOS 产物**，还须在 macOS 上
+   `pod install` 后 `nm` 查可执行文件确认符号未被剥离；当前 iOS 验证暂缓
+   （无 macOS 环境），未验证前不得发布 iOS 产物，发布说明中要写明缺席。
 8. 打 tag `v<版本>`；tag 信息列出本版本 CHANGELOG 条目。
 
 ## 4. 回滚路径
