@@ -174,7 +174,7 @@ python tool/generate_assets.py
 
 目标：基于块 metrics 的窗口直物化（真正的 O(log N) 随机定位），让更多文档形态受益。
 
-注意：异步分帧与同快照复用已由 ADR 0031 交付（深跳/深 seed 每帧 ≤ 32 块、同快照跳过 diff/样式解析/文本索引重建）；窗口直物化的三个前置问题（负 margin/溢出破坏 top 单调性、body chrome 重算、后缀 extent 增量缓存）记录在 ADR 0031 的后续小节。先画像再动手；继续保留 canonical full 与结构计数门禁。
+注意：异步分帧与同快照复用已由 ADR 0031 交付（深跳/深 seed 每帧 ≤ 32 块、同快照跳过 diff/样式解析/文本索引重建）；窗口直物化的三个前置问题（负 margin/溢出破坏 top 单调性、body chrome 重算、后缀 extent 增量缓存）记录在 ADR 0031 的后续小节。先画像再动手；继续保留 canonical full 与结构计数门禁。真机实测（docs/device-matrix.md §4.2）里 `jumpTo` 到估算底部仍有一次 ~313ms 单帧，两轮稳定复现——先查这条路径是否绕过了分帧预算，再谈窗口直物化。
 
 ### C. 语义增强
 
