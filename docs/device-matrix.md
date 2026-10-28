@@ -123,8 +123,40 @@ SDK 29）——按档位定义介于 A 与 B 之间：内存够 B 档，SoC 与�
 
 复现方式：临时探针（`build/perf_probe`，不随仓库分发）驱动 20s 匀速滚动 +
 5 次往返深跳，用 `SchedulerBinding.addTimingsCallback` 采集 `FrameTiming`，
-`adb logcat -s flutter:I | grep PERF|` 读取。
+`adb logcat -s flutter:I | grep PERF|` 读取。定位慢帧时给 `WeftSurface` 加了
+临时开关（`--dart-define=weft.lazyTrace=true`）打印每次 ≥8ms 的排版及其
+`lazy/budget/prefix/vh` 字段；结论采完后已回滚。
 
 | 档位 | 设备/OS | 冷启动中位 | 滚动 p95/p99 | 深跳最大帧 | 内存增量 | 结论 |
 |---|---|---|---|---|---|---|
 | A–B | JNY-AL10 / Android 10 | 817ms | 9.4–29.9 / 12.9–30.7ms | 316ms | ~0–9.3MB | 滚动通过；深跳待修 |
+
+### 4.3 定位：美化排版会关掉懒布局（待修）
+
+埋点给出了比数字更重要的结论——**带换行缩进的普通 HTML 完全不走懒布局**：
+
+1. 规范化保留 body 下的空白文本节点：探针文档 901 个元素 + 900 个 `\n`
+   文本节点，`body.children.length == 1801`。
+2. `_supportsLazyLayout` 见到 body 的任意文本子节点即返回 false；即便通过，
+   块循环里的 `WeftText` 分支还会调用 `_disableTopLevelCache`，让引擎把懒
+   结果丢弃、退回全量布局。
+3. 结果：首帧一次性排 1801 个节点（实测 198–280ms），随后 `debugIsLazy`
+   为 false，滚动根本不触发重排——所以滚动数字好看，但那是因为**没有虚拟化**。
+
+试验性修复（已回滚，未提交）：懒路径跳过 body 的格式化空白 + 计数改用元素
+子节点。修好后：
+
+- 首帧变为 `lazy=true`、单次 17ms（原来是 257ms 的全量）；
+- 但滚动变成**每帧重排 18–27ms**（`prefix` 每帧只前进 1–2 块却要扫全部
+  1801 个子节点并重估未测块），等于用滚动流畅度换冷启动。
+
+所以正确的下一步不是简单打开懒布局，而是两件事一起做：
+
+1. 把「是否支持懒布局」的判定按快照缓存，别每次重排都遍历全树；
+2. 让每次 pass 只处理窗口周边与已测前缀，未测块的估算走缓存，
+   把单帧成本压回 ADR 0031 记录的 5.8ms 量级。
+
+另外：3 次埋点运行中，深跳最大帧都是 21–26ms，**没有再出现 316ms**，且
+深跳期间没有任何 ≥8ms 的排版 pass，说明那次尖峰不在 `layout()` 里，更像
+光栅/合成侧的一次性成本，后续用 `FrameTiming.buildDuration` 与
+`rasterDuration` 分列再判。
