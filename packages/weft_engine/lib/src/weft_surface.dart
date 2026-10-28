@@ -425,6 +425,8 @@ class RenderWeftSurface extends RenderBox {
   bool _showCopyButton;
   WeftLayoutResult? _layout;
   final Map<int, _ResolvedImage> _images = <int, _ResolvedImage>{};
+  WeftDocumentSnapshot? _imageRequestsDocument;
+  Map<int, WeftImageRequest> _imageRequests = const <int, WeftImageRequest>{};
 
   /// Chunks of [_layout] and their recorded pictures, built lazily on paint.
   ///
@@ -450,6 +452,7 @@ class RenderWeftSurface extends RenderBox {
   int _debugRebuiltChunkCount = 0;
   int _debugPaintedChunkCount = 0;
   int _debugSelectionRectBuildCount = 0;
+  int _debugLazyCorrectionCount = 0;
 
   WeftLayoutResult? _semanticsFragmentsLayout;
   List<_WeftSemanticFragment> _semanticsFragments =
@@ -722,6 +725,10 @@ class RenderWeftSurface extends RenderBox {
   @visibleForTesting
   double get debugPendingLazyCorrection => _pendingLazyCorrection;
 
+  /// Total number of lazy extent corrections delivered to the host.
+  @visibleForTesting
+  int get debugLazyCorrectionCount => _debugLazyCorrectionCount;
+
   void _invalidateLayout({bool preservePrevious = false}) {
     if (preservePrevious) {
       _discardSelectionCache();
@@ -827,13 +834,15 @@ class RenderWeftSurface extends RenderBox {
     final cache = previous?.incrementalCache;
     if (cache != null &&
         cache.isLazy &&
-        cache.document.id == _document.id &&
+        identical(cache.document, _document) &&
+        cache.width == constraints.maxWidth &&
+        cache.textScaler == _textScaler &&
         cache.blocks.isNotEmpty) {
-      final bodyChildren = _document.body?.children.length ?? 0;
-      if (cache.measuredPrefixLength >= bodyChildren) return null;
-      final last = cache.blocks.last;
+      if (cache.measuredPrefixLength >= cache.childCount) return null;
+      final measuredEnd = cache.viewportState?.measuredEnd ??
+          (cache.blocks.last.top + cache.blocks.last.height);
       final end = _viewportPixels + viewportHeight + _lazyOverscan;
-      if (end > last.top + last.height + viewportHeight) {
+      if (end > measuredEnd + viewportHeight) {
         return _lazyMeasureBudget;
       }
       return null;
@@ -868,15 +877,17 @@ class RenderWeftSurface extends RenderBox {
     final layout = _layout;
     final cache = layout?.incrementalCache;
     final viewportHeight = _viewportHeight;
-    final body = _document.body;
     if (layout?.debugIsLazy != true ||
         cache == null ||
-        viewportHeight == null ||
-        body == null) {
+        viewportHeight == null) {
       return false;
     }
-    final start = math.max(0, _viewportPixels - _lazyOverscan);
+    final start = math.max(0.0, _viewportPixels - _lazyOverscan);
     final end = _viewportPixels + viewportHeight + _lazyOverscan;
+    final state = cache.viewportState;
+    if (state != null) return state.needsLayout(start, end);
+    final body = _document.body;
+    if (body == null) return false;
     for (final block in cache.blocks) {
       final needed = (block.top < end && block.top + block.height > start) ||
           (block.paintBounds.top < end && block.paintBounds.bottom > start);
@@ -893,13 +904,12 @@ class RenderWeftSurface extends RenderBox {
   void _updateLazyBottomFollow() {
     final cache = _layout?.incrementalCache;
     final viewportHeight = _viewportHeight;
-    final childCount = _document.body?.children.length ?? 0;
     _followLazyBottom = !_fullLayoutRequired &&
         cache != null &&
         cache.isLazy &&
         cache.document.id == _document.id &&
         viewportHeight != null &&
-        cache.measuredPrefixLength < childCount &&
+        cache.measuredPrefixLength < cache.childCount &&
         _viewportPixels >=
             math.max(0, _layout!.size.height - viewportHeight) - 1;
   }
@@ -925,7 +935,11 @@ class RenderWeftSurface extends RenderBox {
       }
       final correction = _pendingLazyCorrection;
       _pendingLazyCorrection = 0;
-      _onLazyExtentCorrection?.call(correction);
+      final callback = _onLazyExtentCorrection;
+      if (callback != null) {
+        _debugLazyCorrectionCount++;
+        callback(correction);
+      }
     });
   }
 
@@ -1083,30 +1097,36 @@ class RenderWeftSurface extends RenderBox {
   }
 
   void _syncImages() {
-    final requests = <int, WeftImageRequest>{};
-    final body = _document.body;
-    if (body != null) {
-      void visit(WeftNode node) {
-        if (node is! WeftElement) return;
-        if (node.tag == 'img') {
-          final src = node.attribute('src');
-          if (src != null && src.isNotEmpty) {
-            requests[node.id] = WeftImageRequest(
-              documentId: _document.id,
-              nodeId: node.id,
-              src: src,
-              alt: node.attribute('alt') ?? '',
-            );
+    var requests = _imageRequests;
+    if (!identical(_imageRequestsDocument, _document)) {
+      requests = <int, WeftImageRequest>{};
+      final body = _document.body;
+      if (body != null) {
+        void visit(WeftNode node) {
+          if (node is! WeftElement) return;
+          if (node.tag == 'img') {
+            final src = node.attribute('src');
+            if (src != null && src.isNotEmpty) {
+              requests[node.id] = WeftImageRequest(
+                documentId: _document.id,
+                nodeId: node.id,
+                src: src,
+                alt: node.attribute('alt') ?? '',
+              );
+            }
+          }
+          for (final child in node.children) {
+            visit(child);
           }
         }
-        for (final child in node.children) {
-          visit(child);
-        }
-      }
 
-      visit(body);
+        visit(body);
+      }
+      _imageRequestsDocument = _document;
+      _imageRequests = requests;
     }
 
+    // Only discovery is cached; unavailable requests must still be retried.
     final stale = <int>[];
     for (final entry in _images.entries) {
       final request = requests[entry.key];

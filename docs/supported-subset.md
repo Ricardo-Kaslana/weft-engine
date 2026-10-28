@@ -128,7 +128,8 @@
 当前能力（ADR 0025）：
 
 - `WeftView.enableLazyLayout` 默认开启：简单文档只精确测量并物化可见顶层块，未测后缀以同类块高度估算滚动 extent；`lazyOverscan` 可调整窗口外预取（默认 250px）。
-- 已测前缀坐标与 canonical 一致；滚出窗口的 TextPainter/commands 会释放，重新进入时在原块流中重建。表格整块处理，不做表内虚拟化。
+- 已测前缀坐标与 canonical 一致；滚出窗口的 TextPainter/commands 会释放，重新进入时按保守绘制区间索引直接定位，并恢复 Float 上下文重建（ADR 0036）。表格整块处理，不做表内虚拟化。
+- body 在 `white-space: normal` 下的 ASCII 格式化空白不进入块流；原快照、逻辑文本及分块序号不变。准入与后缀估算按有效输入缓存，热态换窗不重新采样高度；NBSP、正文与预格式化空白仍保守 full。
 - 跳到估算底部后随 extent 校正使用 ScrollPosition.correctBy 跟随；同 id 流式尾部追加继续保留未变可见资源。
 - 顶层块内部及 body 直属、已解析 `img` 的左右 Float 可进入 lazy；排除区按顶层块保存并在离屏复用/重新物化时恢复，后续文字行宽与 clear 保持 canonical。
 - 非空 selection、Semantics、非图片/inline 祖先 Float、未解析图片、body loose inline 或复杂结构会升级/回退完整布局；升级按 document.id 粘滞。
@@ -137,7 +138,7 @@
 - `scrollToAnchorAsync` 将深链测量拆成逐帧预算（默认每 pass 32 块）；测量期间保持当前滚动内容，完成后才定位，取消/文档变化返回 false。
 - 非锚点的深跳与深 seed 同样分帧（ADR 0031）：视口末端距已测前缀超过一屏或首帧 seed 深于 overscan 时，每帧最多新测 32 个顶层块，post-frame 续帧逐帧推进直至窗口覆盖；近距滚动保持单次同步测量。同快照 relayout 跳过节点 diff 与样式表比对，复用跨帧样式缓存与文本索引实例。
 - `scrollToNode` / `scrollToNodeAsync` 定位元素内首个可朗读文本锚点，复用同一 alignment/lazy focus 与分帧路径。
-- 边界与限制：滚动条长度在未测完时是估算值；深跳目标区在测到之前为空白（渐进填充）；分帧预算为内部常量；锚点导航目标靠后时总耗时仍与目标深度成正比，不做窗口直物化或精确 O(1)/O(log N) 随机定位；一个超高顶层块、body 直属 Float、表内局部 Float 和图片解码资源仍未虚拟化。
+- 边界与限制：滚动条长度在未测完时是估算值；深跳目标区在测到之前为空白（渐进填充）；分帧预算为内部常量；首次锚点导航目标靠后时仍需逐帧测量前缀，不承诺未测区域的精确 O(1)/O(log N) 随机定位。病态区间重叠和大量历史 Float 可能退化；超高顶层块、表内局部 Float 和图片解码资源仍未细分虚拟化。
 
 ## 当前明确限制
 

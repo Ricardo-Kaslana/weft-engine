@@ -8,6 +8,219 @@ import 'package:weft_engine/weft_engine.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test('formatted long documents visit only the window and new frontier', () {
+    const engine = WeftLayoutEngine();
+    final document = _formattedArticle(1000);
+    final canonical = engine.layout(document, width: 360);
+    addTearDown(canonical.dispose);
+    var current = engine.layoutViewport(document,
+        width: 360, viewportStart: 0, viewportEnd: 650);
+    addTearDown(() => current.dispose());
+    expect(document.body!.children.length, 1999);
+    expect(current.debugIsLazy, isTrue);
+    expect(current.incrementalCache!.childCount, 1000);
+    expect(current.debugLaidOutBlockCount, lessThan(20));
+    for (var pass = 0;
+        pass < 40 && current.incrementalCache!.measuredPrefixLength < 1000;
+        pass++) {
+      final next = engine.layoutViewport(document,
+          width: 360,
+          viewportStart: canonical.size.height - 650,
+          viewportEnd: canonical.size.height + 1,
+          maxNewBlocks: 32,
+          previous: current);
+      expect(current.incrementalCache, isNull);
+      current.dispose();
+      current = next;
+      expect(current.debugEligibilityVisitCount, 0);
+      expect(current.debugEstimatedBlockCount, lessThanOrEqualTo(32));
+      expect(current.debugVisitedBlockCount, lessThan(60));
+    }
+    expect(current.incrementalCache!.measuredPrefixLength, 1000);
+    expect(current.size, canonical.size);
+    for (final offset in [0.0, 3000.0, 12000.0, 1000.0, 0.0]) {
+      final next = engine.layoutViewport(document,
+          width: 360,
+          viewportStart: offset,
+          viewportEnd: offset + 650,
+          previous: current);
+      current.dispose();
+      current = next;
+      expect(current.size, canonical.size);
+      expect(current.debugVisitedBlockCount, lessThan(40));
+      expect(current.debugEstimatedBlockCount, 0);
+      expect(current.debugEligibilityVisitCount, 0);
+      _expectCanonicalWindow(current, canonical);
+    }
+  });
+
+  test('unchanged partial windows keep estimates and ownership stable', () {
+    const engine = WeftLayoutEngine();
+    final document = _formattedArticle(200);
+    var current = engine.layoutViewport(document,
+        width: 360, viewportStart: 0, viewportEnd: 650);
+    addTearDown(() => current.dispose());
+    final extent = current.size;
+    final prefix = current.incrementalCache!.measuredPrefixLength;
+    for (var i = 0; i < 20; i++) {
+      final next = engine.layoutViewport(document,
+          width: 360, viewportStart: 0, viewportEnd: 650, previous: current);
+      expect(current.incrementalCache, isNull);
+      current.dispose();
+      current = next;
+      expect(current.size, extent);
+      expect(current.incrementalCache!.measuredPrefixLength, prefix);
+      expect(current.debugLaidOutBlockCount, 0);
+      expect(current.debugEstimatedBlockCount, 0);
+      expect(current.debugEligibilityVisitCount, 0);
+      expect(current.incrementalCache!.viewportState!.needsLayout(0, 650),
+          isFalse);
+      final command = current.commands.whereType<WeftTextPaintCommand>().first;
+      expect(command.painter.getPositionForOffset(Offset.zero).offset, 0);
+    }
+  });
+
+  test('window index preserves negative margins overflow and body chrome', () {
+    const engine = WeftLayoutEngine();
+    final document = const WeftNormalizer().normalize(
+        '<body style="padding:8px;border:2px solid #333;background-color:#ddd">'
+        '<p style="height:8px;margin:0">${'overflow words ' * 60}</p>\n'
+        '<div style="height:600px">spacer</div>\n'
+        '<p style="margin-top:-600px">pulled back into the first window</p>\n'
+        '<div style="height:1000px">tail</div></body>',
+        id: 'indexed-overflow');
+    final canonical = engine.layout(document, width: 320);
+    addTearDown(canonical.dispose);
+    var current = engine.layoutViewport(document,
+        width: 320, viewportStart: 0, viewportEnd: 180);
+    addTearDown(() => current.dispose());
+    final pulled =
+        document.body!.children.whereType<WeftElement>().elementAt(2);
+    expect(
+        current.commands.any((command) => command.nodeId == pulled.id), isTrue);
+    for (final offset in [600.0, 0.0, 250.0, 0.0]) {
+      final next = engine.layoutViewport(document,
+          width: 320,
+          viewportStart: offset,
+          viewportEnd: offset + 180,
+          previous: current);
+      current.dispose();
+      current = next;
+      expect(current.size, canonical.size);
+      _expectCanonicalWindow(current, canonical);
+    }
+  });
+
+  test('unmeasured negative Float margins cannot hide visible images',
+      () async {
+    final image = await _createImage(80, 1200);
+    addTearDown(image.dispose);
+    const engine = WeftLayoutEngine();
+    final document = const WeftNormalizer().normalize(
+        '<div style="height:1000px"></div>\n'
+        '<img src="asset:float" style="float:left;width:80px;height:1200px;'
+        'margin-top:-1000px">',
+        id: 'negative-float-window');
+    final images = _imagesFor(document, image);
+    final canonical = engine.layout(document, width: 320, images: images);
+    final lazy = engine.layoutViewport(document,
+        width: 320, images: images, viewportStart: 0, viewportEnd: 200);
+    addTearDown(canonical.dispose);
+    addTearDown(lazy.dispose);
+    expect(lazy.debugIsLazy, isTrue);
+    expect(lazy.commands.whereType<WeftImagePaintCommand>(), hasLength(1));
+    expect(lazy.size, canonical.size);
+    _expectCanonicalWindow(lazy, canonical);
+  });
+
+  test('unmeasured nested negative margins cannot hide visible text', () {
+    const engine = WeftLayoutEngine();
+    final document = const WeftNormalizer().normalize(
+        '<div style="height:1000px"></div>\n'
+        '<div style="height:1200px;padding-top:1px">'
+        '<p style="margin-top:-1000px">upward overflow</p></div>',
+        id: 'negative-nested-window');
+    final canonical = engine.layout(document, width: 320);
+    final lazy = engine.layoutViewport(document,
+        width: 320, viewportStart: 0, viewportEnd: 200);
+    addTearDown(canonical.dispose);
+    addTearDown(lazy.dispose);
+    expect(lazy.debugIsLazy, isTrue);
+    expect(lazy.commands.whereType<WeftTextPaintCommand>(), hasLength(1));
+    expect(lazy.size, canonical.size);
+    _expectCanonicalWindow(lazy, canonical);
+  });
+
+  test('body text NBSP and preserved whitespace still require full layout', () {
+    const engine = WeftLayoutEngine();
+    for (final html in [
+      '<p>first</p> actual text <p>last</p>',
+      '<p>first</p>&nbsp;<p>last</p>',
+      '<body style="white-space:pre">\n<p>first</p>\n<p>last</p></body>',
+    ]) {
+      final document = const WeftNormalizer().normalize(html, id: 'body-text');
+      final full = engine.layout(document, width: 320);
+      final lazy = engine.layoutViewport(document,
+          width: 320, viewportStart: 0, viewportEnd: 650);
+      expect(lazy.debugIsLazy, isFalse);
+      expect(lazy.size, full.size);
+      expect(lazy.commands.map((command) => command.bounds),
+          full.commands.map((command) => command.bounds));
+      full.dispose();
+      lazy.dispose();
+    }
+  });
+
+  test('formatted snapshot append and geometry changes invalidate safely', () {
+    const engine = WeftLayoutEngine();
+    var document = _formattedArticle(80);
+    var current = engine.layoutViewport(document,
+        width: 360, viewportStart: 0, viewportEnd: 650);
+    addTearDown(() => current.dispose());
+    for (final (count, width, scale) in [
+      (85, 360.0, 1.0),
+      (85, 280.0, 1.0),
+      (85, 280.0, 1.5),
+    ]) {
+      if (count != 85 || document.body!.children.length != 169) {
+        document = _formattedArticle(count);
+      }
+      final next = engine.layoutViewport(document,
+          width: width,
+          textScaler: TextScaler.linear(scale),
+          viewportStart: 0,
+          viewportEnd: 100000,
+          previous: current);
+      final canonical = engine.layout(document,
+          width: width, textScaler: TextScaler.linear(scale));
+      current.dispose();
+      current = next;
+      expect(current.debugEligibilityVisitCount, greaterThan(0));
+      expect(current.size, canonical.size);
+      _expectCanonicalWindow(current, canonical);
+      canonical.dispose();
+    }
+  });
+
+  test('deep constraint changes restart with a bounded measurement budget', () {
+    final document = _formattedArticle(120);
+    final render = RenderWeftSurface(
+        document: document,
+        enableLazyLayout: true,
+        viewportHeight: 400,
+        initialViewportPixels: 100000);
+    addTearDown(render.dispose);
+    for (var pass = 0; pass < 5; pass++) {
+      render.markNeedsLayout();
+      render.layout(const BoxConstraints.tightFor(width: 360));
+    }
+    expect(render.debugLayout!.incrementalCache!.measuredPrefixLength, 120);
+    render.layout(const BoxConstraints.tightFor(width: 280));
+    expect(render.debugLayout!.debugIsLazy, isTrue);
+    expect(render.debugLayout!.debugLaidOutBlockCount, lessThanOrEqualTo(32));
+    expect(render.debugLayout!.incrementalCache!.measuredPrefixLength, 32);
+  });
+
   test('first viewport measures only a continuous prefix', () {
     const engine = WeftLayoutEngine();
     final document = _article(300);
@@ -165,6 +378,7 @@ void main() {
     addTearDown(first.dispose);
     addTearDown(second.dispose);
 
+    expect(first.incrementalCache, isNull);
     expect(second.debugLaidOutBlockCount, 0);
     expect(second.debugReusedBlockCount, greaterThan(0));
     expect(second.commands, isEmpty);
@@ -762,6 +976,46 @@ void main() {
       );
     }
   }, semanticsEnabled: false);
+}
+
+WeftDocumentSnapshot _formattedArticle(int count) {
+  return const WeftNormalizer().normalize(
+      [
+        for (var i = 0; i < count; i++)
+          '<p>Paragraph $i ${'text with <em>emphasis</em> and 中文内容 ' * (i % 3 + 1)}</p>',
+      ].join('\n'),
+      id: 'formatted-article');
+}
+
+void _expectCanonicalWindow(
+    WeftLayoutResult actual, WeftLayoutResult canonical) {
+  final cache = actual.incrementalCache!;
+  final nodeIds = <int>{cache.document.body!.id};
+  void collect(WeftNode node) {
+    nodeIds.add(node.id);
+    if (node is WeftElement) {
+      for (final child in node.children) {
+        collect(child);
+      }
+    }
+  }
+
+  for (final block in cache.blocks) {
+    if (block.materialized) collect(block.element);
+  }
+  final expected = canonical.commands
+      .where((command) => nodeIds.contains(command.nodeId))
+      .toList();
+  expect(actual.commands, hasLength(expected.length));
+  for (var i = 0; i < expected.length; i++) {
+    expect(actual.commands[i].nodeId, expected[i].nodeId);
+    expect(actual.commands[i].bounds, expected[i].bounds);
+  }
+  expect(
+      actual.boxes.map((box) => (box.nodeId, box.rect)),
+      canonical.boxes
+          .where((box) => nodeIds.contains(box.nodeId))
+          .map((box) => (box.nodeId, box.rect)));
 }
 
 WeftDocumentSnapshot _floatingArticle() {

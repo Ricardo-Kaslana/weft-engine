@@ -66,6 +66,80 @@ void main() {
     controller.dispose();
   }, semanticsEnabled: false);
 
+  testWidgets('formatted body stays lazy and reuses its window index', (
+    tester,
+  ) async {
+    const paragraphs = 600;
+    final controller = _formattedController(paragraphs);
+    final scroll = ScrollController();
+    await _pump(tester, controller, scroll);
+    final render = tester.renderObject<RenderWeftSurface>(
+      find.byType(WeftSurface),
+    );
+    final first = render.debugLayout!;
+    expect(controller.document!.body!.children.length, greaterThan(paragraphs));
+    expect(first.debugIsLazy, isTrue);
+    expect(render.debugFullLayoutRequired, isFalse);
+    expect(first.incrementalCache!.childCount, paragraphs);
+    expect(first.incrementalCache!.measuredPrefixLength, lessThan(paragraphs));
+    expect(first.debugLaidOutBlockCount, lessThan(paragraphs));
+    expect(first.commands, isNotEmpty);
+
+    scroll.jumpTo(1200);
+    await _settle(tester);
+    final warm = render.debugLayout!;
+    expect(warm.debugIsLazy, isTrue);
+    expect(warm.commands, isNotEmpty);
+    expect(warm.debugEligibilityVisitCount, 0);
+    expect(warm.debugVisitedBlockCount, lessThan(120));
+    expect(warm.debugEstimatedBlockCount, lessThan(120));
+    expect(warm.incrementalCache!.childCount, paragraphs);
+
+    scroll.dispose();
+    controller.dispose();
+  }, semanticsEnabled: false);
+
+  testWidgets('formatting text ordinals do not keep budgeted frames alive', (
+    tester,
+  ) async {
+    const paragraphs = 96;
+    final controller = _formattedController(paragraphs);
+    // A deep seed must stop after flow entries, not raw formatting nodes, end.
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: SingleChildScrollView(
+          child: WeftSurface(
+            document: controller.document!,
+            enableLazyLayout: true,
+            viewportHeight: 400,
+            initialViewportPixels: 1000000,
+          ),
+        ),
+      ),
+    );
+    final render = tester.renderObject<RenderWeftSurface>(
+      find.byType(WeftSurface),
+    );
+    expect(render.debugLayout!.debugIsLazy, isTrue);
+    expect(render.debugLayout!.debugLaidOutBlockCount, lessThanOrEqualTo(32));
+    expect(await _settle(tester), lessThan(16));
+    final settled = render.debugLayout!;
+    final cache = settled.incrementalCache!;
+    expect(cache.childCount, paragraphs);
+    expect(cache.measuredPrefixLength, paragraphs);
+    expect(cache.measuredPrefixLength,
+        lessThan(controller.document!.body!.children.length));
+    expect(cache.viewportState!.measuredEnd, double.infinity);
+    expect(cache.viewportState!.needsLayout(1000000, 1000650), isFalse);
+    for (var frame = 0; frame < 3; frame++) {
+      await tester.pump();
+      expect(render.debugLayout, same(settled));
+      expect(tester.binding.hasScheduledFrame, isFalse);
+    }
+    controller.dispose();
+  }, semanticsEnabled: false);
+
   testWidgets('initial controller offset seeds the first lazy window', (
     tester,
   ) async {
@@ -257,13 +331,16 @@ void main() {
     controller.dispose();
   }, semanticsEnabled: false);
 
-  testWidgets('scrollToAnchorAsync measures across frames without blanking', (
+  testWidgets('scrollToAnchorAsync maps formatted ordinals without blanking', (
     tester,
   ) async {
-    final controller = _controller(120);
+    final controller = _formattedController(120);
     final scroll = ScrollController();
     final viewKey = GlobalKey<WeftViewState>();
     await _pump(tester, controller, scroll, viewKey: viewKey);
+    final body = controller.document!.body!;
+    final paragraph = body.children.whereType<WeftElement>().elementAt(100);
+    expect(body.children.indexOf(paragraph), greaterThan(120));
     final probe = const WeftLayoutEngine().layout(
       controller.document!,
       width: 320,
@@ -271,10 +348,12 @@ void main() {
     final entry = probe.textIndex!.entries.firstWhere(
       (candidate) => candidate.text.startsWith('Paragraph 100 '),
     );
+    final targetRect = probe.textRectsForNode(entry.nodeId, 2, 3).first;
     probe.dispose();
 
     final future = viewKey.currentState!.scrollToAnchorAsync(
-      TextAnchor(entry.nodeId, 0),
+      TextAnchor(entry.nodeId, 2),
+      alignment: 0.5,
       maxNewBlocks: 4,
     );
     bool? result;
@@ -289,15 +368,25 @@ void main() {
     );
     expect(render.debugLayout!.commands, isNotEmpty);
     expect(scroll.offset, 0);
+    expect(completed, isFalse);
     for (var frame = 0; frame < 80 && !completed; frame++) {
       await tester.pump();
+      expect(render.debugLayout!.commands, isNotEmpty);
     }
     expect(completed, isTrue);
     expect(result, isTrue);
-    await tester.pump();
-    await tester.pump();
+    await _settle(tester);
     expect(render.debugLayout!.debugIsLazy, isTrue);
-    expect(scroll.offset, greaterThan(0));
+    expect(render.debugFullLayoutRequired, isFalse);
+    expect(render.debugFullLayoutReason, isNull);
+    final position = scroll.position;
+    final expected = (targetRect.top -
+            0.5 * (position.viewportDimension - targetRect.height))
+        .clamp(position.minScrollExtent, position.maxScrollExtent)
+        .toDouble();
+    expect(scroll.offset, closeTo(expected, 0.01));
+    expect(render.debugLayout!.textRectsForNode(entry.nodeId, 2, 3).first,
+        targetRect);
 
     scroll.dispose();
     controller.dispose();
@@ -322,14 +411,16 @@ void main() {
     controller.dispose();
   }, semanticsEnabled: false);
 
-  testWidgets('scrollToNodeAsync targets an element across frames', (
+  testWidgets('scrollToNodeAsync targets a formatted element across frames', (
     tester,
   ) async {
-    final controller = _controller(120);
+    final controller = _formattedController(120);
     final scroll = ScrollController();
     final viewKey = GlobalKey<WeftViewState>();
     await _pump(tester, controller, scroll, viewKey: viewKey);
-    final paragraph = controller.document!.body!.children[90] as WeftElement;
+    final body = controller.document!.body!;
+    final paragraph = body.children.whereType<WeftElement>().elementAt(90);
+    expect(body.children.indexOf(paragraph), greaterThan(120));
 
     final future = viewKey.currentState!.scrollToNodeAsync(
       paragraph.id,
@@ -357,6 +448,66 @@ void main() {
     scroll.dispose();
     controller.dispose();
   }, semanticsEnabled: false);
+
+  for (final cancellation in [
+    'new navigation',
+    'document replacement',
+    'unmount',
+  ]) {
+    testWidgets('async focus is cancelled by $cancellation', (tester) async {
+      final controller = _formattedController(120);
+      final scroll = ScrollController();
+      final viewKey = GlobalKey<WeftViewState>();
+      await _pump(tester, controller, scroll, viewKey: viewKey);
+      final render = tester.renderObject<RenderWeftSurface>(
+        find.byType(WeftSurface),
+      );
+      final entries = render.debugLayout!.textIndex!.entries;
+      final far = entries.firstWhere(
+        (entry) => entry.text.startsWith('Paragraph 110 '),
+      );
+      bool? result;
+      viewKey.currentState!
+          .scrollToAnchorAsync(TextAnchor(far.nodeId, 0), maxNewBlocks: 1)
+          .then((value) => result = value);
+      await tester.pump();
+      expect(result, isNull);
+      expect(scroll.offset, 0);
+
+      if (cancellation == 'new navigation') {
+        final nearer = entries.firstWhere(
+          (entry) => entry.text.startsWith('Paragraph 60 '),
+        );
+        bool? replacementResult;
+        viewKey.currentState!
+            .scrollToAnchorAsync(TextAnchor(nearer.nodeId, 0), maxNewBlocks: 4)
+            .then((value) => replacementResult = value);
+        await _settle(tester);
+        expect(replacementResult, isTrue);
+        expect(scroll.offset, greaterThan(0));
+        expect(render.debugLayout!.debugIsLazy, isTrue);
+      } else if (cancellation == 'document replacement') {
+        final document = controller.document!;
+        controller.loadDocument(
+          const WeftNormalizer().normalize(
+            '<body>\n<p>Replacement</p>\n</body>',
+            id: document.id,
+            revision: document.revision + 1,
+          ),
+        );
+        await _settle(tester);
+        expect(scroll.offset, 0);
+        expect(render.document, same(controller.document));
+      } else {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await _settle(tester);
+      }
+      expect(result, isFalse);
+      expect(tester.takeException(), isNull);
+      scroll.dispose();
+      controller.dispose();
+    }, semanticsEnabled: false);
+  }
 
   testWidgets('scrollToAnchor uses the internal controller when none injected',
       (
@@ -467,34 +618,64 @@ void main() {
     controller.dispose();
   }, semanticsEnabled: false);
 
-  testWidgets('expanded selection upgrades lazy layout and stays full', (
+  testWidgets('expanded selection cancels async focus and stays full', (
     tester,
   ) async {
-    final controller = _controller(80);
+    final controller = _formattedController(80);
+    final scroll = ScrollController();
+    final viewKey = GlobalKey<WeftViewState>();
     final probe = const WeftLayoutEngine().layout(
       controller.document!,
       width: 320,
     );
     final entries = probe.textIndex!.entries;
-    final selection = TextSelectionRange(
-      anchor: TextAnchor(entries[0].nodeId, 0),
-      extent: TextAnchor(entries[2].nodeId, 3),
+    final first = entries.firstWhere(
+      (entry) => entry.text.startsWith('Paragraph 0 '),
     );
+    final third = entries.firstWhere(
+      (entry) => entry.text.startsWith('Paragraph 2 '),
+    );
+    final far = entries.firstWhere(
+      (entry) => entry.text.startsWith('Paragraph 70 '),
+    );
+    final selection = TextSelectionRange(
+      anchor: TextAnchor(first.nodeId, 0),
+      extent: TextAnchor(third.nodeId, 3),
+    );
+    final selectedText = probe.selectionText(selection);
+    final canonicalSize = probe.size;
     probe.dispose();
-    await _pump(tester, controller, null);
+    await _pump(tester, controller, scroll, viewKey: viewKey);
     final render = tester.renderObject<RenderWeftSurface>(
       find.byType(WeftSurface),
     );
     expect(render.debugLayout!.debugIsLazy, isTrue);
+    bool? navigationResult;
+    viewKey.currentState!
+        .scrollToAnchorAsync(TextAnchor(far.nodeId, 0), maxNewBlocks: 1)
+        .then((value) => navigationResult = value);
+    await tester.pump();
+    expect(navigationResult, isNull);
 
     controller.updateSelection(selection);
-    await tester.pump();
+    await _settle(tester);
+    expect(navigationResult, isFalse);
+    expect(scroll.offset, 0);
+    expect(render.debugFullLayoutRequired, isTrue);
+    expect(render.debugFullLayoutReason, 'selection');
     expect(render.debugLayout!.debugIsLazy, isFalse);
-    expect(render.debugLayout!.commands, isNotEmpty);
+    expect(render.debugLayout!.size, canonicalSize);
+    expect(render.selectionText(selection), selectedText);
+    expect(render.debugPendingLazyCorrection, 0);
 
     controller.updateSelection(null);
     await tester.pump();
+    scroll.jumpTo(scroll.position.maxScrollExtent);
+    await _settle(tester);
     expect(render.debugLayout!.debugIsLazy, isFalse);
+    expect(render.debugFullLayoutRequired, isTrue);
+    expect(render.debugFullLayoutReason, 'selection');
+    scroll.dispose();
     controller.dispose();
   }, semanticsEnabled: false);
 
@@ -519,7 +700,65 @@ void main() {
       scroll.offset,
       closeTo(scroll.position.maxScrollExtent, 1),
     );
+    await _settle(tester);
+    final cache = render.debugLayout!.incrementalCache!;
+    expect(cache.measuredPrefixLength, cache.childCount);
+    expect(render.debugViewportPixels, scroll.offset);
+    expect(render.debugPendingLazyCorrection, 0);
 
+    scroll.dispose();
+    controller.dispose();
+  }, semanticsEnabled: false);
+
+  testWidgets('fully measured round trips keep extent and corrections stable', (
+    tester,
+  ) async {
+    final controller = _controllerWithTallTail(formatted: true);
+    final scroll = ScrollController();
+    await _pump(tester, controller, scroll);
+    final render = tester.renderObject<RenderWeftSurface>(
+      find.byType(WeftSurface),
+    );
+    final canonical = const WeftLayoutEngine().layout(
+      controller.document!,
+      width: 320,
+    );
+    addTearDown(canonical.dispose);
+    for (var pass = 0; pass < 20; pass++) {
+      final cache = render.debugLayout!.incrementalCache!;
+      if (cache.measuredPrefixLength == cache.childCount) break;
+      scroll.jumpTo(scroll.position.maxScrollExtent);
+      await _settle(tester);
+    }
+    final measured = render.debugLayout!;
+    expect(measured.debugIsLazy, isTrue);
+    expect(measured.incrementalCache!.measuredPrefixLength,
+        measured.incrementalCache!.childCount);
+    expect(
+        measured.incrementalCache!.viewportState!.measuredEnd, double.infinity);
+    expect(measured.size, canonical.size);
+    expect(render.debugLazyCorrectionCount, greaterThan(0));
+    final height = measured.size.height;
+    final maxExtent = scroll.position.maxScrollExtent;
+    final correctionCount = render.debugLazyCorrectionCount;
+
+    for (final fraction in [0.0, 0.5, 1.0, 0.25, 1.0, 0.0, 1.0]) {
+      final target = maxExtent * fraction;
+      scroll.jumpTo(target);
+      await _settle(tester);
+      final revisited = render.debugLayout!;
+      expect(revisited.debugIsLazy, isTrue);
+      expect(revisited.commands, isNotEmpty);
+      expect(revisited.size.height, height);
+      expect(scroll.position.maxScrollExtent, maxExtent);
+      expect(scroll.offset, closeTo(target, 0.01));
+      expect(render.debugFollowLazyBottom, isFalse);
+      expect(render.debugPendingLazyCorrection, 0);
+      expect(render.debugLazyCorrectionCount, correctionCount);
+      expect(revisited.debugEligibilityVisitCount, 0);
+      expect(revisited.debugEstimatedBlockCount, 0);
+      expect(revisited.debugVisitedBlockCount, lessThan(120));
+    }
     scroll.dispose();
     controller.dispose();
   }, semanticsEnabled: false);
@@ -574,6 +813,75 @@ void main() {
     controller.dispose();
   }, semanticsEnabled: false);
 
+  testWidgets('image request discovery is cached without suppressing retries', (
+    tester,
+  ) async {
+    final controller = WeftController()
+      ..loadDocument(
+        const WeftNormalizer().normalize(
+          '<p><img src="memory://first" alt="First"></p>',
+          id: 'lazy-image-requests',
+        ),
+      );
+    final requests = <WeftImageRequest>[];
+    var fail = true;
+    await _pump(tester, controller, null, imageResolver: (request) {
+      requests.add(request);
+      if (fail) throw StateError('Image is not available yet');
+      return null;
+    });
+    final render = tester.renderObject<RenderWeftSurface>(
+      find.byType(WeftSurface),
+    );
+    expect(requests, isNotEmpty);
+    final first = requests.first;
+    for (final shouldFail in [false, true, false]) {
+      fail = shouldFail;
+      final before = requests.length;
+      render.markNeedsLayout();
+      await tester.pump();
+      expect(requests.length, greaterThan(before));
+      expect(requests.last, same(first));
+    }
+    render.imageResolver = (request) {
+      requests.add(request);
+      return null;
+    };
+    final beforeResolverChange = requests.length;
+    await tester.pump();
+    expect(requests.length, greaterThan(beforeResolverChange));
+    expect(requests.last, same(first));
+
+    // Matching id/revision is not enough: a new snapshot rebuilds discovery.
+    final document = controller.document!;
+    controller.loadDocument(
+      const WeftNormalizer().normalize(
+        '<p><img src="memory://second" alt="Second"></p>',
+        id: document.id,
+        revision: document.revision,
+      ),
+    );
+    await tester.pump();
+    expect(requests.last, isNot(same(first)));
+    expect(requests.last.src, 'memory://second');
+    expect(requests.last.alt, 'Second');
+
+    controller.loadDocument(
+      const WeftNormalizer().normalize(
+        '<p>No image</p>',
+        id: document.id,
+        revision: document.revision,
+      ),
+    );
+    final beforeRemoval = requests.length;
+    await tester.pump();
+    render.markNeedsLayout();
+    await tester.pump();
+    expect(requests, hasLength(beforeRemoval));
+    expect(tester.takeException(), isNull);
+    controller.dispose();
+  }, semanticsEnabled: false);
+
   testWidgets('global Float input conservatively uses the full layout', (
     tester,
   ) async {
@@ -618,6 +926,7 @@ Future<void> _pump(
   ScrollController? scroll, {
   GlobalKey<WeftViewState>? viewKey,
   double lazyOverscan = 250,
+  WeftImageResolver? imageResolver,
 }) {
   return tester.pumpWidget(
     Directionality(
@@ -631,11 +940,32 @@ Future<void> _pump(
             controller: controller,
             scrollController: scroll,
             lazyOverscan: lazyOverscan,
+            imageResolver: imageResolver,
           ),
         ),
       ),
     ),
   );
+}
+
+Future<int> _settle(WidgetTester tester) {
+  return tester.pumpAndSettle(
+    const Duration(milliseconds: 16),
+    EnginePhase.sendSemanticsUpdate,
+    const Duration(seconds: 2),
+  );
+}
+
+WeftController _formattedController(int paragraphs) {
+  final html = StringBuffer('<body>\n');
+  for (var i = 0; i < paragraphs; i++) {
+    html.writeln('  <p>${_paragraphLabel(i)}</p>');
+  }
+  html.write('</body>');
+  return WeftController()
+    ..loadDocument(
+      const WeftNormalizer().normalize(html.toString(), id: 'lazy-formatted'),
+    );
 }
 
 WeftController _controller(int paragraphs) {
@@ -649,13 +979,15 @@ WeftController _controller(int paragraphs) {
     );
 }
 
-WeftController _controllerWithTallTail() {
+WeftController _controllerWithTallTail({bool formatted = false}) {
   final html = StringBuffer();
   for (var i = 0; i < 10; i++) {
     html.write('<p>Short $i</p>');
+    if (formatted) html.write('\n  ');
   }
   for (var i = 10; i < 120; i++) {
     html.write('<p>${'Long paragraph body text ' * 40} $i</p>');
+    if (formatted) html.write('\n  ');
   }
   return WeftController()
     ..loadDocument(

@@ -386,7 +386,11 @@ final class WeftChunk {
   /// Maps every node id under a top-level body child to that child's
   /// zero-based ordinal. Body itself is absent — its own commands belong to
   /// the chrome chunk — and so is every node when the document has no body.
+  static final _ordinalCache = Expando<Map<int, int>>();
+
   static Map<int, int> _topLevelOrdinalsByNode(WeftDocumentSnapshot document) {
+    final cached = _ordinalCache[document];
+    if (cached != null) return cached;
     final body = document.body;
     if (body == null) return const <int, int>{};
     final ordinalByNode = <int, int>{};
@@ -404,6 +408,7 @@ final class WeftChunk {
       visit(child);
       ordinal++;
     }
+    _ordinalCache[document] = ordinalByNode;
     return ordinalByNode;
   }
 }
@@ -756,6 +761,21 @@ final class WeftCachedLayoutBlock {
   final List<WeftFloatExclusion> floatExclusions;
 }
 
+/// Single-owner measured geometry and window lookup shared across lazy passes.
+abstract class WeftViewportLayoutState {
+  /// Read-only view of the measured prefix, in document order.
+  List<WeftCachedLayoutBlock> get blocks;
+
+  /// Number of eligible top-level elements, excluding formatting whitespace.
+  int get childCount;
+
+  /// Conservative start of unmeasured content, or infinity when fully measured.
+  double get measuredEnd;
+
+  /// Whether the window needs new measurements or different materialization.
+  bool needsLayout(double start, double end);
+}
+
 /// Everything a relayout needs to reuse the previous pass's work: the inputs
 /// that produced it and the per-block results.
 ///
@@ -763,8 +783,7 @@ final class WeftCachedLayoutBlock {
 /// images, line-break rules, renderer set) before reusing [blocks]; any
 /// mismatch discards the cache instead of reusing stale output.
 final class WeftIncrementalLayoutCache {
-  /// Creates a cache for one layout; collections are copied into
-  /// unmodifiable forms.
+  /// Creates a cache, borrowing the single-owner lazy state's read-only blocks.
   WeftIncrementalLayoutCache({
     required this.document,
     required this.width,
@@ -777,6 +796,7 @@ final class WeftIncrementalLayoutCache {
     required this.estimatedExtent,
     this.tagRenderers = const <String, WeftTagRenderer>{},
     Map<WeftElement, WeftComputedStyle>? styleCache,
+    this.viewportState,
   })  : images = Map<int, ui.Image>.unmodifiable(images),
 
         /// Unmodifiable copy of the line-break rules the layout used.
@@ -790,7 +810,8 @@ final class WeftIncrementalLayoutCache {
         ),
 
         /// Unmodifiable copy of the cached blocks, in document order.
-        blocks = List<WeftCachedLayoutBlock>.unmodifiable(blocks),
+        blocks = viewportState?.blocks ??
+            List<WeftCachedLayoutBlock>.unmodifiable(blocks),
 
         /// Style cache to keep across relayouts; created fresh when omitted.
         styleCache = styleCache ?? <WeftElement, WeftComputedStyle>{};
@@ -835,6 +856,13 @@ final class WeftIncrementalLayoutCache {
   /// not participate. The layout engine mutates the map while relayouting
   /// this snapshot and reads previous entries for unchanged elements.
   final Map<WeftElement, WeftComputedStyle> styleCache;
+
+  /// Window geometry transferred with this cache, never shared by live owners.
+  final WeftViewportLayoutState? viewportState;
+
+  /// Number of top-level flow entries in this cache's document.
+  int get childCount =>
+      viewportState?.childCount ?? document.body!.children.length;
 }
 
 /// The output of one layout pass: document size, boxes, the flat paint
@@ -856,6 +884,9 @@ final class WeftLayoutResult {
     this.debugReusedBlockCount = 0,
     this.debugLaidOutBlockCount = 0,
     this.debugMaterializedBlockCount = 0,
+    this.debugVisitedBlockCount = 0,
+    this.debugEstimatedBlockCount = 0,
+    this.debugEligibilityVisitCount = 0,
     this.debugIsLazy = false,
   })  : boxes = List<WeftLayoutBox>.unmodifiable(boxes),
 
@@ -892,6 +923,15 @@ final class WeftLayoutResult {
 
   /// Debug counter: reused blocks materialized into paint commands.
   final int debugMaterializedBlockCount;
+
+  /// Top-level entries visited while preparing or updating this lazy pass.
+  final int debugVisitedBlockCount;
+
+  /// Entries incorporated into or removed from the cached suffix estimate.
+  final int debugEstimatedBlockCount;
+
+  /// Elements inspected by this pass's lazy admission walk.
+  final int debugEligibilityVisitCount;
 
   /// Debug flag: whether this pass was a lazy viewport pass.
   final bool debugIsLazy;
@@ -1181,6 +1221,7 @@ final class WeftLayoutResult {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
+    incrementalCache = null;
     for (final command in commands) {
       if (!_transferredCommands.contains(command)) command.dispose();
     }

@@ -186,7 +186,10 @@ class WeftViewState extends State<WeftView> {
 
   void _correctLazyExtent(double delta) {
     if (_scrollController.hasClients) {
-      _scrollController.position.correctBy(delta);
+      final position = _scrollController.position;
+      position.correctBy(delta);
+      // correctBy deliberately does not notify scroll listeners.
+      _surfaceRenderObject?.setViewportPixels(position.pixels);
     }
   }
 

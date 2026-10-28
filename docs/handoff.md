@@ -22,13 +22,14 @@
 - 渐进式布局虚拟化（ADR 0025）：WeftView 只物化可见顶层块，估算后缀 extent，复杂文档/选区/Semantics 回退 full。
 - 锚点导航（ADR 0027/0029）：`scrollToAnchor` 同步 focus 定位，`scrollToAnchorAsync` 逐帧测量深链前缀并保持当前内容；无效/取消安全返回 false。
 - 懒布局异步分帧与同快照复用（ADR 0031）：非锚点深跳/深 seed 每帧至多新测 32 个顶层块并逐帧收敛，消除冷跳底部单帧全量测量；同快照 relayout 跳过节点 diff、复用跨帧样式缓存与文本索引实例。
+- 已测窗口直物化（ADR 0036）：保守区间索引、缓存块流与后缀估算、格式化空白准入、Float 上下文恢复、correctBy 后视口同步；JNY-AL10 profile 已验收。
 - 选择交互（ADR 0019）：长按选词/拖拽扩展/把手微调/复制按钮/tap 放 caret。
 - 图片/Float 与表格的浏览器几何基线（Chrome 参考固化在 conformance/reference/）。
 - 移动端原生构建（ADR 0035）：`weft_quickjs` 声明为 ffiPlugin；Android 模块用 CMake 就地编出 `libweft_quickjs.so`（16 KB 页对齐、只导出 `weft_*`），iOS pod 把垫片静态编进 app image 并用 ObjC 锚点防止 dead-strip；加载器按平台分派，显式路径可覆盖。
 
 请继续下一个切片，优先级如下：
-1. 懒布局窗口直物化（ADR 0031 后续，建议新开 ADR 0036）：目标是把深跳与长文滚动压回 ADR 0031 量级，并用 docs/device-matrix.md §4.3 的实测数据验收。**禁止用「放宽懒布局准入条件」来提速**——已实测滚动 p95 从 9–30ms 恶化到 140ms 并回滚。
-2. 深跳尖峰定性：把探针的 FrameTiming 拆成 buildDuration/rasterDuration，确认 §4.2 记录的 ~313ms 是否落在光栅侧（3 次复测只有 21–26ms，且无 ≥8ms 排版 pass）。
+1. 深跳尖峰与 60fps 预算的后续画像：ADR 0036 已在 JNY-AL10 通过四项设备标准，但 combined p95 ≈26ms（raster ≈17.2ms）未达严格 16.7ms。下一步按真实 FrameTiming 画像光栅/合成，不要继续盲目压缩 layout。**禁止把桌面 layoutViewport 画像当真机帧耗时，也禁止仅靠放宽准入或增大 overscan 提速。**
+2. 深跳尖峰定性：ADR 0036 复测已把 FrameTiming 拆成 build/raster，~313ms 尖峰未复现且全程无 >50ms 帧；若再现，按 §4.4 的 build/raster 方法继续定位。
 3. iOS 构建与真机验证（**暂缓**：暂无 macOS 环境）：按 docs/device-matrix.md §2.2 清单执行；未验证前 iOS 不得宣称可用，发布说明要写明缺席。
 4. 语义增强 / 增量布局扩展：按产品需要，见下文「建议的下一步」。
 
@@ -39,13 +40,13 @@
 - 每次修改必须运行 `dart format --output=none --set-exit-if-changed .`、`dart analyze`、`dart run tool/verify.dart` 和 `packages/weft_engine/tool/golden_pixel_test.dart`。
 - 新增能力必须附带单元测试；影响布局时必须评估黄金基线与 conformance/reference/ 下的浏览器几何基线。
 - 改动 `packages/weft_quickjs/native/`、`android/` 或 `ios/` 后必须跑 `packages/weft_quickjs/tool/build_native.sh` 重编桌面库并执行 `dart test`（weft_quickjs）；平台工程的编译参数必须与桌面脚本保持一致（ADR 0035）。
-- 重要技术取舍写入 docs/adr/（下一个编号为 0036）。
+- 重要技术取舍写入 docs/adr/（下一个编号为 0037）。
 
 接手前先知道的坑（本轮实测踩出来的，能省你几个小时）：
-- 美化排版会关掉懒布局：body 下标签之间的换行被规范化保留成空白文本节点，`_supportsLazyLayout` 见到 body 文本子节点就返回 false，块循环再调 `_disableTopLevelCache`，首帧退化成 1801 节点全量排版（198–280ms）。这是**已知缺口**，不是随手能修的 bug，详见 §4.3。
+- 历史上美化排版会关掉懒布局，首帧退化成 1801 节点全量排版（198–280ms）。ADR 0036 已在窗口化之后接入 ASCII 格式化空白，但保留了正文/NBSP/pre 的 full 边界；旧真机数字不能用于宣称改后通过，详见 device-matrix §4.3/§4.4。
 - profile 构建卡 5 分钟不是编译慢：Gradle 要下 41.6MB 的 `arm64_v8a_profile` jar，本机镜像不提供 `.sha1`、吞吐还会掉到 1.6MB/s，30s socket 超时后反复重试。先查 `~/.gradle/caches/modules-2/files-2.1/io.flutter/` 里 jar 是否真的存在；缺就手动下好按 `<文件sha1>/<原文件名>` 放进去，并给 app 的 `gradle.properties` 加 `socketTimeout`。
 - 插件的 ABI 裁剪必须用 `defaultConfig.externalNativeBuild.cmake.abiFilters`；`ndk.abiFilters` 管不住 externalNativeBuild（实测仍编 4 个 ABI）。
-- 真机探针流程：临时 App 放 `build/perf_probe`（gitignored），必须临时加入根 `pubspec.yaml` 的 `workspace:` 才能解析（多个包带 `resolution: workspace`），用完删目录并 `git checkout -- pubspec.yaml pubspec.lock`。测量命令见 docs/device-matrix.md §4.2。
+- 探针流程：临时 App 放 `build/perf_probe`（gitignored），必须临时加入根 `pubspec.yaml` 的 `workspace:` 才能解析；退出后只撤销本轮添加的 workspace 项和锁文件差异，不用整文件 checkout 覆盖用户改动。探针 Dart 文件也会被根 format 扫到；运行期间门禁使用 `WEFT_KEEP_LOCK=1 tool/check.sh`，结束后清理再重跑。
 - 设备掉线/unauthorized 先试 `adb kill-server && adb start-server`；`tool/check.sh` 输出用文件重定向再看 `$?`，`| tail` 会掩盖退出码。
 
 先阅读 README.md、docs/architecture.md、docs/supported-subset.md 和 docs/handoff.md，再选择第一个任务并给出计划。
@@ -57,12 +58,12 @@
 
 - 分支：`main`
 - 最新提交：见 `git log`（本节只保证指南有效，不追踪哈希）
-- Flutter：3.35.5 stable；Dart：3.9.2；ADR 35 份（0001–0035）
-- 常规测试 453 项（weft_engine 243、weft_document 77、weft 59、weft_quickjs 28、weft_capabilities 15、weft_runtime_fake 12、weft_runtime_contract 9、weft_runtime_api 2，另有 weft_lab 1 + weft_fallback 7）、像素黄金 3 项 + 选区高亮 1 项、性能门禁 14 场景（7 布局 + 3 绘制 + 4 命中）；`dart analyze` 无问题，公开 API 文档覆盖零缺口。开发计划阶段 0–5 已完成（阶段 5 见 ADR 0034），阶段 5 之后补了移动端原生构建（ADR 0035）。
+- Flutter：3.35.5 stable；Dart：3.9.2；ADR 36 份（0001–0036）
+- 常规测试数量以 `dart run tool/verify.dart` 本轮输出为准（ADR 0036 新增窗口、负边距与校正回归；此前为 453 项）、像素黄金 3 项 + 选区高亮 1 项、性能门禁 14 场景（7 布局 + 3 绘制 + 4 命中）；`dart analyze` 无问题，公开 API 文档覆盖零缺口。开发计划阶段 0–5 已完成（阶段 5 见 ADR 0034），阶段 5 之后补了移动端原生构建（ADR 0035）。
 - GitHub Actions 使用 Windows 执行像素黄金门禁（仓库尚无远端，CI 尚未真正跑过）。
-- 2026-10-28 增量：Android 真机构建与执行验证、插件单 ABI 裁剪（含插件的 profile 构建 20.6s）、`tool/check.sh` 回环直连修复、真机帧耗时首轮矩阵，以及「美化排版关掉懒布局」的定位（docs/device-matrix.md §4.2/§4.3）。iOS 验证暂缓。
+- 2026-10-28 增量：Android 真机构建与执行验证、插件单 ABI 裁剪、回环直连修复与首轮矩阵；之后交付 ADR 0036 窗口直物化及桌面结构/耗时证据（docs/device-matrix.md §4.4）。真实 Flutter Web＋Edge 的滚动、锚点与选择复制已验证；JNY-AL10 profile 复测四项标准通过（中位冷启 635ms、滚动 p95 ≈26ms、深跳最大 37ms、内存 +10MB），strict 60fps 受 raster 限制。证据位于本地 build/adr0036-evidence。iOS 验证仍暂缓。
 
-已实现至 ADR 0035。ADR 0017–0033：分块渲染与命中裁剪（ADR 0017/0020）、行内图片（ADR 0018）、选择 chrome（ADR 0019）、块级盒模型（ADR 0021）、表格列轨道（ADR 0022）、流式顶层前缀复用（ADR 0023）、单表面 Semantics（ADR 0024/0026/0028/0030）、渐进式布局虚拟化（ADR 0025）、同步/异步锚点导航（ADR 0027/0029）、懒布局异步分帧与同快照复用（ADR 0031）、阶段 0–3 验收证据与重定界（ADR 0032）和受限 JS 运行时（QuickJS FFI + 能力网关 + 恢复去重 + 自定义标签，ADR 0033）。ADR 0034（阶段 5）：快照 JSON 线格式（format+version 门禁）与 21 个规范化一致性向量、种子化模糊测试（CI 快跑 + tool/fuzz.dart 长跑，修复诊断上限绕过与 toString 崩溃两个真实问题）、能力策略 8 子集矩阵、example/weft_fallback WebView 回退示例、发布手册与回滚演练测试、API 文档门禁、真机矩阵计划。ADR 0035：QuickJS 移动平台构建——ffiPlugin 声明、Android CMake 就地编译（16 KB 对齐）、iOS 静态链接与 dead-strip 锚点、按平台分派的加载器。
+已实现至 ADR 0036（Android 四项设备标准已通过，strict 60fps raster 待优化）。ADR 0036：已测区间索引直接物化、单所有者块元数据、增量后缀估算、格式化空白准入与 correctBy 后视口同步。ADR 0017–0033：分块渲染与命中裁剪（ADR 0017/0020）、行内图片（ADR 0018）、选择 chrome（ADR 0019）、块级盒模型（ADR 0021）、表格列轨道（ADR 0022）、流式顶层前缀复用（ADR 0023）、单表面 Semantics（ADR 0024/0026/0028/0030）、渐进式布局虚拟化（ADR 0025）、同步/异步锚点导航（ADR 0027/0029）、懒布局异步分帧与同快照复用（ADR 0031）、阶段 0–3 验收证据与重定界（ADR 0032）和受限 JS 运行时（QuickJS FFI + 能力网关 + 恢复去重 + 自定义标签，ADR 0033）。ADR 0034（阶段 5）：快照 JSON 线格式（format+version 门禁）与 21 个规范化一致性向量、种子化模糊测试（CI 快跑 + tool/fuzz.dart 长跑，修复诊断上限绕过与 toString 崩溃两个真实问题）、能力策略 8 子集矩阵、example/weft_fallback WebView 回退示例、发布手册与回滚演练测试、API 文档门禁、真机矩阵计划。ADR 0035：QuickJS 移动平台构建——ffiPlugin 声明、Android CMake 就地编译（16 KB 对齐）、iOS 静态链接与 dead-strip 锚点、按平台分派的加载器。
 
 ## 包结构
 
@@ -74,6 +75,7 @@ packages/
     lib/src/layout_engine.dart     引擎骨架、块流、图片（公共入口 layout()）
     lib/src/table_layout.part.dart 表格：槽位网格、列宽、折叠边框（extension）
     lib/src/inline_flow.part.dart  Float 排除区、行内累积器、数据类
+    lib/src/lazy_layout.part.dart  已测窗口索引、块流元数据、后缀估算
   weft_runtime_api/     JS Runtime 与能力桥抽象
   weft_quickjs/         vendor QuickJS 源码、C 垫片与 dart:ffi 后端
     android/            Gradle 模块 + CMake，就地编出 libweft_quickjs.so
@@ -112,8 +114,8 @@ docs/adr/               架构决策记录
 
 ## 明确未实现
 
-- **美化排版文档没有虚拟化**：body 下标签之间的换行文本节点让懒布局判定失败，整篇一次排完（601 块文档首帧 198–280ms），滚动期间不重排。强行放宽准入实测更差（滚动 p95 140ms），必须等窗口直物化，见 docs/device-matrix.md §4.3。
-- 基于块 metrics 的窗口直物化与精确 O(1)/O(log N) 随机跳转（设计约束见 ADR 0031 后续小节），以及超高顶层块/表内行/图片解码资源虚拟化；锚点异步测量仍需顺序测量目标前缀。
+- **严格 60fps 未达成**：ADR 0036 在 JNY-AL10 上四项标准通过（冷启动中位 635ms、滚动 p95 ≈26ms 无 >50ms、深跳最大 37ms、内存 +10MB），但 combined p95 仍高于 16.7ms，瓶颈是 raster；冷跳分帧期间可能有短暂空白。
+- 未测区域的精确 O(1)/O(log N) 随机跳转，以及超高顶层块/表内行/图片解码资源虚拟化；冷跳与首次深锚点仍需逐帧测量目标前缀，病态区间重叠或大量 Float 可能退化。
 - 非图片 Float 与表格局部 Float 的 checkpoint；增量布局的后缀平移与行级复用；行内原子的 margin 参与行框与 top/bottom 对齐。
 - CJK 像素基线（跨引擎像素验收已按 ADR 0032 重定界为结构几何门禁；真机帧计时仍以 weft_lab 为准）。
 - 表格：嵌套表格（触发回退）、浏览器级 auto 列宽分配精度、`col` 的 min/max 语义。
@@ -187,28 +189,11 @@ python tool/generate_assets.py
 
 注意：若符号缺失，先查 `-ObjC` 是否被宿主 Podfile 覆盖，再考虑把 vendor 源码移进 `ios/`（CocoaPods 文件模式不支持 `..`，当前用绝对路径绕过）。
 
-### B. 懒布局窗口直物化（当前第一优先级，建议开 ADR 0036）
+### B. ADR 0036 后续：60fps 光栅画像（当前第一优先级）
 
-目标：用块 metrics 直接定位窗口，让深跳与长文滚动只处理窗口周边；同时让美化排版文档重新拿到虚拟化。
+窗口直物化已完成并在 JNY-AL10 通过四项设备标准：冷启动中位 635ms、滚动 combined p95 25.5–26.0ms 且无 >50ms 帧、深跳最大 37.12ms、内存 +9.4～10.0MB。排版侧已不是瓶颈（build p95 ≈9.9ms），raster p95 ≈17.2ms 主导，因此严格 16.7ms 未达成。
 
-现状（2026-10-28 真机实测，见 docs/device-matrix.md §4.2/§4.3）：
-
-- 601 块美化排版文档：懒布局被 body 空白文本节点关掉，首帧全量 198–280ms，滚动 p95 9–30ms 但**没有虚拟化**（滚动期不重排）。
-- 试验性放宽准入（跳过格式化空白 + 计数改元素子节点）：首帧 17ms，但滚动 p95 140ms、20 秒只剩 443 帧 → 已回滚。瓶颈是每帧重排的固定成本，不是准入条件。
-
-三件事要一起做（ADR 0031 后续小节已记约束）：
-
-1. 判定与扫描成本：`_supportsLazyLayout` 每次重排遍历全树，`_layoutChildren` 每 pass 扫全部 body 子节点。按快照缓存判定结果，并按「窗口 + 已测前缀」截断扫描。
-2. 未测块估算：`_estimateHeight` 本身便宜，但每 pass 对全部未测块重算；把估算并入 `WeftIncrementalLayoutCache`（key = 快照 + 宽度 + 缩放 + 图片集）。
-3. extent 校正收敛：`_scheduleLazyExtentCorrection` 的 `correctBy` 会回写滚动位置再触发重排；窗口化后必须一次收敛，否则就是实测里那个"重排→校正→再重排"的反馈。
-
-验收（JNY-AL10，profile，601 块美化排版文档复测）：
-
-- 首帧 ≤800ms（目标 ≤500ms）；滚动 p95 ≤16.7ms（A 档允许 ≤33ms 且无 >50ms 长停顿）；深跳 max ≤50ms。
-- 结构等价：`layoutViewport` 收敛结果的 size 与盒位置与 canonical `layout()` 逐点一致（沿用现有 lazy 门禁）。
-- 回归：现有 453 项测试全绿 + 新增「美化排版文档必须走懒布局，且单 pass 只碰窗口与已测前缀」用例。
-
-注意：先画像再动手；不要靠调大 `lazyOverscan` 掩盖每 pass 成本——那只是把 140ms 的尖峰摊薄成更频繁的小卡顿。
+下一步用同一 profile 探针做 raster 画像：确认软件/硬件合成路径、图片解码与文本图层的重绘范围，区分一次性与稳态成本；不要在未画像前改 layout 或降低渲染质量。冷深跳仍逐帧测量前缀，期间可能短暂空白；是否用更激进的预取属于下一步产品决策。
 
 ### C. 语义增强
 
@@ -231,10 +216,10 @@ python tool/generate_assets.py
 - 不要为跨引擎像素通过而修改测试字体、通道容差或遮挡真实差异。
 - 不要在折叠边框模型外给单元格再画自身边框（半边框已折算为合成 padding）。
 - 不要把选区高亮、caret 或任何 chrome 画进分块 `ui.Picture`——它们必须随选区即时重绘，进 Picture 会破坏 ADR 0017 的缓存计数与失效语义。
-- 不要让两个布局结果共同持有同一个 TextPainter；ADR 0023 会转移复用命令所有权并使 previous 的增量缓存失效，成功复用过的 previous 不得再次作为复用来源。
+- 不要让两个布局结果共同持有同一个 TextPainter；ADR 0036 的窗口状态也采用单 owner 转移，即使无绘制命令的高度块窗口，复用后的 previous 也失去缓存；dispose 同样使缓存失效。不要把旧 cache.blocks 的只读视图当作历史快照。
 - 不要用 MergeSemantics 推导单画布内容，也不要同时暴露块全文和相同链接/图片子节点；语义数据必须跟随当前 document/layout，不能按可见 Picture 裁剪。
 - 不要把未测后缀的估算高度当作精确块位置，也不要在 lazy 窗口外伪造命中、选择或 Semantics；需要完整几何时先升级 canonical full。
-- 分帧续推的停机条件是 `_needsLazyRelayout()`（窗口被前缀覆盖即停），不是 `measuredPrefixLength == body.children.length`：窗口末端之外的最后若干块会一直保持估算，拿前缀长度对块数做循环条件会永不终止。
+- 分帧续推的停机条件是 `_needsLazyRelayout()`，不是强求测完全文；格式化文本也不计入 cache.childCount。`measuredPrefixLength == body.children.length` 会混用元素与文本节点计数，可能永不结束；需要强制测完时必须指定末尾 focus 并设置有限迭代上限。
 - 浏览器几何基线重新生成后必须人工审查 diff，不允许盲目覆盖。
 - 阶段 4 的 QuickJS 需要 native 库：测试在库缺失时跳过并提示 `packages/weft_quickjs/tool/build_native.sh`；不要把跳过当验收，中断/内存证据以真实 QuickJS 测试为准。
 - 能力调用风暴的上限按"单个事件循环轮次"计数（`_maxBridgeCallsPerTurn`），不是累计预算；跨轮的链式风暴由 `settle()` 的 256 轮兜底，两者都不能省。
