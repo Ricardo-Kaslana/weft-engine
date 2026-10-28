@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased (mobile platform builds)
+
+- QuickJS now has build paths for Android and iOS (ADR 0035): `weft_quickjs` declares `ffiPlugin` for both platforms without depending on Flutter, so the package keeps its pure-Dart test path.
+- Android: the `android/` module compiles the vendored engine in place through `externalNativeBuild` into `libweft_quickjs.so` — hidden internal symbols, 16 KB page alignment for Play's Android 15+ requirement, `compileSdk 36` / NDK 27 aligned with Flutter 3.35. Verified with a real `flutter build apk`: three ABIs packaged, exactly ten `weft_*` exports.
+- iOS: `ios/weft_quickjs.podspec` compiles the shim into the app image and `DynamicLibrary.process()` resolves the entry points; a `+load` anchor class plus `__attribute__((used))` on `WEFT_EXPORT` stop `-dead_strip` from dropping the `dlsym` targets. Not yet built on macOS/Xcode.
+- `QuickJsNativeLibrary.load` dispatches by platform (`librarySourceFor` / `describeLoadFailure`): explicit path or `WEFT_QUICKJS_LIBRARY` still wins, iOS resolves from the process, Android opens the packaged library, desktop keeps the file search, and failures name the platform-specific remedy.
+- Tests: six new `library_loader_test.dart` cases (weft_quickjs 22 → 28).
+
 ## Unreleased (Stage 5)
 
 - Document snapshot JSON wire format (`WeftDocumentJson`): canonical deterministic encoding, strict decode with format/version gates — a server may normalize once and clients consume the snapshot directly (ADR 0034).

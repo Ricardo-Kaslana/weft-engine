@@ -33,6 +33,7 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - 锚点导航（ADR 0027/0029）：`scrollToAnchor` / `scrollToNode` 精确定位，异步版本逐帧测量深链前缀并保持当前内容；无效或取消请求安全返回 false。
 - 性能门禁：布局/绘制/命中 14 场景基准工具与 10 倍宽上限的 CI 稳定门禁（见 docs/testing-strategy.md）；命中解析经分块索引裁剪（ADR 0020），`WeftView.scrollController` 可注入。
 - 受限 JavaScript（ADR 0033）：vendor QuickJS 2024-01-13 + C 垫片 + `dart:ffi` 真实执行；墙钟/内存/栈/微任务四类预算原生强制，无限循环与内存炸弹在配置预算内中断且界面保留最后可用帧。
+- 移动端原生构建（ADR 0035）：`weft_quickjs` 声明为 FFI 插件；Android 模块用 CMake 就地编译 vendor 源码为 `libweft_quickjs.so`（隐藏内部符号、16 KB 页对齐），iOS pod 把垫片编进 app image 并用 ObjC 锚点防止 dead-strip；加载器按平台分派，显式路径仍可覆盖。
 - 单文档能力宿主：`weft.state/events/net` 模块经版本化能力桥暴露，未启用能力在 JS 中不可见；网络仅 GET、scheme/host 白名单、逐跳重定向校验与副作用审计。
 - 会话恢复不自动重放网络副作用；网关按 `(sessionId, sequence)` 去重重投递命令，网络客户端跨恢复恰好调用一次。
 - 自定义标签：`WeftNormalizer.customTags` 白名单 + 受信任 Dart `WeftTagRenderer`（rect/text ops、语义标签、`onTagTap`），由引擎钳制并转为常规绘制命令。
@@ -54,7 +55,7 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - 表格的嵌套表格（触发回退）与浏览器级 auto 列宽分配精度。
 - 选择工具条（完整菜单）、chrome 动画打磨和语义角色/live region 增强。
 - 基于块 metrics 的窗口直物化与精确 O(1)/O(log N) 随机跳转，以及 body 直属 Float/表内行/图片解码资源虚拟化。
-- QuickJS 的 Android/iOS 平台构建接入（CMake/Podspec 尚未提供，真机暂不能执行脚本；桌面/CI 已从 vendor 源码构建）。
+- 真机证据：Android 构建与 APK 打包已验证，但 Android/iOS 真机上的实际执行与 iOS 构建（需 macOS + Xcode + CocoaPods）尚未验证，见 `docs/device-matrix.md`。
 
 `example/weft_lab` 已展示真实可滚动的静态文章，但仍不用于验收完整 HTML/CSS 兼容性。当前限制与后续顺序见 `docs/supported-subset.md` 和 `docs/development-plan.md`。
 
@@ -67,6 +68,8 @@ packages/
   weft_engine/          Flutter 布局、渲染与交互层
   weft_runtime_api/     Runtime、桥接和能力扩展抽象
   weft_quickjs/         QuickJS 源码、C 垫片与 dart:ffi 后端
+    android/src/main/cpp/CMakeLists.txt  Android 原生构建（libweft_quickjs.so）
+    ios/weft_quickjs.podspec             iOS 静态链接（编进 app image）
   weft_capabilities/    能力模块、装载策略与桥接网关
   weft_runtime_fake/    脚本化 FakeRuntime 后端
   weft_runtime_contract/  后端中立 JsSession 契约测试套件

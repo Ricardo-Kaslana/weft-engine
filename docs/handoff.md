@@ -24,11 +24,13 @@
 - 懒布局异步分帧与同快照复用（ADR 0031）：非锚点深跳/深 seed 每帧至多新测 32 个顶层块并逐帧收敛，消除冷跳底部单帧全量测量；同快照 relayout 跳过节点 diff、复用跨帧样式缓存与文本索引实例。
 - 选择交互（ADR 0019）：长按选词/拖拽扩展/把手微调/复制按钮/tap 放 caret。
 - 图片/Float 与表格的浏览器几何基线（Chrome 参考固化在 conformance/reference/）。
+- 移动端原生构建（ADR 0035）：`weft_quickjs` 声明为 ffiPlugin；Android 模块用 CMake 就地编出 `libweft_quickjs.so`（16 KB 页对齐、只导出 `weft_*`），iOS pod 把垫片静态编进 app image 并用 ObjC 锚点防止 dead-strip；加载器按平台分派，显式路径可覆盖。
 
 请继续下一个切片，优先级如下：
-1. 懒布局进阶：基于块 metrics 的窗口直物化（O(log N) 随机定位），设计约束见 ADR 0031 的后续小节（负 margin/溢出破坏 top 单调性、body chrome 重算、后缀 extent 增量缓存）；以及超高顶层块/表内行/图片解码资源虚拟化。
-2. 语义增强：按产品需要补 headingLevel、语言/RTL 或 live region；保持 ADR 0024 的单表面所有权。
-3. 增量布局扩展：继续缩小 O(块数) diff/样式解析，探索行级复用；保持 ADR 0023/0025 的全量等价门禁。
+1. 移动端验收：Android 真机/模拟器跑通 runtime 示例、iOS 在 macOS 上构建（podspec 与锚点尚未经 Xcode 验证）；结果填进 `docs/device-matrix.md`，这是当前唯一的发布阻断项。
+2. 懒布局进阶：基于块 metrics 的窗口直物化（O(log N) 随机定位），设计约束见 ADR 0031 的后续小节（负 margin/溢出破坏 top 单调性、body chrome 重算、后缀 extent 增量缓存）；以及超高顶层块/表内行/图片解码资源虚拟化。
+3. 语义增强：按产品需要补 headingLevel、语言/RTL 或 live region；保持 ADR 0024 的单表面所有权。
+4. 增量布局扩展：继续缩小 O(块数) diff/样式解析，探索行级复用；保持 ADR 0023/0025 的全量等价门禁。
 
 硬性约束：
 - 不做完整浏览器；不执行不可信脚本；不把 HTML 节点映射为独立 Widget。
@@ -36,7 +38,8 @@
 - 图片资源只能由宿主 WeftImageResolver 提供；引擎不得隐式发起网络请求。
 - 每次修改必须运行 `dart format --output=none --set-exit-if-changed .`、`dart analyze`、`dart run tool/verify.dart` 和 `packages/weft_engine/tool/golden_pixel_test.dart`。
 - 新增能力必须附带单元测试；影响布局时必须评估黄金基线与 conformance/reference/ 下的浏览器几何基线。
-- 重要技术取舍写入 docs/adr/（下一个编号为 0035）。
+- 改动 `packages/weft_quickjs/native/`、`android/` 或 `ios/` 后必须跑 `packages/weft_quickjs/tool/build_native.sh` 重编桌面库并执行 `dart test`（weft_quickjs）；平台工程的编译参数必须与桌面脚本保持一致（ADR 0035）。
+- 重要技术取舍写入 docs/adr/（下一个编号为 0036）。
 
 先阅读 README.md、docs/architecture.md、docs/supported-subset.md 和 docs/handoff.md，再选择第一个任务并给出计划。
 
@@ -48,10 +51,10 @@
 - 分支：`main`
 - 最新提交：见 `git log`（本节只保证指南有效，不追踪哈希）
 - Flutter：3.35.5 stable；Dart：3.9.2
-- 常规测试 447 项（weft_engine 243、weft_document 77、weft 59、weft_quickjs 22、weft_capabilities 15、weft_runtime_fake 12、weft_runtime_contract 9、weft_runtime_api 2，另有 weft_lab 1 + weft_fallback 7）、像素黄金 3 项 + 选区高亮 1 项、性能门禁 14 场景（7 布局 + 3 绘制 + 4 命中）；`dart analyze` 无问题，公开 API 文档覆盖零缺口。开发计划阶段 0–5 已完成（阶段 5 见 ADR 0034）。
+- 常规测试 453 项（weft_engine 243、weft_document 77、weft 59、weft_quickjs 28、weft_capabilities 15、weft_runtime_fake 12、weft_runtime_contract 9、weft_runtime_api 2，另有 weft_lab 1 + weft_fallback 7）、像素黄金 3 项 + 选区高亮 1 项、性能门禁 14 场景（7 布局 + 3 绘制 + 4 命中）；`dart analyze` 无问题，公开 API 文档覆盖零缺口。开发计划阶段 0–5 已完成（阶段 5 见 ADR 0034），阶段 5 之后补了移动端原生构建（ADR 0035）。
 - GitHub Actions 使用 Windows 执行像素黄金门禁。
 
-已实现至 ADR 0034。ADR 0017–0033：分块渲染与命中裁剪（ADR 0017/0020）、行内图片（ADR 0018）、选择 chrome（ADR 0019）、块级盒模型（ADR 0021）、表格列轨道（ADR 0022）、流式顶层前缀复用（ADR 0023）、单表面 Semantics（ADR 0024/0026/0028/0030）、渐进式布局虚拟化（ADR 0025）、同步/异步锚点导航（ADR 0027/0029）、懒布局异步分帧与同快照复用（ADR 0031）、阶段 0–3 验收证据与重定界（ADR 0032）和受限 JS 运行时（QuickJS FFI + 能力网关 + 恢复去重 + 自定义标签，ADR 0033）。ADR 0034（阶段 5）：快照 JSON 线格式（format+version 门禁）与 21 个规范化一致性向量、种子化模糊测试（CI 快跑 + tool/fuzz.dart 长跑，修复诊断上限绕过与 toString 崩溃两个真实问题）、能力策略 8 子集矩阵、example/weft_fallback WebView 回退示例、发布手册与回滚演练测试、API 文档门禁、真机矩阵计划。
+已实现至 ADR 0035。ADR 0017–0033：分块渲染与命中裁剪（ADR 0017/0020）、行内图片（ADR 0018）、选择 chrome（ADR 0019）、块级盒模型（ADR 0021）、表格列轨道（ADR 0022）、流式顶层前缀复用（ADR 0023）、单表面 Semantics（ADR 0024/0026/0028/0030）、渐进式布局虚拟化（ADR 0025）、同步/异步锚点导航（ADR 0027/0029）、懒布局异步分帧与同快照复用（ADR 0031）、阶段 0–3 验收证据与重定界（ADR 0032）和受限 JS 运行时（QuickJS FFI + 能力网关 + 恢复去重 + 自定义标签，ADR 0033）。ADR 0034（阶段 5）：快照 JSON 线格式（format+version 门禁）与 21 个规范化一致性向量、种子化模糊测试（CI 快跑 + tool/fuzz.dart 长跑，修复诊断上限绕过与 toString 崩溃两个真实问题）、能力策略 8 子集矩阵、example/weft_fallback WebView 回退示例、发布手册与回滚演练测试、API 文档门禁、真机矩阵计划。ADR 0035：QuickJS 移动平台构建——ffiPlugin 声明、Android CMake 就地编译（16 KB 对齐）、iOS 静态链接与 dead-strip 锚点、按平台分派的加载器。
 
 ## 包结构
 
@@ -64,7 +67,9 @@ packages/
     lib/src/table_layout.part.dart 表格：槽位网格、列宽、折叠边框（extension）
     lib/src/inline_flow.part.dart  Float 排除区、行内累积器、数据类
   weft_runtime_api/     JS Runtime 与能力桥抽象
-  weft_quickjs/         vendor QuickJS 源码、C 垫片与 dart:ffi 后端（桌面/CI 可执行；无 Android/iOS 平台工程）
+  weft_quickjs/         vendor QuickJS 源码、C 垫片与 dart:ffi 后端
+    android/            Gradle 模块 + CMake，就地编出 libweft_quickjs.so
+    ios/                podspec + ObjC 锚点，把垫片静态编进 app image
   weft_capabilities/    能力策略与内置命名空间
   weft_runtime_fake/    脚本化 FakeRuntime 后端
   weft_runtime_contract/  后端中立 JsSession 契约套件
@@ -95,6 +100,7 @@ docs/adr/               架构决策记录
 - 布局虚拟化（ADR 0025）：`layoutViewport` 在原块流中连续测量精确前缀，只物化 viewport+250px 窗口；未测后缀按同类块中位数估算 extent。隐藏块释放 commands/painter，previous/current 继续单 owner 转移；跳到估算底部用 correctBy 跟随。顶层块内及 body 直属的已解析图片 Float 都以块级排除区 checkpoint 跨离屏复用；非图片/inline 祖先 Float、非空 selection（含首帧）、Semantics、未解析图片/loose inline 回退或粘滞 full。full 退出会递增 generation 并清除陈旧校正，初始 ScrollController offset 会 seed 首帧物化窗口。
 - 懒布局异步分帧与同快照复用（ADR 0031）：视口末端距已测前缀超过一屏或首帧 seed 深于 overscan 时，每帧至多新测 32 个顶层块，post-frame 续帧按 `_needsLazyRelayout` 收敛，`_lazyGeneration` 取消；同快照 relayout 跳过节点 diff 与样式表比对，元素级样式缓存随增量缓存跨帧存活（宽度/缩放/图片不参与计算样式），文本索引实例直接复用。300 块冷跳底部从 124.8ms 单帧降为 10 帧 × 中位 5.8ms。
 - 测试：规范化、布局、margin、盒模型、图片、浮动、表格（17 项）、选择（15 项，含 10 万字符随机选区与流式重映射）、CJK、长文档、公开层、像素基线、两个浏览器几何基线，以及语料结构断言（无丢失/无重叠/无越界）与敌意输入诊断扫描（ADR 0032）。
+- 移动端原生构建（ADR 0035）：`weft_quickjs` 的 `flutter.plugin.platforms` 声明 android/ios 为 ffiPlugin，包本身不依赖 Flutter；Android 由 `android/src/main/cpp/CMakeLists.txt` 就地编译 vendor 源码（`-fvisibility=hidden`、16 KB 页对齐、`compileSdk 36`/NDK 27），iOS 由 podspec 编进 app image，`WEFT_EXPORT` 的 `used` 属性 + ObjC 锚点防止 `-dead_strip` 丢掉 `dlsym` 目标；`librarySourceFor()` 按平台分派（显式路径 > iOS process() > Android 按名打开 > 桌面文件搜索）。APK 已实测含三 ABI 的 `libweft_quickjs.so` 且恰好导出 10 个 `weft_*`。
 
 ## 明确未实现
 
@@ -104,6 +110,7 @@ docs/adr/               架构决策记录
 - 表格：嵌套表格（触发回退）、浏览器级 auto 列宽分配精度、`col` 的 min/max 语义。
 - Semantics 的 headingLevel、跨行跨列语义索引、CSS 列表样式/起始序号、可编辑 selection/caret 动作、RTL/语言属性、live region 与语义虚拟化。
 - 受限 JS 的既有边界：bridge 风暴上限按单轮计数、`weft.net` 仅 GET、自定义标签不支持行内混排与 Float 环绕、JSON 编组把 undefined 折叠为 null（ADR 0033 后续小节）。
+- 移动端验收证据：Android 构建与 APK 打包已验证，但真机/模拟器执行、iOS 构建与运行（需 macOS + Xcode + CocoaPods）尚未验证；podspec 与锚点只经过代码审查（ADR 0035）。
 
 ## 关键约束
 
@@ -122,6 +129,10 @@ tool/check.sh
 
 # QuickJS 原生库（首次克隆或改动 native/ 后执行；缺失时 FFI 测试跳过并给出本命令）
 packages/weft_quickjs/tool/build_native.sh
+
+# 移动端原生库：Android 需 SDK 36 + NDK 27，宿主工程需先生成 android/ 平台目录
+flutter build apk --debug --target-platform android-arm64
+unzip -l build/app/outputs/flutter-apk/app-debug.apk | grep libweft_quickjs
 
 # 逐项运行
 flutter pub get
@@ -151,11 +162,11 @@ python tool/generate_assets.py
 
 开发计划阶段 0–5 已完成。以下为既有技术路线的延续候选（阶段 5 的验收边界外）。
 
-### A. QuickJS 平台构建接入（发布阻断项）
+### A. 移动端验收（发布阻断项）
 
-目标：为 `weft_quickjs` 补 Android `CMakeLists.txt` 与 iOS `Podspec`，让真机能加载原生库并执行脚本；桌面/CI 路径保持不变。
+目标：Android 真机/模拟器跑通 `weft_lab` 的 runtime 示例；iOS 在 macOS + Xcode 上完成首次构建，确认 `weft_*` 符号未被剥离；两端结果写入 `docs/device-matrix.md`。
 
-注意：桌面动态库走 `packages/weft_quickjs/tool/build_native.sh`（CI 已从 vendor 源码构建 Linux 版）；包内目前没有 `android/`、`ios/` 目录，真机无法执行脚本。动手前先确定首版是否只在桌面/CI 发布 JS 能力。
+注意：构建路径已由 ADR 0035 交付（Android CMake、iOS pod + 锚点、按平台分派的加载器）；桌面动态库仍走 `packages/weft_quickjs/tool/build_native.sh`。若宿主改用 `use_frameworks!` 得到动态框架，`DynamicLibrary.process()` 仍可用，但锚点是否仍必要要重新评估。
 
 ### B. 懒布局进阶
 
@@ -192,3 +203,5 @@ python tool/generate_assets.py
 - 阶段 4 的 QuickJS 需要 native 库：测试在库缺失时跳过并提示 `packages/weft_quickjs/tool/build_native.sh`；不要把跳过当验收，中断/内存证据以真实 QuickJS 测试为准。
 - 能力调用风暴的上限按"单个事件循环轮次"计数（`_maxBridgeCallsPerTurn`），不是累计预算；跨轮的链式风暴由 `settle()` 的 256 轮兜底，两者都不能省。
 - 自定义标签是属性驱动的叶子元素：内容在规范化时丢弃（有诊断），不要指望布局遍历其子树，也不要忘记 `WeftNormalizer.customTags` 与引擎 `tagRenderers` 两处要同步。
+- 移动端编译参数要三处一致：`tool/build_native.sh`、`android/src/main/cpp/CMakeLists.txt`、`ios/weft_quickjs.podspec` 必须反映同一组宏（`CONFIG_VERSION`、`CONFIG_BIGNUM`、`-fno-strict-aliasing`）；只改一处会让同一脚本在不同平台行为分叉。
+- 不要删除 iOS 的锚点类或 `WEFT_EXPORT` 的 `used` 属性：它们不是死代码，去掉后 `-dead_strip` 会连同 `dlsym` 目标一起丢弃，而桌面测试完全发现不了。

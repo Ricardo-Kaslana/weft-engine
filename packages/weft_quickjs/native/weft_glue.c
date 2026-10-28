@@ -31,7 +31,11 @@
 #if defined(_WIN32)
 #define WEFT_EXPORT __declspec(dllexport)
 #else
-#define WEFT_EXPORT __attribute__((visibility("default")))
+/* visibility keeps the entry points in the dynamic symbol table; `used` keeps
+ * them from being dropped when the shim is linked into an executable instead
+ * of a shared library (iOS compiles it into the app image, and nothing in C
+ * references these functions — Dart resolves them with dlsym). */
+#define WEFT_EXPORT __attribute__((visibility("default"), used))
 #endif
 
 typedef void WeftBridgeNotify(const char *request_json, void *user);

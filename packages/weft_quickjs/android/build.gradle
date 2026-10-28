@@ -1,0 +1,27 @@
+group = "dev.weft.weft_quickjs"
+version = "1.0"
+
+apply plugin: "com.android.library"
+
+android {
+    namespace = "dev.weft.weft_quickjs"
+    compileSdk = 36
+    // Matches Flutter 3.35's default NDK; AGP otherwise falls back to the
+    // version it was released with, which is usually not installed.
+    ndkVersion = "27.0.12077973"
+
+    defaultConfig {
+        minSdk = 21
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+}

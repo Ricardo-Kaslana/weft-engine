@@ -29,6 +29,21 @@
    峰值；iOS 用 Instruments Core Animation + Allocations。
 4. 结果记入下表（提交到本文件的结果段落）。
 
+### 2.1 原生库预检（ADR 0035）
+
+JS 在移动端依赖随包分发的原生库，先确认它存在、符号正确，再开始计时：
+
+```bash
+# Android：APK 内应有三个 ABI 的库
+unzip -l build/app/outputs/flutter-apk/app-debug.apk | grep libweft_quickjs
+
+# iOS（macOS）：可执行文件里应有 weft_* 符号
+nm -gU Runner.app/Runner | grep weft_
+```
+
+真机首启若 `QuickJsNativeLibrary.load()` 抛 `StateError`，按错误文案给出的
+平台补救处理（重打 APK / `pod install` 后重建），不要当成性能问题排查。
+
 ## 3. 通过标准
 
 - 滚动帧耗时 p95 ≤ 16.7ms（A 档放宽到 p95 ≤ 33ms 且无可感知停顿）。
@@ -40,6 +55,9 @@
 ## 4. 结果记录
 
 （首次真机轮结果提交时填写；CI 无法替代这一步。）
+
+移动端首轮还要单独记录「JS 原生库加载」是否通过（ADR 0035）：Android 与
+iOS 各至少一台设备跑通 runtime 示例，才算该端可用。
 
 | 档位 | 设备/OS | 冷启动中位 | 滚动 p95/p99 | 深跳最大帧 | 内存增量 | 结论 |
 |---|---|---|---|---|---|---|

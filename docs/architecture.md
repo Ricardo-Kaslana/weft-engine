@@ -86,6 +86,8 @@ flowchart TB
 
 首个后端采用 QuickJS 2024-01-13 与 `dart:ffi`：源码 vendor 在 `packages/weft_quickjs/native/quickjs/`，C 垫片 `weft_glue.c` 提供扁平 ABI（只有指针/整数跨界，JSON 是唯一编组格式），`QuickJsFfiSession` 负责会话生命周期。每文档独立 `JSRuntime`，同文档脚本顺序执行，不同文档不共享全局对象。
 
+原生库来源按平台不同（ADR 0035）：桌面/CI 由 `tool/build_native.sh` 编出动态库；Android 由插件模块的 CMake 把同一批源码编成 `libweft_quickjs.so` 打进 APK；iOS 由 pod 把垫片静态编进 app image，Dart 用 `DynamicLibrary.process()` 解析符号。`librarySourceFor()` 统一分派，显式路径或 `WEFT_QUICKJS_LIBRARY` 仍可覆盖。
+
 预算在原生层强制：墙钟由中断处理器 + 单调时钟 deadline 覆盖一切同步执行，内存走 `JS_SetMemoryLimit`，栈走 `JS_SetMaxStackSize`，微任务由任务泵计数封顶。单轮事件循环内的能力调用风暴有 4096 次上限，`settle()` 以 256 轮兜底。
 
 JS 不获得节点、盒树或渲染对象。它只能通过 `__weftBridge`（返回 Promise）调用启用命名空间的能力模块；引导脚本只为启用能力安装 `weft.*`，网关按策略二次拒绝。恢复只重跑能力引导并保留 `(sessionId, sequence)` 审计：重投递的命令命中去重，网络副作用永不自动重放。
@@ -129,3 +131,4 @@ JS 不获得节点、盒树或渲染对象。它只能通过 `__weftBridge`（�
 - `0013`：选择基于逻辑文本索引，锚点在内容变更后安全清除。
 - `0033`：受限 JS 运行时（QuickJS FFI + 能力网关 + 恢复去重）与自定义标签扩展。
 - `0034`：回退、硬化与发布——快照 JSON 线格式与一致性向量、种子化模糊测试、WebView 回退示例、版本兼容锚点与回滚演练、API 文档门禁。
+- `0035`：QuickJS 移动平台构建——Android CMake 就地编译、iOS 静态链接与 dead-strip 锚点、按平台分派的加载器。

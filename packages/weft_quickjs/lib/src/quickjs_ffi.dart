@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:ffi/ffi.dart';
 
+import 'library_loader.dart';
+
 /// Opaque handle to the C-side `WeftRuntime` struct declared in
 /// `native/weft_glue.c`.
 final class WeftRuntimeFfi extends Opaque {}
@@ -121,22 +123,35 @@ final class QuickJsNativeLibrary {
 
   static QuickJsNativeLibrary? _instance;
 
-  /// Loads the shared library once per process. [explicitPath] wins over the
-  /// `WEFT_QUICKJS_LIBRARY` environment variable and the default search.
+  /// Loads the shared library once per process.
+  ///
+  /// The source is platform dependent: a non-blank [explicitPath] (or
+  /// `WEFT_QUICKJS_LIBRARY`) always wins; iOS resolves the entry points from
+  /// the app image because the pod links the shim into the app; Android opens
+  /// the `libweft_quickjs.so` the plugin build packages into the APK; desktop
+  /// falls back to [resolveLibraryPath].
   static QuickJsNativeLibrary load({String? explicitPath}) {
     final cached = _instance;
     if (cached != null) {
       return cached;
     }
-    final path = explicitPath ?? resolveLibraryPath();
+    final override =
+        explicitPath ?? Platform.environment['WEFT_QUICKJS_LIBRARY'];
+    final source = librarySourceFor(
+      isIOS: Platform.isIOS,
+      isAndroid: Platform.isAndroid,
+      override: override,
+    );
     try {
-      return _instance = QuickJsNativeLibrary._(DynamicLibrary.open(path));
-    } catch (error) {
-      throw StateError(
-        'Unable to load the Weft QuickJS native library at "$path" ($error).\n'
-        'Build it with: packages/weft_quickjs/tool/build_native.sh\n'
-        'or point WEFT_QUICKJS_LIBRARY at an existing binary.',
+      return _instance = QuickJsNativeLibrary._(
+        openLibraryForSource(
+          source,
+          override: override,
+          desktopPath: resolveLibraryPath,
+        ),
       );
+    } catch (error) {
+      throw StateError(describeLoadFailure(source, override, error));
     }
   }
 
