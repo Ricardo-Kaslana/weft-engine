@@ -20,7 +20,7 @@ dart analyze
 dart run tool/verify.dart
 ```
 
-当前主 CI 覆盖格式、静态分析、纯 Dart 测试和 Flutter 单元/Widget 测试，共 447 项（weft_engine 243、weft_document 77、weft 59、weft_quickjs 22、weft_capabilities 15、weft_runtime_fake 12、weft_runtime_contract 9、weft_runtime_api 2 等，QuickJS FFI 测试在 native 库缺失时跳过）；阶段 5 起还有两类门禁：规范化一致性向量（`conformance/normalization/` 21 个固化快照，逐字节复现）与公开 API 文档覆盖（`tool/doc_coverage.dart` 零缺口）；另有 Windows 独立执行的 3 项 Flutter 像素基线测试：
+当前主 CI 覆盖格式、静态分析、纯 Dart 测试和 Flutter 单元/Widget 测试，共 468 项（weft_engine 251、weft_document 77、weft 66、weft_quickjs 28、weft_capabilities 15、weft_runtime_fake 12、weft_runtime_contract 9、weft_runtime_api 2、weft_lab 1、weft_fallback 7；QuickJS FFI 测试在 native 库缺失时跳过）；阶段 5 起还有两类门禁：规范化一致性向量（`conformance/normalization/` 21 个固化快照，逐字节复现）与公开 API 文档覆盖（`tool/doc_coverage.dart` 零缺口）；另有 Windows 独立执行的 3 项 Flutter 像素基线测试：
 
 - 规范化：标签、属性、URL、未知元素、回退能力、节点上限、图片地址与尺寸。
 - CSS：选择器结构、后代/子代匹配、特异性、内联覆盖、声明过滤。

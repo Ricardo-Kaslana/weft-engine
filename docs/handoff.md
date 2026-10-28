@@ -59,7 +59,7 @@
 - 分支：`main`
 - 最新提交：见 `git log`（本节只保证指南有效，不追踪哈希）
 - Flutter：3.35.5 stable；Dart：3.9.2；ADR 36 份（0001–0036）
-- 常规测试数量以 `dart run tool/verify.dart` 本轮输出为准（ADR 0036 新增窗口、负边距与校正回归；此前为 453 项）、像素黄金 3 项 + 选区高亮 1 项、性能门禁 14 场景（7 布局 + 3 绘制 + 4 命中）；`dart analyze` 无问题，公开 API 文档覆盖零缺口。开发计划阶段 0–5 已完成（阶段 5 见 ADR 0034），阶段 5 之后补了移动端原生构建（ADR 0035）。
+- 常规测试 468 项（weft_engine 251、weft_document 77、weft 66、weft_quickjs 28、weft_capabilities 15、weft_runtime_fake 12、weft_runtime_contract 9、weft_runtime_api 2、weft_lab 1、weft_fallback 7；ADR 0036 新增 15 项回归）、像素黄金 3 项 + 选区高亮 1 项、性能门禁 14 场景（7 布局 + 3 绘制 + 4 命中）；`dart analyze` 无问题，公开 API 文档覆盖零缺口。开发计划阶段 0–5 已完成（阶段 5 见 ADR 0034），阶段 5 之后补了移动端原生构建（ADR 0035）与懒布局窗口直物化（ADR 0036）。
 - GitHub Actions 使用 Windows 执行像素黄金门禁（仓库尚无远端，CI 尚未真正跑过）。
 - 2026-10-28 增量：Android 真机构建与执行验证、插件单 ABI 裁剪、回环直连修复与首轮矩阵；之后交付 ADR 0036 窗口直物化及桌面结构/耗时证据（docs/device-matrix.md §4.4）。真实 Flutter Web＋Edge 的滚动、锚点与选择复制已验证；JNY-AL10 profile 复测四项标准通过（中位冷启 635ms、滚动 p95 ≈26ms、深跳最大 37ms、内存 +10MB），strict 60fps 受 raster 限制。证据位于本地 build/adr0036-evidence。iOS 验证仍暂缓。
 
@@ -225,7 +225,7 @@ python tool/generate_assets.py
 - 能力调用风暴的上限按"单个事件循环轮次"计数（`_maxBridgeCallsPerTurn`），不是累计预算；跨轮的链式风暴由 `settle()` 的 256 轮兜底，两者都不能省。
 - 自定义标签是属性驱动的叶子元素：内容在规范化时丢弃（有诊断），不要指望布局遍历其子树，也不要忘记 `WeftNormalizer.customTags` 与引擎 `tagRenderers` 两处要同步。
 - 移动端编译参数要三处一致：`tool/build_native.sh`、`android/src/main/cpp/CMakeLists.txt`、`ios/weft_quickjs.podspec` 必须反映同一组宏（`CONFIG_VERSION`、`CONFIG_BIGNUM`、`-fno-strict-aliasing`）；只改一处会让同一脚本在不同平台行为分叉。
-- 不要用「放宽懒布局准入条件」解决首帧慢：实测滚动 p95 会从 9–30ms 恶化到 140ms（docs/device-matrix.md §4.3）。首帧成本只能靠窗口化摊薄，不能靠打开每帧重排。
+- 不要用「放宽懒布局准入条件」解决首帧慢：ADR 0036 之前的实测里滚动 p95 从 9–30ms 恶化到 140ms（docs/device-matrix.md §4.3）。首帧成本只能靠窗口化摊薄，不能靠打开每帧重排；窗口化已在 ADR 0036 交付。
 - 桌面测试的 lazy pass 耗时（3–6ms）不能直接当设备预算：A 档真机放大约 3–4 倍（18–27ms），定目标时按 4× 估。
 - 不要用 `tool/check.sh | tail` 判断成败：管道会吞掉退出码，重定向到文件再看 `$?`。
 - 不要删除 iOS 的锚点类或 `WEFT_EXPORT` 的 `used` 属性：它们不是死代码，去掉后 `-dead_strip` 会连同 `dlsym` 目标一起丢弃，而桌面测试完全发现不了。

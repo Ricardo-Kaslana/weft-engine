@@ -99,8 +99,13 @@
 - WebView 回退示例：`example/weft_fallback`，`decideWeftFallback` 三路决策（原生渲染 / requiresWebView → 宿主 WebView / 错误卡片），`webview_flutter` 只进示例包，widget 测试经注入占位走完整决策路径。
 - 发布回退：`docs/release-runbook.md`（统一版本号策略、兼容锚点表、发布清单、回滚层级）；回滚演练自动化在 `packages/weft_document/test/release_compat_test.dart`（旧向量逐字节复现、新版本快照被拒、外格式被拒）。
 - API 文档：`tool/doc_coverage.dart` 门禁（导出面的公开声明零文档缺口），已接入 `tool/check.sh`；公开 API dartdoc 已补全。
-- 真机矩阵：`docs/device-matrix.md` 定义设备档位、执行步骤、通过标准与结果表；`weft_lab` 增加性能浮层开关。真机首轮融资数据待设备轮填入（CI 不可替代）。
-- 门禁：`tool/check.sh`（format、analyze、447 项测试、doc coverage、像素黄金）全绿。
+- 真机矩阵：`docs/device-matrix.md` 定义设备档位、执行步骤、通过标准与结果表；`weft_lab` 增加性能浮层开关。Android 首轮与 ADR 0036 复测数据已填入 §4.1/§4.4（CI 不可替代）；iOS 仍暂缓。
+- 门禁：`tool/check.sh`（format、analyze、全包测试、doc coverage、像素黄金）全绿。
+
+阶段 5 之后补入（不算阶段 5 验收）：
+
+- 移动端原生构建（ADR 0035）：Android 构建/打包/真机加载与预算中断通过；iOS 暂缓。
+- 懒布局窗口直物化（ADR 0036）：JNY-AL10 四项设备标准通过，严格 60fps 受 raster 限制，见 `docs/device-matrix.md` §4.4。
 
 ## 并行规则
 

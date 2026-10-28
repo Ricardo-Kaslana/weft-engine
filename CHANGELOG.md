@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Lazy layout now materializes measured windows from a conservative paint-bounds index (ADR 0036): admission, block-flow margins/lists and suffix estimates are cached per snapshot, while only entering/leaving blocks rebuild or release commands. Formatting whitespace between body blocks no longer disables virtualization; body text, NBSP and `white-space: pre` keep the full-layout path.
+- Float exclusions are restored from the measured prefix when a block rematerializes, body chrome still follows the current estimated extent, and `correctBy` extent corrections now sync the surface to the real scroll offset instead of replaying corrections.
+- Windows host profile (300/1000 paragraphs): warm `layoutViewport` p95 dropped from 1.37/85.35ms to 0.67/0.49ms for compact/newline documents; first viewport for the 1000-paragraph newline document went from 78.67ms (full) to 10.08ms (lazy). These are API timings, not device frame times.
+- Verified on Huawei JNY-AL10 (Android 10, profile, 901-element formatted article): 635ms median cold start, 25.5–26.0ms combined scroll p95 with no frame above 50ms, 37.12ms max deep jump, +9.4–10.0MB memory. Strict 60fps (p95 ≤16.7ms) is not met; raster p95 ≈17.2ms dominates.
+- 15 new regressions cover formatted-window budgets, negative-margin upward overflow, body chrome, invalidation, ownership transfer, async-anchor cancellation and correction convergence.
+
 ## 0.6.0-dev.1 (2026-10-28)
 
 - All packages move to `0.6.0-dev.1`, the first version that ships the mobile builds; hosts pinning `0.5.0-dev.1` keep the previous behaviour.
