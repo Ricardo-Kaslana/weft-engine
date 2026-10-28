@@ -32,13 +32,12 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - 阶段 0–3 验收证据（ADR 0032）：商品/帮助文档语料的无丢失/无重叠/无越界结构断言、敌意输入诊断扫描、10 万字符随机跨段选区与复制（代理对安全）、流式选区重映射/安全清除、滚动缓存预算稳定、晚解码 Float 等价，以及"标签→Widget"基线与滚动帧耗时两个基准工具。
 - 锚点导航（ADR 0027/0029）：`scrollToAnchor` / `scrollToNode` 精确定位，异步版本逐帧测量深链前缀并保持当前内容；无效或取消请求安全返回 false。
 - 性能门禁：布局/绘制/命中 14 场景基准工具与 10 倍宽上限的 CI 稳定门禁（见 docs/testing-strategy.md）；命中解析经分块索引裁剪（ADR 0020），`WeftView.scrollController` 可注入。
-- 受限 JavaScript（ADR 0033）：vendor QuickJS + C 垫片 + `dart:ffi` 真实执行；墙钟/内存/栈/微任务四类预算原生强制，无限循环与内存炸弹在配置预算内中断且界面保留最后可用帧。
+- 受限 JavaScript（ADR 0033）：vendor QuickJS 2024-01-13 + C 垫片 + `dart:ffi` 真实执行；墙钟/内存/栈/微任务四类预算原生强制，无限循环与内存炸弹在配置预算内中断且界面保留最后可用帧。
 - 单文档能力宿主：`weft.state/events/net` 模块经版本化能力桥暴露，未启用能力在 JS 中不可见；网络仅 GET、scheme/host 白名单、逐跳重定向校验与副作用审计。
 - 会话恢复不自动重放网络副作用；网关按 `(sessionId, sequence)` 去重重投递命令，网络客户端跨恢复恰好调用一次。
 - 自定义标签：`WeftNormalizer.customTags` 白名单 + 受信任 Dart `WeftTagRenderer`（rect/text ops、语义标签、`onTagTap`），由引擎钳制并转为常规绘制命令。
 - 后端契约：`weft_runtime_contract` 契约套件同时覆盖 QuickJS FFI 与脚本化 FakeRuntime（`weft_runtime_fake`），替换后端不修改引擎核心。
 - `float_image` 一致性案例：Chrome 生成的浏览器几何基线（块、图片、逐行词盒误差 ≤ 0.5px）与 Flutter 像素黄金双重门禁；图片按 1:1 对齐整像素绘制。
-- 受限 JS 运行时（ADR 0033）：vendor 的 QuickJS 2024-01-13 经 C 垫片 + dart:ffi 驱动，墙钟/内存/栈/微任务四类预算原生强制；`weft.state/events/net` 能力按策略开关（未启用在 JS 中不可见），恢复不重放网络副作用；自定义标签渲染器扩展。
 - 快照 JSON 线格式（ADR 0034）：`WeftDocumentJson` 确定性编码 + format/version 门禁，服务端可规范化一次、客户端直接解码消费；`conformance/normalization/` 下 21 个一致性向量逐字节约束服务端/客户端规范化一致性。
 - 硬化与模糊测试（ADR 0034）：种子化 fuzz 覆盖规范化管线（CI 快跑 + `tool/fuzz.dart` 发布前长跑）；能力策略 8 子集矩阵；公开 API 文档门禁（`tool/doc_coverage.dart`）。
 - WebView 回退示例（ADR 0034）：`example/weft_fallback` 演示 requiresWebView → 宿主 WebView 的决策与接入；发布手册 `docs/release-runbook.md` 固化版本锚点、发布清单与回滚演练；真机矩阵计划见 `docs/device-matrix.md`。
@@ -51,13 +50,11 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 
 尚未实现：
 
-
 - CJK 像素基线（无可分发 CJK 像素字体，跨引擎像素验收已按 ADR 0032 重定界为结构几何门禁）。
 - 表格的嵌套表格（触发回退）与浏览器级 auto 列宽分配精度。
 - 选择工具条（完整菜单）、chrome 动画打磨和语义角色/live region 增强。
 - 基于块 metrics 的窗口直物化与精确 O(1)/O(log N) 随机跳转，以及 body 直属 Float/表内行/图片解码资源虚拟化。
-- QuickJS 的 Android/iOS 平台构建接入（CMake/Podspec，阶段 5 发布工作；桌面/CI 已从 vendor 源码构建）。
-- 模糊测试、真机矩阵与发布回退演练（阶段 5）。
+- QuickJS 的 Android/iOS 平台构建接入（CMake/Podspec 尚未提供，真机暂不能执行脚本；桌面/CI 已从 vendor 源码构建）。
 
 `example/weft_lab` 已展示真实可滚动的静态文章，但仍不用于验收完整 HTML/CSS 兼容性。当前限制与后续顺序见 `docs/supported-subset.md` 和 `docs/development-plan.md`。
 

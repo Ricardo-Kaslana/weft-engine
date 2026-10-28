@@ -36,7 +36,7 @@
 - 图片资源只能由宿主 WeftImageResolver 提供；引擎不得隐式发起网络请求。
 - 每次修改必须运行 `dart format --output=none --set-exit-if-changed .`、`dart analyze`、`dart run tool/verify.dart` 和 `packages/weft_engine/tool/golden_pixel_test.dart`。
 - 新增能力必须附带单元测试；影响布局时必须评估黄金基线与 conformance/reference/ 下的浏览器几何基线。
-- 重要技术取舍写入 docs/adr/（下一个编号为 0031）。
+- 重要技术取舍写入 docs/adr/（下一个编号为 0035）。
 
 先阅读 README.md、docs/architecture.md、docs/supported-subset.md 和 docs/handoff.md，再选择第一个任务并给出计划。
 
@@ -51,7 +51,7 @@
 - 常规测试 447 项（weft_engine 243、weft_document 77、weft 59、weft_quickjs 22、weft_capabilities 15、weft_runtime_fake 12、weft_runtime_contract 9、weft_runtime_api 2，另有 weft_lab 1 + weft_fallback 7）、像素黄金 3 项 + 选区高亮 1 项、性能门禁 14 场景（7 布局 + 3 绘制 + 4 命中）；`dart analyze` 无问题，公开 API 文档覆盖零缺口。开发计划阶段 0–5 已完成（阶段 5 见 ADR 0034）。
 - GitHub Actions 使用 Windows 执行像素黄金门禁。
 
-已实现到 ADR 0033：分块渲染与命中裁剪（ADR 0017/0020）、行内图片（ADR 0018）、选择 chrome（ADR 0019）、块级盒模型（ADR 0021）、表格列轨道（ADR 0022）、流式顶层前缀复用（ADR 0023）、单表面 Semantics（ADR 0024/0026/0028/0030）、渐进式布局虚拟化（ADR 0025）、同步/异步锚点导航（ADR 0027/0029）、懒布局异步分帧与同快照复用（ADR 0031）、阶段 0–3 验收证据与重定界（ADR 0032）和受限 JS 运行时（QuickJS FFI + 能力网关 + 恢复去重 + 自定义标签，ADR 0033）。已实现到 ADR 0034（阶段 5）：快照 JSON 线格式（format+version 门禁）与 21 个规范化一致性向量、种子化模糊测试（CI 快跑 + tool/fuzz.dart 长跑，修复诊断上限绕过与 toString 崩溃两个真实问题）、能力策略 8 子集矩阵、example/weft_fallback WebView 回退示例、发布手册与回滚演练测试、API 文档门禁、真机矩阵计划。
+已实现至 ADR 0034。ADR 0017–0033：分块渲染与命中裁剪（ADR 0017/0020）、行内图片（ADR 0018）、选择 chrome（ADR 0019）、块级盒模型（ADR 0021）、表格列轨道（ADR 0022）、流式顶层前缀复用（ADR 0023）、单表面 Semantics（ADR 0024/0026/0028/0030）、渐进式布局虚拟化（ADR 0025）、同步/异步锚点导航（ADR 0027/0029）、懒布局异步分帧与同快照复用（ADR 0031）、阶段 0–3 验收证据与重定界（ADR 0032）和受限 JS 运行时（QuickJS FFI + 能力网关 + 恢复去重 + 自定义标签，ADR 0033）。ADR 0034（阶段 5）：快照 JSON 线格式（format+version 门禁）与 21 个规范化一致性向量、种子化模糊测试（CI 快跑 + tool/fuzz.dart 长跑，修复诊断上限绕过与 toString 崩溃两个真实问题）、能力策略 8 子集矩阵、example/weft_fallback WebView 回退示例、发布手册与回滚演练测试、API 文档门禁、真机矩阵计划。
 
 ## 包结构
 
@@ -64,9 +64,12 @@ packages/
     lib/src/table_layout.part.dart 表格：槽位网格、列宽、折叠边框（extension）
     lib/src/inline_flow.part.dart  Float 排除区、行内累积器、数据类
   weft_runtime_api/     JS Runtime 与能力桥抽象
-  weft_quickjs/         QuickJS 原生适配边界（尚无原生执行）
+  weft_quickjs/         vendor QuickJS 源码、C 垫片与 dart:ffi 后端（桌面/CI 可执行；无 Android/iOS 平台工程）
   weft_capabilities/    能力策略与内置命名空间
-example/weft_lab/       开发实验室与浮动图片示例
+  weft_runtime_fake/    脚本化 FakeRuntime 后端
+  weft_runtime_contract/  后端中立 JsSession 契约套件
+example/weft_lab/       开发实验室、阶段 4 演示与图片资源
+example/weft_fallback/  WebView 回退示例（requiresWebView → 宿主 WebView）
 conformance/            语料、固定字体、图片资产、Flutter 基线、浏览器几何参考
 tool/                   check 门禁、dump 诊断、资产生成、浏览器参考、跨引擎报告
 docs/adr/               架构决策记录
@@ -148,15 +151,13 @@ python tool/generate_assets.py
 
 开发计划阶段 0–5 已完成。以下为既有技术路线的延续候选（阶段 5 的验收边界外）。
 
-### A. 阶段 5：回退、硬化与发布
+### A. QuickJS 平台构建接入（发布阻断项）
 
-目标：服务端/客户端规范化一致性、WebView 回退示例、模糊测试、真机矩阵、API 文档与发布回退流程；JS 与单能力可独立关闭的验证。
+目标：为 `weft_quickjs` 补 Android `CMakeLists.txt` 与 iOS `Podspec`，让真机能加载原生库并执行脚本；桌面/CI 路径保持不变。
 
-注意：QuickJS 动态库需按平台构建（`packages/weft_quickjs/tool/build_native.sh`，CI 已从 vendor 源码构建 Linux 版）；Android/iOS 构建尚未接 CMake/Podspec，属阶段 5 发布工作。
+注意：桌面动态库走 `packages/weft_quickjs/tool/build_native.sh`（CI 已从 vendor 源码构建 Linux 版）；包内目前没有 `android/`、`ios/` 目录，真机无法执行脚本。动手前先确定首版是否只在桌面/CI 发布 JS 能力。
 
 ### B. 懒布局进阶
-
-### A. 懒布局进阶
 
 目标：基于块 metrics 的窗口直物化（真正的 O(log N) 随机定位），让更多文档形态受益。
 
