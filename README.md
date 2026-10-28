@@ -55,7 +55,7 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - 表格的嵌套表格（触发回退）与浏览器级 auto 列宽分配精度。
 - 选择工具条（完整菜单）、chrome 动画打磨和语义角色/live region 增强。
 - 基于块 metrics 的窗口直物化与精确 O(1)/O(log N) 随机跳转，以及 body 直属 Float/表内行/图片解码资源虚拟化。
-- 真机证据：Android 构建与 APK 打包已验证，但 Android/iOS 真机上的实际执行与 iOS 构建（需 macOS + Xcode + CocoaPods）尚未验证，见 `docs/device-matrix.md`。
+- 真机证据：Android 已完成构建、打包与真机执行验证（Huawei JNY-AL10 / Android 10）；iOS 构建（需 macOS + Xcode + CocoaPods）与 iOS 真机尚未验证，见 `docs/device-matrix.md`。
 
 `example/weft_lab` 已展示真实可滚动的静态文章，但仍不用于验收完整 HTML/CSS 兼容性。当前限制与后续顺序见 `docs/supported-subset.md` 和 `docs/development-plan.md`。
 

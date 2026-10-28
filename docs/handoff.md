@@ -27,7 +27,7 @@
 - 移动端原生构建（ADR 0035）：`weft_quickjs` 声明为 ffiPlugin；Android 模块用 CMake 就地编出 `libweft_quickjs.so`（16 KB 页对齐、只导出 `weft_*`），iOS pod 把垫片静态编进 app image 并用 ObjC 锚点防止 dead-strip；加载器按平台分派，显式路径可覆盖。
 
 请继续下一个切片，优先级如下：
-1. 移动端验收：Android 真机/模拟器跑通 runtime 示例、iOS 在 macOS 上构建（podspec 与锚点尚未经 Xcode 验证）；结果填进 `docs/device-matrix.md`，这是当前唯一的发布阻断项。
+1. iOS 构建与真机验证：在 macOS + Xcode 上 `pod install` 并构建，确认符号未被剥离、runtime 示例可跑；结果填进 `docs/device-matrix.md`。Android 侧已完成真机冒烟，这是当前唯一的发布阻断项。
 2. 懒布局进阶：基于块 metrics 的窗口直物化（O(log N) 随机定位），设计约束见 ADR 0031 的后续小节（负 margin/溢出破坏 top 单调性、body chrome 重算、后缀 extent 增量缓存）；以及超高顶层块/表内行/图片解码资源虚拟化。
 3. 语义增强：按产品需要补 headingLevel、语言/RTL 或 live region；保持 ADR 0024 的单表面所有权。
 4. 增量布局扩展：继续缩小 O(块数) diff/样式解析，探索行级复用；保持 ADR 0023/0025 的全量等价门禁。
@@ -100,7 +100,7 @@ docs/adr/               架构决策记录
 - 布局虚拟化（ADR 0025）：`layoutViewport` 在原块流中连续测量精确前缀，只物化 viewport+250px 窗口；未测后缀按同类块中位数估算 extent。隐藏块释放 commands/painter，previous/current 继续单 owner 转移；跳到估算底部用 correctBy 跟随。顶层块内及 body 直属的已解析图片 Float 都以块级排除区 checkpoint 跨离屏复用；非图片/inline 祖先 Float、非空 selection（含首帧）、Semantics、未解析图片/loose inline 回退或粘滞 full。full 退出会递增 generation 并清除陈旧校正，初始 ScrollController offset 会 seed 首帧物化窗口。
 - 懒布局异步分帧与同快照复用（ADR 0031）：视口末端距已测前缀超过一屏或首帧 seed 深于 overscan 时，每帧至多新测 32 个顶层块，post-frame 续帧按 `_needsLazyRelayout` 收敛，`_lazyGeneration` 取消；同快照 relayout 跳过节点 diff 与样式表比对，元素级样式缓存随增量缓存跨帧存活（宽度/缩放/图片不参与计算样式），文本索引实例直接复用。300 块冷跳底部从 124.8ms 单帧降为 10 帧 × 中位 5.8ms。
 - 测试：规范化、布局、margin、盒模型、图片、浮动、表格（17 项）、选择（15 项，含 10 万字符随机选区与流式重映射）、CJK、长文档、公开层、像素基线、两个浏览器几何基线，以及语料结构断言（无丢失/无重叠/无越界）与敌意输入诊断扫描（ADR 0032）。
-- 移动端原生构建（ADR 0035）：`weft_quickjs` 的 `flutter.plugin.platforms` 声明 android/ios 为 ffiPlugin，包本身不依赖 Flutter；Android 由 `android/src/main/cpp/CMakeLists.txt` 就地编译 vendor 源码（`-fvisibility=hidden`、16 KB 页对齐、`compileSdk 36`/NDK 27），iOS 由 podspec 编进 app image，`WEFT_EXPORT` 的 `used` 属性 + ObjC 锚点防止 `-dead_strip` 丢掉 `dlsym` 目标；`librarySourceFor()` 按平台分派（显式路径 > iOS process() > Android 按名打开 > 桌面文件搜索）。APK 已实测含三 ABI 的 `libweft_quickjs.so` 且恰好导出 10 个 `weft_*`。
+- 移动端原生构建（ADR 0035）：`weft_quickjs` 的 `flutter.plugin.platforms` 声明 android/ios 为 ffiPlugin，包本身不依赖 Flutter；Android 由 `android/src/main/cpp/CMakeLists.txt` 就地编译 vendor 源码（`-fvisibility=hidden`、16 KB 页对齐、`compileSdk 36`/NDK 27），iOS 由 podspec 编进 app image，`WEFT_EXPORT` 的 `used` 属性 + ObjC 锚点防止 `-dead_strip` 丢掉 `dlsym` 目标；`librarySourceFor()` 按平台分派（显式路径 > iOS process() > Android 按名打开 > 桌面文件搜索）。APK 已实测含三 ABI 的 `libweft_quickjs.so` 且恰好导出 10 个 `weft_*`；真机（Huawei JNY-AL10 / Android 10）跑通加载、JSON/字符串求值与内存/墙钟两类预算中断。
 
 ## 明确未实现
 
@@ -110,7 +110,7 @@ docs/adr/               架构决策记录
 - 表格：嵌套表格（触发回退）、浏览器级 auto 列宽分配精度、`col` 的 min/max 语义。
 - Semantics 的 headingLevel、跨行跨列语义索引、CSS 列表样式/起始序号、可编辑 selection/caret 动作、RTL/语言属性、live region 与语义虚拟化。
 - 受限 JS 的既有边界：bridge 风暴上限按单轮计数、`weft.net` 仅 GET、自定义标签不支持行内混排与 Float 环绕、JSON 编组把 undefined 折叠为 null（ADR 0033 后续小节）。
-- 移动端验收证据：Android 构建与 APK 打包已验证，但真机/模拟器执行、iOS 构建与运行（需 macOS + Xcode + CocoaPods）尚未验证；podspec 与锚点只经过代码审查（ADR 0035）。
+- 移动端验收证据：Android 已完成构建、打包与真机执行（Huawei JNY-AL10 / Android 10，加载/求值/内存与墙钟预算共 6 项冒烟全过）；iOS 构建与运行（需 macOS + Xcode + CocoaPods）尚未验证，podspec 与锚点只经过代码审查（ADR 0035）。
 
 ## 关键约束
 
@@ -162,11 +162,11 @@ python tool/generate_assets.py
 
 开发计划阶段 0–5 已完成。以下为既有技术路线的延续候选（阶段 5 的验收边界外）。
 
-### A. 移动端验收（发布阻断项）
+### A. iOS 构建验证（发布阻断项）
 
-目标：Android 真机/模拟器跑通 `weft_lab` 的 runtime 示例；iOS 在 macOS + Xcode 上完成首次构建，确认 `weft_*` 符号未被剥离；两端结果写入 `docs/device-matrix.md`。
+目标：在 macOS + Xcode 上完成首次 `pod install` 与构建，确认 `weft_*` 符号未被剥离，并在 iOS 真机/模拟器跑通 runtime 示例；结果写入 `docs/device-matrix.md`。
 
-注意：构建路径已由 ADR 0035 交付（Android CMake、iOS pod + 锚点、按平台分派的加载器）；桌面动态库仍走 `packages/weft_quickjs/tool/build_native.sh`。若宿主改用 `use_frameworks!` 得到动态框架，`DynamicLibrary.process()` 仍可用，但锚点是否仍必要要重新评估。
+注意：Android 已于 2026-10-28 在 Huawei JNY-AL10（Android 10 / arm64-v8a）跑通加载、求值与内存/墙钟预算中断；iOS 的 podspec 与锚点尚未经 Xcode 验证，若符号缺失先查 `-ObjC` 是否被宿主 Podfile 覆盖，再考虑把 vendor 源码移进 `ios/`（CocoaPods 文件模式不支持 `..`，当前用绝对路径绕过）。
 
 ### B. 懒布局进阶
 

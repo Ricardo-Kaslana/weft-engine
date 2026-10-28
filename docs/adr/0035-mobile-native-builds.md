@@ -113,15 +113,23 @@ Android 提示重打 APK、桌面提示跑 `build_native.sh`。显式路径仍�
 - 桌面 `dart test`（weft_quickjs 28 项）通过；新增 6 项加载分派与错误
   文案单测。
 
+真机执行（2026-10-28，Huawei JNY-AL10 / Android 10 / arm64-v8a，debug
+APK 仅 arm64）：
+
+- `DynamicLibrary.open('libweft_quickjs.so')` 成功；
+- `({a:1,b:"x",c:[true,null]})` 回读为 `{a: 1, b: x, c: [true, null]}`，
+  `"weft-" + (40 + 2)` 得到 `weft-42`；
+- 持续分配数组以 `RuntimeFailureKind.memoryLimit` 中断；
+- `while (true) {}` 在 2s 预算处返回 `RuntimeFailureKind.timeout`，说明
+  原生中断处理器在真机生效。
+
 未验证（不得当作已验收）：
 
-- **Android 真机/模拟器上的实际执行**：本机无设备、未装模拟器镜像；
-  构建通过只证明"库能进包、符号正确"，不证明运行时行为。
 - **iOS 构建与运行**：需要 macOS + Xcode + CocoaPods；本机（Windows）既无
   Ruby 也无 CocoaPods，podspec 只经过代码审查与官方语法文档核对，未执行
   `pod install` / `pod lib lint`。
 
-两项都记入 `docs/device-matrix.md` 的待补证据，发布前必须补齐。
+iOS 一项记入 `docs/device-matrix.md` 的待补证据，发布前必须补齐。
 
 ## 后续
 

@@ -59,6 +59,22 @@ nm -gU Runner.app/Runner | grep weft_
 移动端首轮还要单独记录「JS 原生库加载」是否通过（ADR 0035）：Android 与
 iOS 各至少一台设备跑通 runtime 示例，才算该端可用。
 
+### 4.1 原生库冒烟（ADR 0035）
+
+2026-10-28 · Huawei JNY-AL10（Android 10，arm64-v8a，debug APK，仅 arm64）
+
+| 检查 | 结果 |
+|---|---|
+| `DynamicLibrary.open('libweft_quickjs.so')` | 通过 |
+| JSON 值编组 `({a:1,b:"x",c:[true,null]})` | 通过，回读 `{a: 1, b: x, c: [true, null]}` |
+| 字符串求值 `"weft-" + (40 + 2)` | 通过，`weft-42` |
+| 堆预算中断（持续分配数组） | 通过，`RuntimeFailureKind.memoryLimit` |
+| 墙钟预算中断 `while (true) {}` | 通过，2s 预算在 2.0s 处返回 `RuntimeFailureKind.timeout` |
+
+采集方式：`adb logcat -s flutter:I | grep PROBE|`；探针是临时 App（依赖
+`weft_quickjs`，不随仓库分发）。这只证明原生库在真机可用，下面的性能矩阵
+仍是待测。
+
 | 档位 | 设备/OS | 冷启动中位 | 滚动 p95/p99 | 深跳最大帧 | 内存增量 | 结论 |
 |---|---|---|---|---|---|---|
 | 待测 | | | | | | |

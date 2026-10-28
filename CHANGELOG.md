@@ -7,6 +7,7 @@
 - iOS: `ios/weft_quickjs.podspec` compiles the shim into the app image and `DynamicLibrary.process()` resolves the entry points; a `+load` anchor class plus `__attribute__((used))` on `WEFT_EXPORT` stop `-dead_strip` from dropping the `dlsym` targets. Not yet built on macOS/Xcode.
 - `QuickJsNativeLibrary.load` dispatches by platform (`librarySourceFor` / `describeLoadFailure`): explicit path or `WEFT_QUICKJS_LIBRARY` still wins, iOS resolves from the process, Android opens the packaged library, desktop keeps the file search, and failures name the platform-specific remedy.
 - Tests: six new `library_loader_test.dart` cases (weft_quickjs 22 → 28).
+- Verified on a real device (Huawei JNY-AL10, Android 10, arm64-v8a): the library loads, JSON and string evaluation work, and both the heap limit and the wall-clock deadline interrupt runaway scripts (`memoryLimit` / `timeout`).
 
 ## Unreleased (Stage 5)
 
