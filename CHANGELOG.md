@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased (mobile platform builds)
+## Unreleased (0.6.0-dev.1 — mobile platform builds)
+
+- All packages move to `0.6.0-dev.1`, the first version that ships the mobile builds; hosts pinning `0.5.0-dev.1` keep the previous behaviour.
 
 - QuickJS now has build paths for Android and iOS (ADR 0035): `weft_quickjs` declares `ffiPlugin` for both platforms without depending on Flutter, so the package keeps its pure-Dart test path.
 - Android: the `android/` module compiles the vendored engine in place through `externalNativeBuild` into `libweft_quickjs.so` — hidden internal symbols, 16 KB page alignment for Play's Android 15+ requirement, `compileSdk 36` / NDK 27 aligned with Flutter 3.35. Verified with a real `flutter build apk`: three ABIs packaged, exactly ten `weft_*` exports.

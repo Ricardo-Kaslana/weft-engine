@@ -9,8 +9,9 @@
   weft_capabilities、weft_runtime_fake、weft_runtime_contract、weft_quickjs）
   **共用一个版本号**，在同一个提交中一起递增。宿主升级时按同一版本对齐，
   不支持跨版本混搭。
-- 当前基线：`0.5.0-dev.1`（阶段 5 起）。首个稳定版为 `1.0.0`，此前一切
-  变更都在 CHANGELOG 的 Unreleased 小节累积。
+- 当前基线：`0.6.0-dev.1`（阶段 5 之后，移动端构建 ADR 0035 进入本版本）。
+  首个稳定版为 `1.0.0`，此前一切变更都在 CHANGELOG 的 Unreleased 小节累积。
+  上一个基线是 `0.5.0-dev.1`（阶段 5），宿主回滚时可钉回该版本。
 - 语义化版本：布局输出、选区语义、诊断码、快照格式、bridge 协议的任何
   可观察变化都算破坏性，必须升主版本或（1.0 前）升 minor 并在 CHANGELOG
   标注 Migration。

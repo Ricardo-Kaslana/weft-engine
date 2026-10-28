@@ -1,6 +1,6 @@
 name: weft_document
 description: Immutable document, support reporting, and logical text contracts for Weft.
-version: 0.5.0-dev.1
+version: 0.6.0-dev.1
 publish_to: none
 resolution: workspace
 

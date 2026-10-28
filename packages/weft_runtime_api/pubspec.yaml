@@ -1,6 +1,6 @@
 name: weft_runtime_api
 description: Runtime-neutral JavaScript and capability bridge contracts for Weft.
-version: 0.5.0-dev.1
+version: 0.6.0-dev.1
 publish_to: none
 resolution: workspace
 
