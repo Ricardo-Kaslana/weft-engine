@@ -3,6 +3,29 @@ version = "1.0"
 
 apply plugin: "com.android.library"
 
+// Flutter passes -Ptarget-platform=android-arm64 (or a comma separated list,
+// e.g. for app bundles) to the Gradle invocation. Honour it here, otherwise
+// AGP builds every default ABI and QuickJS is compiled four times per build:
+// quickjs.c alone costs ~8s at -O2, so a single-device build pays ~30s and
+// four copies of libweft_quickjs.so in the APK for nothing.
+// Without the property the previous behaviour (all ABIs) is kept, so IDE and
+// tooling builds that do not set it still work.
+def flutterAbiByPlatform = [
+    'android-arm'  : 'armeabi-v7a',
+    'android-arm64': 'arm64-v8a',
+    'android-x64'  : 'x86_64',
+]
+def requestedAbis = []
+def targetPlatform = project.findProperty('target-platform')
+if (targetPlatform != null) {
+    targetPlatform.toString().split(',').each { platform ->
+        def abi = flutterAbiByPlatform[platform.trim()]
+        if (abi != null) {
+            requestedAbis.add(abi)
+        }
+    }
+}
+
 android {
     namespace = "dev.weft.weft_quickjs"
     compileSdk = 36
@@ -12,6 +35,15 @@ android {
 
     defaultConfig {
         minSdk = 21
+        if (!requestedAbis.isEmpty()) {
+            // abiFilters on the CMake block is what limits externalNativeBuild;
+            // ndk.abiFilters only filters packaging of prebuilt libraries.
+            externalNativeBuild {
+                cmake {
+                    abiFilters.addAll(requestedAbis)
+                }
+            }
+        }
     }
 
     externalNativeBuild {
