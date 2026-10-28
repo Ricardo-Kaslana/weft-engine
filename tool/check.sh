@@ -8,7 +8,15 @@
 # - flutter/dart output is stripped of \r so failures grep cleanly on Windows.
 # - pubspec.lock is restored at the end unless WEFT_KEEP_LOCK=1: local pub
 #   mirrors rewrite package URLs and that churn must not leak into commits.
+# - flutter_tester talks to the test host over loopback, so a machine-wide
+#   proxy breaks it with "Invalid WebSocket upgrade request". Loopback is
+#   kept direct for every child process, same as tool/verify.dart does.
+#   Entries the caller already configured are preserved.
 set -euo pipefail
+
+NO_PROXY="${NO_PROXY:+${NO_PROXY},}localhost,127.0.0.1,::1"
+no_proxy="$NO_PROXY"
+export NO_PROXY no_proxy
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
