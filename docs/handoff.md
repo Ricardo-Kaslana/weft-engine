@@ -27,10 +27,10 @@
 - 移动端原生构建（ADR 0035）：`weft_quickjs` 声明为 ffiPlugin；Android 模块用 CMake 就地编出 `libweft_quickjs.so`（16 KB 页对齐、只导出 `weft_*`），iOS pod 把垫片静态编进 app image 并用 ObjC 锚点防止 dead-strip；加载器按平台分派，显式路径可覆盖。
 
 请继续下一个切片，优先级如下：
-1. iOS 构建与真机验证（**暂缓**，2026-10-28：暂无 macOS 环境）：拿到 macOS/Xcode 后按 `docs/device-matrix.md` 的 iOS 清单执行；在此之前 iOS 不得宣称可用，若本次发布不含 iOS 产物，需在发布说明中写明。
-2. 懒布局进阶：基于块 metrics 的窗口直物化（O(log N) 随机定位），设计约束见 ADR 0031 的后续小节（负 margin/溢出破坏 top 单调性、body chrome 重算、后缀 extent 增量缓存）；以及超高顶层块/表内行/图片解码资源虚拟化。
-3. 语义增强：按产品需要补 headingLevel、语言/RTL 或 live region；保持 ADR 0024 的单表面所有权。
-4. 增量布局扩展：继续缩小 O(块数) diff/样式解析，探索行级复用；保持 ADR 0023/0025 的全量等价门禁。
+1. 懒布局窗口直物化（ADR 0031 后续，建议新开 ADR 0036）：目标是把深跳与长文滚动压回 ADR 0031 量级，并用 docs/device-matrix.md §4.3 的实测数据验收。**禁止用「放宽懒布局准入条件」来提速**——已实测滚动 p95 从 9–30ms 恶化到 140ms 并回滚。
+2. 深跳尖峰定性：把探针的 FrameTiming 拆成 buildDuration/rasterDuration，确认 §4.2 记录的 ~313ms 是否落在光栅侧（3 次复测只有 21–26ms，且无 ≥8ms 排版 pass）。
+3. iOS 构建与真机验证（**暂缓**：暂无 macOS 环境）：按 docs/device-matrix.md §2.2 清单执行；未验证前 iOS 不得宣称可用，发布说明要写明缺席。
+4. 语义增强 / 增量布局扩展：按产品需要，见下文「建议的下一步」。
 
 硬性约束：
 - 不做完整浏览器；不执行不可信脚本；不把 HTML 节点映射为独立 Widget。
@@ -41,6 +41,13 @@
 - 改动 `packages/weft_quickjs/native/`、`android/` 或 `ios/` 后必须跑 `packages/weft_quickjs/tool/build_native.sh` 重编桌面库并执行 `dart test`（weft_quickjs）；平台工程的编译参数必须与桌面脚本保持一致（ADR 0035）。
 - 重要技术取舍写入 docs/adr/（下一个编号为 0036）。
 
+接手前先知道的坑（本轮实测踩出来的，能省你几个小时）：
+- 美化排版会关掉懒布局：body 下标签之间的换行被规范化保留成空白文本节点，`_supportsLazyLayout` 见到 body 文本子节点就返回 false，块循环再调 `_disableTopLevelCache`，首帧退化成 1801 节点全量排版（198–280ms）。这是**已知缺口**，不是随手能修的 bug，详见 §4.3。
+- profile 构建卡 5 分钟不是编译慢：Gradle 要下 41.6MB 的 `arm64_v8a_profile` jar，本机镜像不提供 `.sha1`、吞吐还会掉到 1.6MB/s，30s socket 超时后反复重试。先查 `~/.gradle/caches/modules-2/files-2.1/io.flutter/` 里 jar 是否真的存在；缺就手动下好按 `<文件sha1>/<原文件名>` 放进去，并给 app 的 `gradle.properties` 加 `socketTimeout`。
+- 插件的 ABI 裁剪必须用 `defaultConfig.externalNativeBuild.cmake.abiFilters`；`ndk.abiFilters` 管不住 externalNativeBuild（实测仍编 4 个 ABI）。
+- 真机探针流程：临时 App 放 `build/perf_probe`（gitignored），必须临时加入根 `pubspec.yaml` 的 `workspace:` 才能解析（多个包带 `resolution: workspace`），用完删目录并 `git checkout -- pubspec.yaml pubspec.lock`。测量命令见 docs/device-matrix.md §4.2。
+- 设备掉线/unauthorized 先试 `adb kill-server && adb start-server`；`tool/check.sh` 输出用文件重定向再看 `$?`，`| tail` 会掩盖退出码。
+
 先阅读 README.md、docs/architecture.md、docs/supported-subset.md 和 docs/handoff.md，再选择第一个任务并给出计划。
 
 开发工作流提示（ADR 0014）：用 `tool/check.sh` 做本地门禁；新增几何案例走 `--emit-reference` 接入通用门禁，零测试代码；调布局用 `tool/dump_layout.sh --diff` 直接看偏差表；表格改动落在 `table_layout.part.dart`、行内/Float 改动落在 `inline_flow.part.dart`，两边可并行。
@@ -50,9 +57,10 @@
 
 - 分支：`main`
 - 最新提交：见 `git log`（本节只保证指南有效，不追踪哈希）
-- Flutter：3.35.5 stable；Dart：3.9.2
+- Flutter：3.35.5 stable；Dart：3.9.2；ADR 35 份（0001–0035）
 - 常规测试 453 项（weft_engine 243、weft_document 77、weft 59、weft_quickjs 28、weft_capabilities 15、weft_runtime_fake 12、weft_runtime_contract 9、weft_runtime_api 2，另有 weft_lab 1 + weft_fallback 7）、像素黄金 3 项 + 选区高亮 1 项、性能门禁 14 场景（7 布局 + 3 绘制 + 4 命中）；`dart analyze` 无问题，公开 API 文档覆盖零缺口。开发计划阶段 0–5 已完成（阶段 5 见 ADR 0034），阶段 5 之后补了移动端原生构建（ADR 0035）。
-- GitHub Actions 使用 Windows 执行像素黄金门禁。
+- GitHub Actions 使用 Windows 执行像素黄金门禁（仓库尚无远端，CI 尚未真正跑过）。
+- 2026-10-28 增量：Android 真机构建与执行验证、插件单 ABI 裁剪（含插件的 profile 构建 20.6s）、`tool/check.sh` 回环直连修复、真机帧耗时首轮矩阵，以及「美化排版关掉懒布局」的定位（docs/device-matrix.md §4.2/§4.3）。iOS 验证暂缓。
 
 已实现至 ADR 0035。ADR 0017–0033：分块渲染与命中裁剪（ADR 0017/0020）、行内图片（ADR 0018）、选择 chrome（ADR 0019）、块级盒模型（ADR 0021）、表格列轨道（ADR 0022）、流式顶层前缀复用（ADR 0023）、单表面 Semantics（ADR 0024/0026/0028/0030）、渐进式布局虚拟化（ADR 0025）、同步/异步锚点导航（ADR 0027/0029）、懒布局异步分帧与同快照复用（ADR 0031）、阶段 0–3 验收证据与重定界（ADR 0032）和受限 JS 运行时（QuickJS FFI + 能力网关 + 恢复去重 + 自定义标签，ADR 0033）。ADR 0034（阶段 5）：快照 JSON 线格式（format+version 门禁）与 21 个规范化一致性向量、种子化模糊测试（CI 快跑 + tool/fuzz.dart 长跑，修复诊断上限绕过与 toString 崩溃两个真实问题）、能力策略 8 子集矩阵、example/weft_fallback WebView 回退示例、发布手册与回滚演练测试、API 文档门禁、真机矩阵计划。ADR 0035：QuickJS 移动平台构建——ffiPlugin 声明、Android CMake 就地编译（16 KB 对齐）、iOS 静态链接与 dead-strip 锚点、按平台分派的加载器。
 
@@ -104,6 +112,7 @@ docs/adr/               架构决策记录
 
 ## 明确未实现
 
+- **美化排版文档没有虚拟化**：body 下标签之间的换行文本节点让懒布局判定失败，整篇一次排完（601 块文档首帧 198–280ms），滚动期间不重排。强行放宽准入实测更差（滚动 p95 140ms），必须等窗口直物化，见 docs/device-matrix.md §4.3。
 - 基于块 metrics 的窗口直物化与精确 O(1)/O(log N) 随机跳转（设计约束见 ADR 0031 后续小节），以及超高顶层块/表内行/图片解码资源虚拟化；锚点异步测量仍需顺序测量目标前缀。
 - 非图片 Float 与表格局部 Float 的 checkpoint；增量布局的后缀平移与行级复用；行内原子的 margin 参与行框与 top/bottom 对齐。
 - CJK 像素基线（跨引擎像素验收已按 ADR 0032 重定界为结构几何门禁；真机帧计时仍以 weft_lab 为准）。
@@ -133,6 +142,14 @@ packages/weft_quickjs/tool/build_native.sh
 # 移动端原生库：Android 需 SDK 36 + NDK 27，宿主工程需先生成 android/ 平台目录
 flutter build apk --debug --target-platform android-arm64
 unzip -l build/app/outputs/flutter-apk/app-debug.apk | grep libweft_quickjs
+
+# profile 构建（真机帧耗时只认 profile/release）
+# 若卡住 5 分钟：Gradle 在下 41.6MB 的 arm64_v8a_profile jar，见「常见的坑」
+flutter build apk --profile --target-platform android-arm64
+
+# 真机帧耗时：临时探针（build/perf_probe，需临时加进 workspace）自驱滚动 + 深跳
+adb logcat -c && adb shell am start -n <pkg>/.MainActivity && sleep 55
+adb logcat -d -s flutter:I | grep -a "PERF|"
 
 # 逐项运行
 flutter pub get
@@ -170,11 +187,28 @@ python tool/generate_assets.py
 
 注意：若符号缺失，先查 `-ObjC` 是否被宿主 Podfile 覆盖，再考虑把 vendor 源码移进 `ios/`（CocoaPods 文件模式不支持 `..`，当前用绝对路径绕过）。
 
-### B. 懒布局进阶
+### B. 懒布局窗口直物化（当前第一优先级，建议开 ADR 0036）
 
-目标：基于块 metrics 的窗口直物化（真正的 O(log N) 随机定位），让更多文档形态受益。
+目标：用块 metrics 直接定位窗口，让深跳与长文滚动只处理窗口周边；同时让美化排版文档重新拿到虚拟化。
 
-注意：异步分帧与同快照复用已由 ADR 0031 交付（深跳/深 seed 每帧 ≤ 32 块、同快照跳过 diff/样式解析/文本索引重建）；窗口直物化的三个前置问题（负 margin/溢出破坏 top 单调性、body chrome 重算、后缀 extent 增量缓存）记录在 ADR 0031 的后续小节。先画像再动手；继续保留 canonical full 与结构计数门禁。**真机埋点（docs/device-matrix.md §4.3）发现：带换行缩进的美化 HTML 会因 body 空白文本节点关掉懒布局，首帧退化成 1801 节点全量排版。试验性放宽准入后首帧降到 17ms，但滚动 p95 从 9–30ms 恶化到 140ms（20 秒只剩 443 帧），已回滚——说明瓶颈在「每帧重排都要扫全树 + 重估未测块 + 反复 extent 校正」，必须先做窗口直物化，而不是只改准入条件。**至于 §4.2 记录的 ~313ms 深跳单帧：3 次带埋点复测都只有 21–26ms，且深跳期间没有任何 ≥8ms 的排版 pass，暂判为光栅/合成侧的一次性成本，等把 `buildDuration`/`rasterDuration` 分列后再定。
+现状（2026-10-28 真机实测，见 docs/device-matrix.md §4.2/§4.3）：
+
+- 601 块美化排版文档：懒布局被 body 空白文本节点关掉，首帧全量 198–280ms，滚动 p95 9–30ms 但**没有虚拟化**（滚动期不重排）。
+- 试验性放宽准入（跳过格式化空白 + 计数改元素子节点）：首帧 17ms，但滚动 p95 140ms、20 秒只剩 443 帧 → 已回滚。瓶颈是每帧重排的固定成本，不是准入条件。
+
+三件事要一起做（ADR 0031 后续小节已记约束）：
+
+1. 判定与扫描成本：`_supportsLazyLayout` 每次重排遍历全树，`_layoutChildren` 每 pass 扫全部 body 子节点。按快照缓存判定结果，并按「窗口 + 已测前缀」截断扫描。
+2. 未测块估算：`_estimateHeight` 本身便宜，但每 pass 对全部未测块重算；把估算并入 `WeftIncrementalLayoutCache`（key = 快照 + 宽度 + 缩放 + 图片集）。
+3. extent 校正收敛：`_scheduleLazyExtentCorrection` 的 `correctBy` 会回写滚动位置再触发重排；窗口化后必须一次收敛，否则就是实测里那个"重排→校正→再重排"的反馈。
+
+验收（JNY-AL10，profile，601 块美化排版文档复测）：
+
+- 首帧 ≤800ms（目标 ≤500ms）；滚动 p95 ≤16.7ms（A 档允许 ≤33ms 且无 >50ms 长停顿）；深跳 max ≤50ms。
+- 结构等价：`layoutViewport` 收敛结果的 size 与盒位置与 canonical `layout()` 逐点一致（沿用现有 lazy 门禁）。
+- 回归：现有 453 项测试全绿 + 新增「美化排版文档必须走懒布局，且单 pass 只碰窗口与已测前缀」用例。
+
+注意：先画像再动手；不要靠调大 `lazyOverscan` 掩盖每 pass 成本——那只是把 140ms 的尖峰摊薄成更频繁的小卡顿。
 
 ### C. 语义增强
 
@@ -206,4 +240,7 @@ python tool/generate_assets.py
 - 能力调用风暴的上限按"单个事件循环轮次"计数（`_maxBridgeCallsPerTurn`），不是累计预算；跨轮的链式风暴由 `settle()` 的 256 轮兜底，两者都不能省。
 - 自定义标签是属性驱动的叶子元素：内容在规范化时丢弃（有诊断），不要指望布局遍历其子树，也不要忘记 `WeftNormalizer.customTags` 与引擎 `tagRenderers` 两处要同步。
 - 移动端编译参数要三处一致：`tool/build_native.sh`、`android/src/main/cpp/CMakeLists.txt`、`ios/weft_quickjs.podspec` 必须反映同一组宏（`CONFIG_VERSION`、`CONFIG_BIGNUM`、`-fno-strict-aliasing`）；只改一处会让同一脚本在不同平台行为分叉。
+- 不要用「放宽懒布局准入条件」解决首帧慢：实测滚动 p95 会从 9–30ms 恶化到 140ms（docs/device-matrix.md §4.3）。首帧成本只能靠窗口化摊薄，不能靠打开每帧重排。
+- 桌面测试的 lazy pass 耗时（3–6ms）不能直接当设备预算：A 档真机放大约 3–4 倍（18–27ms），定目标时按 4× 估。
+- 不要用 `tool/check.sh | tail` 判断成败：管道会吞掉退出码，重定向到文件再看 `$?`。
 - 不要删除 iOS 的锚点类或 `WEFT_EXPORT` 的 `used` 属性：它们不是死代码，去掉后 `-dead_strip` 会连同 `dlsym` 目标一起丢弃，而桌面测试完全发现不了。
