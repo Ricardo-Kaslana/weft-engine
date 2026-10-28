@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (0.6.0-dev.1 — mobile platform builds)
+## 0.6.0-dev.1 (2026-10-28)
 
 - All packages move to `0.6.0-dev.1`, the first version that ships the mobile builds; hosts pinning `0.5.0-dev.1` keep the previous behaviour.
 
