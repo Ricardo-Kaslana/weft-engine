@@ -191,3 +191,41 @@ Android 真机（JNY-AL10 / Android 10，profile APK 仅 arm64-v8a，901 元素 
 严格 60fps 的 combined p95 ≤16.7ms 未达成：raster p95 ≈17.2ms、build p95 ≈9.9ms，combined p50 为 14.6–23.6ms，瓶颈在光栅/合成而非排版。后续要冲 60fps 应先做光栅画像。冷跳测量期间仍可能有短暂空白（与 ADR 0036 一致），本次未做像素级零空白断言。
 
 iOS 继续暂缓；Web debug 与桌面画像只作结构性证据，不替代设备矩阵。完整日志、Web 截图与 build/raster 记录在本地 `build/adr0036-evidence/`。
+
+### 4.5 光栅 A/B 画像（ADR 0036 后续，2026-10-29）
+
+设备同上（Kirin 810 / Mali-G52，GLES 3.2；Impeller 实际走 Vulkan）。同一 profile APK、同一 901 元素文档，SCROLL 为 20s 滚动相，PURE_PAINT 为完全测量后在已物化窗口 ±120px 振荡 5s。
+
+| 后端 | 相位 | build p50/p95 | raster p50/p95 | raster max | >50ms |
+|---|---|---|---|---|---|
+| Impeller | SCROLL（3 轮） | 7.8/9.6 | **15.9/17.2** | 31.2–38.6 | 0 |
+| Impeller | PURE_PAINT（3 轮） | 4.6/6.2 | **6.1/8.3** | 9.8–16.3 | 0 |
+| Skia | SCROLL | 6.7–7.9/9.4–9.8 | 5.2–13.9/16.5–17.1 | 38.1–44.0 | total 1（50.8） |
+| Skia | PURE_PAINT | 3.0–5.7/4.6–6.3 | 4.1–9.6/5.9–16.8 | 22.6–32.1 | 0 |
+
+观察：
+
+- Impeller 两相差异稳定且显著：raster p50 15.9 → 6.1，build 7.8 → 4.6；但 PURE_PAINT 仍每帧约重建 2.5 个 Picture（SCROLL ≈4.7），`cachedPictures` 维持 15–16，因此它并非严格“纯绘制”，只是没有全量重排（prefix 901/901、`fullRequired=false`）。
+- 这指向成本随「新块物化 / Picture 重建」增长，而非固定每帧后端开销；但无法据此把差额精确拆成字形上传、图片录制与 GPU 绘制。
+- Skia 的 SCROLL p50 在 5.2–13.9ms 间波动，p95 仍贴近 16.5–17.1ms，未显示稳定优于 Impeller；两后端尾部都接近 60Hz 节拍。`FrameTiming.rasterDuration` 含排队/围栏等待，不是精确 GPU 时间。
+- 没有可复现的 >50ms 光栅帧；唯一超限是 Skia 一帧 combined 50.8ms。
+
+限制：±120px 仍会跨越块窗口边界（rebuilt 未归零），温度稳定但后台负载未严格隔离。下一步应先按 layout 身份过滤帧、把振荡限制在 needed-set 不变的区间，再决定是否做 Picture 保留缓存或后端建议；当前不支持“60fps 已达成”或“已定位到具体代码”的结论。日志：`build/adr0036-evidence/raster-impeller.log`、`raster-skia.log`。
+
+### 4.6 严格纯绘制归因（2026-10-29）
+
+新增 `PAINT_ONLY` 相：每帧仅 `markNeedsPaint()`，滚动位置、layout 与 chunk 集完全不变（5 轮均验证 layout 身份不变、Picture rebuilt 增量为 0、cached 12→12）。
+
+| 后端 | 相位 | build p50/p95 | raster p50/p95 | >50ms |
+|---|---|---|---|---|
+| Impeller | PAINT_ONLY（3 轮） | 1.25–1.34/1.56–1.62 | **6.84–7.16/7.51–8.38** | 0 |
+| Impeller | SCROLL（3 轮） | 5.88–8.08/9.15–9.95 | 14.87–16.18/16.89–17.11（一轮 p50 4.38 离群） | 0 |
+| Skia | PAINT_ONLY（2 轮） | 1.27–1.30/1.63–1.65 | 3.77–5.86/7.08–9.64 | 0 |
+| Skia | SCROLL（2 轮） | 7.35–7.53/9.27–9.54 | 5.40/15.84（双峰）/16.38–17.64 | 0 |
+
+归因修正：
+
+- **“滚动光栅成本来自 Picture 重建”被推翻**。零重建的缓存图全屏重绘本身在 Impeller 上就要 ~7ms；±120px 相的 6.1ms 与之同量级（此前把两者差异误读为重建驱动）。Picture 重建只体现在 build（4.6 → 1.3ms）。
+- SCROLL 相对 PAINT_ONLY 的 raster 增量（约 +8–9ms）只能归因于新物化块的**首次绘制/上传**与视口移动，而非重录缓存图。
+- Skia 的 PAINT_ONLY p50（3.8–5.9）低于 Impeller（6.8–7.2），SCROLL 呈双峰（缓存命中/未命中？），仅 2 轮不足以推荐后端切换；若要认真评估需要 10+ 轮交替与热控。
+- 结论：本机 60fps 缺口 = 全屏文本基线光栅（~7ms，后端/驱动相关）+ 新内容首次光栅（~8–9ms，虚拟化渲染的固有成本）。继续压榨需要后端层手段（图片光栅缓存、减少每帧新内容面积），引擎侧无免费优化；A 档 ≤33ms 标准仍由当前实现满足。日志：`build/adr0036-evidence/paint-only-impeller.log`、`paint-only-skia.log`。
