@@ -86,6 +86,7 @@ packages/
   weft_runtime_fake/    脚本化 FakeRuntime 后端
   weft_runtime_contract/  后端中立 JsSession 契约套件
 example/weft_lab/       开发实验室、阶段 4 演示与图片资源
+example/weft_live/      实时专题页演示（Web target、动态快照、自定义标签）
 example/weft_fallback/  WebView 回退示例（requiresWebView → 宿主 WebView）
 conformance/            语料、固定字体、图片资产、Flutter 基线、浏览器几何参考
 tool/                   check 门禁、dump 诊断、资产生成、浏览器参考、跨引擎报告
@@ -235,4 +236,5 @@ B1 后端 A/B 已完成（device-matrix §4.7）：12 Impeller + 12 Skia ABBA �
 - 不要用「放宽懒布局准入条件」解决首帧慢：ADR 0036 之前的实测里滚动 p95 从 9–30ms 恶化到 140ms（docs/device-matrix.md §4.3）。首帧成本只能靠窗口化摊薄，不能靠打开每帧重排；窗口化已在 ADR 0036 交付。
 - 桌面测试的 lazy pass 耗时（3–6ms）不能直接当设备预算：A 档真机放大约 3–4 倍（18–27ms），定目标时按 4× 估。
 - 不要用 `tool/check.sh | tail` 判断成败：管道会吞掉退出码，重定向到文件再看 `$?`。
+- 包元数据的 Flutter 下限仍写 `>=3.22.0`，但 `weft_engine` 自 ADR 0030 起引用 Flutter 3.35 才提供的 `SemanticsRole`（`headingLevel` 则自 3.24 起可用）；3.22 宿主会在编译期失败。下一版本应统一收紧最低 Flutter 版本并写 ADR，不能继续按 3.22 宣称兼容。
 - 不要删除 iOS 的锚点类或 `WEFT_EXPORT` 的 `used` 属性：它们不是死代码，去掉后 `-dead_strip` 会连同 `dlsym` 目标一起丢弃，而桌面测试完全发现不了。

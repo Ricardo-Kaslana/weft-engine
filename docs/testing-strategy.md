@@ -20,7 +20,7 @@ dart analyze
 dart run tool/verify.dart
 ```
 
-当前主 CI 覆盖格式、静态分析、纯 Dart 测试和 Flutter 单元/Widget 测试，共 468 项（weft_engine 251、weft_document 77、weft 66、weft_quickjs 28、weft_capabilities 15、weft_runtime_fake 12、weft_runtime_contract 9、weft_runtime_api 2、weft_lab 1、weft_fallback 7；QuickJS FFI 测试在 native 库缺失时跳过）；阶段 5 起还有两类门禁：规范化一致性向量（`conformance/normalization/` 21 个固化快照，逐字节复现）与公开 API 文档覆盖（`tool/doc_coverage.dart` 零缺口）；另有 Windows 独立执行的 3 项 Flutter 像素基线测试：
+当前主 CI 覆盖格式、静态分析、纯 Dart 测试和 Flutter 单元/Widget 测试，共 491 项（weft_engine 255、weft_document 77、weft 77、weft_quickjs 28、weft_capabilities 15、weft_runtime_fake 12、weft_runtime_contract 9、weft_runtime_api 2、weft_lab 1、weft_live 8、weft_fallback 7；2026-10-31 实测；QuickJS FFI 测试在 native 库缺失时跳过）；阶段 5 起还有两类门禁：规范化一致性向量（`conformance/normalization/` 21 个固化快照，逐字节复现）与公开 API 文档覆盖（`tool/doc_coverage.dart` 零缺口）；另有 Windows 独立执行的 3 项 Flutter 像素基线测试：
 
 - 规范化：标签、属性、URL、未知元素、回退能力、节点上限、图片地址与尺寸。
 - CSS：选择器结构、后代/子代匹配、特异性、内联覆盖、声明过滤。
@@ -35,7 +35,7 @@ dart run tool/verify.dart
 - 一致性语料：文章、排版、盒模型、嵌套列表和 CJK 的内容/链接/盒边界检查。
 - 公开层：控制器、显式回退、链接回调、图片解析器转发和渲染表面替换。
 
-模糊、真机和完整安全任务尚未加入 CI，不能把当前绿灯理解为阶段 1 或产品发布门禁。像素基线当前只覆盖两个拉丁案例；CJK 像素字体和跨引擎预算仍未完成，详见 `conformance/README.md`。
+真机任务仍不在 CI（数据见 `docs/device-matrix.md`）；模糊冒烟、性能门禁与规范化一致性向量已随主 CI 执行（ADR 0034），但完整安全任务仍需发布前人工执行，不能把当前绿灯理解为产品发布门禁。像素基线覆盖三个拉丁案例（`pixel_basic`、`box_model`、`float_image`）；CJK 像素字体和跨引擎预算仍未完成，详见 `conformance/README.md`。
 
 ## 黄金一致性
 
@@ -43,7 +43,7 @@ dart run tool/verify.dart
 
 - Flutter 3.35.5、Windows CI runner、DPR 1、显式视口和白色背景。
 - Apache 2.0 Roboto/Roboto Mono 字体文件及 Flutter `FontLoader` 别名。
-- `pixel_basic` 和 `box_model` 两个 Flutter PNG 基线。
+- `pixel_basic`、`box_model` 和 `float_image` 三个 Flutter PNG 基线（图片案例在测试内预解码夹具）。
 
 Flutter 黄金门禁在 Windows CI 执行 `packages/weft_engine/tool/golden_pixel_test.dart`，任何像素变化都会阻断。更新基线必须提供差异图、浏览器参考和合理原因，禁止批量无审查刷新。
 

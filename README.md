@@ -55,7 +55,7 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 
 - CJK 像素基线（无可分发 CJK 像素字体，跨引擎像素验收已按 ADR 0032 重定界为结构几何门禁）。
 - 表格的嵌套表格（触发回退）与浏览器级 auto 列宽分配精度。
-- 选择工具条（完整菜单）、chrome 动画打磨和语义角色/live region 增强。
+- 选择工具条（完整菜单）、chrome 动画打磨，以及 headingLevel、live region、语言/RTL 等语义增强。
 - 未测区域的精确 O(1)/O(log N) 随机跳转，以及超高顶层块/表内行/图片解码资源虚拟化；冷跳仍分帧测量前缀，配置 `lazySettlingBuilder` 时由宿主遮罩覆盖，但仍不承诺零空白（ADR 0037）。
 - 严格 60fps 的滚动预算：JNY-AL10 上 combined p95 ≈26ms，瓶颈在 raster；12+12 轮 Impeller/Skia A/B（device-matrix §4.7）未发现可复现的后端优势（SCROLL total p95 25.70 vs 24.49ms，p≈0.33），不建议旧 Mali 关闭 Impeller；冷跳分帧期间仍会有短暂空白，见 `docs/device-matrix.md` §4.4/§4.7。
 - 真机证据：Android 已完成构建、打包与真机执行验证（Huawei JNY-AL10 / Android 10）；iOS 的构建与真机验证**暂缓**（暂无 macOS 环境，2026-10-28 决定），未验证前不宣称 iOS 可用，见 `docs/device-matrix.md`。
@@ -151,14 +151,14 @@ WeftView(
 
 ## 运行实验室
 
-当前仓库未生成平台原生目录。安装 Flutter 后，在 `example/weft_lab` 中补齐所需平台：
+`example/weft_lab` 未提交平台原生目录。安装 Flutter 后补齐所需平台：
 
 ```bash
 flutter create --platforms=android,ios --project-name weft_lab .
 flutter run
 ```
 
-平台生成步骤不会实现 QuickJS；Runtime 的原生接入将在对应里程碑单独交付。
+实验室演示使用 `weft_runtime_fake`。真实 QuickJS 的原生构建已由 `weft_quickjs` 提供（ADR 0035）：Android 由 CMake 就地编译，iOS 由 podspec 静态链接（尚未在 macOS 验证），桌面端需先运行 `packages/weft_quickjs/tool/build_native.sh`。
 
 ## 运行实时专题页
 

@@ -105,7 +105,7 @@
 
 ## 可访问性语义
 
-当前能力（ADR 0024）：
+当前能力（ADR 0024/0026/0028/0030）：
 
 - `RenderWeftSurface` 手动暴露阅读顺序文本、链接、图片和非折叠选区；普通文本不与子链接重复朗读，链接支持宿主 Semantics tap，已解析图片使用 alt，空 alt 作为装饰跳过。
 - 标题与 `<th>` 子树暴露 header flag；有序/无序列表项的首个朗读片段带 `1. ` / `• ` 标记，标记不进入复制文本（ADR 0028）。`ul/ol→li` 与 `table→tr→td/th` 生成嵌套 list/listItem、table/row/cell/columnHeader 角色，listItem/row/cell 带 indexInParent，thead/tbody 透明、caption 作为 table 前兄弟（ADR 0030）。标题内的链接/强调仍保留语义顺序。选区提供 value/selected/rect，并在宿主提供回调时暴露 copy action（ADR 0026）；WeftView 与复制按钮共用 Clipboard 策略，standalone 默认无 copy。同 document.id 的流式追加保留未变 SemanticsNode.id，屏外内容保留并支持 showOnScreen 滚动。
@@ -149,13 +149,13 @@
 - 图片百分比宽度相对包含块 content 宽解析；CSS `height`（px）显式给出时宽度按比例推导；height 百分比按 auto 处理。
 - Float 仅支持作为块级容器直接子元素的 `img`；行内元素内部的嵌套浮动图片当前不参与布局。
 - 浮动图片自身的 `margin`、`padding` 和边框参与排除区；`clear` 作用于后续块级元素。
-- 宽度和边框只作用到块级盒；行内边框、百分比宽度、`auto` margin、CSS 高度和圆角尚未实现。
+- 宽度和边框只作用到块级盒：块级支持 px/em/rem 与百分比宽度、水平 `auto` margin 和显式 `height`（ADR 0021）；行内内容的 border、百分比宽度、`auto` margin 与 CSS 高度不生效，块级圆角不绘制。
 - 边框只支持 `solid` 简写；`dashed/dotted/double` 等当前按无边框处理。
 - `WeftView` 自带内部滚动；lazy 路径的布局命令只覆盖当前物化窗口，复杂文档和完整几何查询仍使用全文。
 - 固定字体下块级几何与 Chromium 误差小于 0.5px；`float_image` 案例的全部块/图片几何实测误差 ≤ 0.16px，逐行词盒由浏览器几何基线测试覆盖，但跨引擎像素差异仍高于 1% advisory 预算，主要来自字形抗锯齿。
 - 1:1 图片绘制目标在绘制时对齐整像素（浏览器同款行为）；缩放绘制仍按 FilterQuality.medium 重采样。
 - CJK 无固定可分发的像素字体，跨引擎像素验收按 ADR 0032 重定界为结构几何门禁 + 固定字体拉丁像素黄金；中文正确性由禁则测试、CJK 语料与浏览器几何基线覆盖，中文内容不设像素黄金。
-- 表格列宽为两遍自动布局（min/max-content + 比例分配）：固定字体下单元格边界与 Chromium 偏差约 ≤ 1px，自由分配场景可差数像素；`colgroup/col` 列宽属性不生效，嵌套表格触发 `requiresWebView`。详见 ADR 0012。
+- 表格列宽为两遍自动布局（min/max-content + 比例分配）：固定字体下单元格边界与 Chromium 偏差约 ≤ 1px，自由分配场景可差数像素；`colgroup/col` 支持 px 固定列、百分比列与 span 轨道（ADR 0022），但浏览器级 auto 列宽分配精度仍有差距；嵌套表格触发 `requiresWebView`。详见 ADR 0012/0022。
 
 ## Float 的 MVP 边界
 
