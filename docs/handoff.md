@@ -28,7 +28,7 @@
 - 移动端原生构建（ADR 0035）：`weft_quickjs` 声明为 ffiPlugin；Android 模块用 CMake 就地编出 `libweft_quickjs.so`（16 KB 页对齐、只导出 `weft_*`），iOS pod 把垫片静态编进 app image 并用 ObjC 锚点防止 dead-strip；加载器按平台分派，显式路径可覆盖。
 
 请继续下一个切片，优先级如下：
-1. 深跳尖峰与 60fps 预算的后续画像：ADR 0036 已在 JNY-AL10 通过四项设备标准，但 combined p95 ≈26ms（raster ≈17.2ms）未达严格 16.7ms。下一步按真实 FrameTiming 画像光栅/合成，不要继续盲目压缩 layout。**禁止把桌面 layoutViewport 画像当真机帧耗时，也禁止仅靠放宽准入或增大 overscan 提速。**
+1. 光栅画像与后端 A/B 已完成（§4.5/§4.6/§4.7）：B1 12+12 轮交替未发现可复现的 Impeller/Skia 差异（SCROLL total p95 中位 25.70 vs 24.49ms，p=0.33），**不建议为旧 Mali 关闭 Impeller，也不要再重复后端切换测试**。strict 60fps 仍未达成；若继续，只能做基线绘制面积/新内容首绘的后端层手段或接受 A 档。**禁止把桌面 layoutViewport 画像当真机帧耗时，也禁止仅靠放宽准入或增大 overscan 提速。**
 2. 深跳尖峰定性：ADR 0036 复测已把 FrameTiming 拆成 build/raster，~313ms 尖峰未复现且全程无 >50ms 帧；若再现，按 §4.4 的 build/raster 方法继续定位。
 3. iOS 构建与真机验证（**暂缓**：暂无 macOS 环境）：按 docs/device-matrix.md §2.2 清单执行；未验证前 iOS 不得宣称可用，发布说明要写明缺席。
 4. 语义增强 / 增量布局扩展：按产品需要，见下文「建议的下一步」。
@@ -62,6 +62,7 @@
 - 常规测试 468 项（weft_engine 251、weft_document 77、weft 66、weft_quickjs 28、weft_capabilities 15、weft_runtime_fake 12、weft_runtime_contract 9、weft_runtime_api 2、weft_lab 1、weft_fallback 7；ADR 0036 新增 15 项回归）、像素黄金 3 项 + 选区高亮 1 项、性能门禁 14 场景（7 布局 + 3 绘制 + 4 命中）；`dart analyze` 无问题，公开 API 文档覆盖零缺口。开发计划阶段 0–5 已完成（阶段 5 见 ADR 0034），阶段 5 之后补了移动端原生构建（ADR 0035）与懒布局窗口直物化（ADR 0036）。
 - GitHub Actions 使用 Windows 执行像素黄金门禁（仓库尚无远端，CI 尚未真正跑过）。
 - 2026-10-28 增量：Android 真机构建与执行验证、插件单 ABI 裁剪、回环直连修复与首轮矩阵；之后交付 ADR 0036 窗口直物化及桌面结构/耗时证据（docs/device-matrix.md §4.4）。真实 Flutter Web＋Edge 的滚动、锚点与选择复制已验证；JNY-AL10 profile 复测四项标准通过（中位冷启 635ms、滚动 p95 ≈26ms、深跳最大 37ms、内存 +10MB），strict 60fps 受 raster 限制。证据位于本地 build/adr0036-evidence。iOS 验证仍暂缓。
+- 2026-10-31 增量：B1 后端 A/B 完成（12 Impeller + 12 Skia，ABBA，JNY-AL10 profile，24 轮全部有效）。PAINT_ONLY 与 SCROLL 的 raster/total 均无显著差异（SCROLL total p95 中位 25.70 vs 24.49ms，p=0.33；PAINT_ONLY stable raster p95 8.77 vs 9.75ms，p=0.42），唯一显著项是 SCROLL build p95 差 0.38ms，无实际意义。结论：不建议旧 Mali 关闭 Impeller；strict 60fps 仍未达成。证据在本地 `build/adr0036-evidence/b1/`，详见 device-matrix §4.7。
 
 已实现至 ADR 0036（Android 四项设备标准已通过，strict 60fps raster 待优化）。ADR 0036：已测区间索引直接物化、单所有者块元数据、增量后缀估算、格式化空白准入与 correctBy 后视口同步。ADR 0017–0033：分块渲染与命中裁剪（ADR 0017/0020）、行内图片（ADR 0018）、选择 chrome（ADR 0019）、块级盒模型（ADR 0021）、表格列轨道（ADR 0022）、流式顶层前缀复用（ADR 0023）、单表面 Semantics（ADR 0024/0026/0028/0030）、渐进式布局虚拟化（ADR 0025）、同步/异步锚点导航（ADR 0027/0029）、懒布局异步分帧与同快照复用（ADR 0031）、阶段 0–3 验收证据与重定界（ADR 0032）和受限 JS 运行时（QuickJS FFI + 能力网关 + 恢复去重 + 自定义标签，ADR 0033）。ADR 0034（阶段 5）：快照 JSON 线格式（format+version 门禁）与 21 个规范化一致性向量、种子化模糊测试（CI 快跑 + tool/fuzz.dart 长跑，修复诊断上限绕过与 toString 崩溃两个真实问题）、能力策略 8 子集矩阵、example/weft_fallback WebView 回退示例、发布手册与回滚演练测试、API 文档门禁、真机矩阵计划。ADR 0035：QuickJS 移动平台构建——ffiPlugin 声明、Android CMake 就地编译（16 KB 对齐）、iOS 静态链接与 dead-strip 锚点、按平台分派的加载器。
 
@@ -114,7 +115,7 @@ docs/adr/               架构决策记录
 
 ## 明确未实现
 
-- **严格 60fps 未达成**：ADR 0036 在 JNY-AL10 上四项标准通过（冷启动中位 635ms、滚动 p95 ≈26ms 无 >50ms、深跳最大 37ms、内存 +10MB），但 combined p95 仍高于 16.7ms，瓶颈是 raster；冷跳分帧期间可能有短暂空白。
+- **严格 60fps 未达成**：ADR 0036 在 JNY-AL10 上四项标准通过（冷启动中位 635ms、滚动 p95 ≈26ms 无 >50ms、深跳最大 37ms、内存 +10MB），但 combined p95 仍高于 16.7ms，瓶颈是 raster；冷跳分帧期间可能有短暂空白。B1（12+12 轮后端 A/B，device-matrix §4.7）未发现可复现后端优势，切换 Skia 不解决该缺口。
 - 未测区域的精确 O(1)/O(log N) 随机跳转，以及超高顶层块/表内行/图片解码资源虚拟化；冷跳与首次深锚点仍需逐帧测量目标前缀，病态区间重叠或大量 Float 可能退化。
 - 非图片 Float 与表格局部 Float 的 checkpoint；增量布局的后缀平移与行级复用；行内原子的 margin 参与行框与 top/bottom 对齐。
 - CJK 像素基线（跨引擎像素验收已按 ADR 0032 重定界为结构几何门禁；真机帧计时仍以 weft_lab 为准）。
@@ -189,13 +190,15 @@ python tool/generate_assets.py
 
 注意：若符号缺失，先查 `-ObjC` 是否被宿主 Podfile 覆盖，再考虑把 vendor 源码移进 `ios/`（CocoaPods 文件模式不支持 `..`，当前用绝对路径绕过）。
 
-### B. ADR 0036 后续：60fps 光栅画像（当前第一优先级）
+### B. ADR 0036 后续：60fps 光栅画像（B1 已完成，2026-10-31）
 
 窗口直物化已完成并在 JNY-AL10 通过四项设备标准：冷启动中位 635ms、滚动 combined p95 25.5–26.0ms 且无 >50ms 帧、深跳最大 37.12ms、内存 +9.4～10.0MB。排版侧已不是瓶颈（build p95 ≈9.9ms），raster p95 ≈17.2ms 主导，因此严格 16.7ms 未达成。
 
-光栅归因已完成（device-matrix §4.5/§4.6）：严格 PAINT_ONLY（零重排、零 Picture 重建）在 Impeller 上 raster 仍 ~7ms，证明全屏文本基线光栅是后端/驱动成本；SCROLL 的额外 ~8–9ms 来自新物化块的首次绘制/上传，Picture 重建只影响 build。Skia 基线更低（3.8–5.9ms）但 SCROLL 双峰，2 轮不足以推荐切换。
+光栅归因已完成（device-matrix §4.5/§4.6）：严格 PAINT_ONLY（零重排、零 Picture 重建）在 Impeller 上 raster 仍 ~7ms，证明全屏文本基线光栅是后端/驱动成本；SCROLL 的额外 ~8–9ms 来自新物化块的首次绘制/上传，Picture 重建只影响 build。
 
-引擎侧没有免费的 60fps 优化空间：继续压榨需要后端层手段（图片光栅缓存、减少每帧新内容面积），或接受 A 档 ≤33ms 标准（当前已满足）。候选后续：B1 用 10+ 轮交替复测决定是否建议旧 Mali 设备关闭 Impeller；B2 转向冷深跳留白的渐进体验或语义增强。不要在未完成 B1 前改 layout 或调大 overscan。
+B1 后端 A/B 已完成（device-matrix §4.7）：12 Impeller + 12 Skia ABBA 交替、24 轮全部有效；PAINT_ONLY 与 SCROLL 的 raster/total 均无显著差异（SCROLL total p95 中位 25.70 vs 24.49ms，p=0.33），唯一显著项是 SCROLL build p95 差 0.38ms，无实际意义。**结论：不建议旧 Mali 设备关闭 Impeller，也不要把后端切换当作 60fps 方案。** strict 60fps 仍未达成，轮间 DVFS 离散度大于后端差异。
+
+引擎侧没有免费的 60fps 优化空间：继续压榨需要后端层手段（图片光栅缓存、减少每帧新内容面积），或接受 A 档 ≤33ms 标准（当前已满足）。下一步转 B2（冷深跳留白的渐进体验）或语义增强；不要再改 layout/overscan 或重复后端 A/B。
 
 ### C. 语义增强
 

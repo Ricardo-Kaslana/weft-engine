@@ -227,5 +227,34 @@ iOS 继续暂缓；Web debug 与桌面画像只作结构性证据，不替代设
 
 - **“滚动光栅成本来自 Picture 重建”被推翻**。零重建的缓存图全屏重绘本身在 Impeller 上就要 ~7ms；±120px 相的 6.1ms 与之同量级（此前把两者差异误读为重建驱动）。Picture 重建只体现在 build（4.6 → 1.3ms）。
 - SCROLL 相对 PAINT_ONLY 的 raster 增量（约 +8–9ms）只能归因于新物化块的**首次绘制/上传**与视口移动，而非重录缓存图。
-- Skia 的 PAINT_ONLY p50（3.8–5.9）低于 Impeller（6.8–7.2），SCROLL 呈双峰（缓存命中/未命中？），仅 2 轮不足以推荐后端切换；若要认真评估需要 10+ 轮交替与热控。
+- Skia 的 PAINT_ONLY p50（3.8–5.9）低于 Impeller（6.8–7.2），SCROLL 呈双峰（缓存命中/未命中？），仅 2 轮不足以推荐后端切换；已按 §4.7 完成 12+12 轮交替与热控，未发现稳定后端优势，不建议切换。
 - 结论：本机 60fps 缺口 = 全屏文本基线光栅（~7ms，后端/驱动相关）+ 新内容首次光栅（~8–9ms，虚拟化渲染的固有成本）。继续压榨需要后端层手段（图片光栅缓存、减少每帧新内容面积），引擎侧无免费优化；A 档 ≤33ms 标准仍由当前实现满足。日志：`build/adr0036-evidence/paint-only-impeller.log`、`paint-only-skia.log`。
+
+### 4.7 B1 后端 A/B：Impeller vs Skia（2026-10-31）
+
+§4.6 的 Skia 数据只有 2 轮，不足以判断旧 Mali 设备是否应关闭 Impeller。本轮补齐 12 + 12 轮 ABBA 交替复测，24 轮全部通过完整性校验（单实例串行、每轮一次成功）。
+
+方法：
+
+- 设备同上（JNY-AL10 / Android 10 / Kirin 810，Mali-G52；Impeller 实际走 Vulkan）。profile APK 仅 arm64-v8a；同一安装包通过 `am start --ez enable-impeller true|false` 切换后端，每轮核对 `Using the Impeller rendering backend (Vulkan).` 只出现在 Impeller 轮，Skia 轮为 0 次。
+- 原 ADR 0036 探针源码未入库且已清理，本轮在 `build/perf_probe` 重建：结构对齐 §4.4 的 901 元素长文（DOC 断言 `elements=901`、`rawChildren=1801`、`section270Id=2425`），但正文更长，实测 extent 99671.96（原 82928.96）。因此本节的绝对耗时只在轮间比较，不与 §4.5/§4.6 直接对比。
+- 相位：冷启动 → WARMUP → 冷深跳/回顶 → PAINT_ONLY（5 s，仅 `markNeedsPaint()`）→ SCROLL（20 s，每帧 500 px，约 6 次全文往返；每帧跨窗口并触发新块物化）。每轮 force-stop + 10 s 冷却；顺序为 I,S,S,I 重复 6 次（ABBA）。
+- 帧分类：Ticker 起始快照 + post-frame 结束快照记录 layout 身份与 `rebuilt` 计数。PAINT_ONLY 的 stable 子集为 256–259 帧，`changing=0`、`rebuiltDelta=0`；SCROLL 在 500 px/帧扫掠下全部帧重排/重建（stable=0），因此用 PAINT_ONLY 作为同身份基线。
+- 温度：电池全程 29–30°C，未见热漂移；`dumpsys thermalservice` 的 GPU 传感器固定 54.0°C（不可用），本节不据此判断 GPU 热状态。
+- 统计：表中为 12 轮中位数（括号内为 min–max）；p 值为对中位数差的双侧置换检验（每组 n=12）。
+
+| 指标（ms） | Impeller | Skia | Δ 中位数（Imp−Skia） | p |
+|---|---|---|---|---|
+| PAINT_ONLY raster p50 | 5.78（3.75–16.38） | 5.07（3.93–9.70） | +0.71 | 0.70 |
+| PAINT_ONLY raster p95 | 8.77（7.61–18.25） | 9.75（5.05–17.16） | −0.98 | 0.42 |
+| SCROLL raster p50 | 4.47（4.45–14.60） | 5.00（4.58–10.72） | −0.53 | 0.68 |
+| SCROLL raster p95 | 13.50（7.88–17.22） | 14.38（10.58–16.40） | −0.88 | 0.65 |
+| SCROLL total p95 | 25.70（21.02–27.97） | 24.49（23.43–28.18） | +1.20 | 0.33 |
+| SCROLL build p95 | 13.38（12.99–13.65） | 13.01（12.13–13.18） | +0.38 | 0.001 |
+
+观察与结论：
+
+- 唯一统计显著的是 SCROLL build p95（Skia 低 0.38 ms），与光栅无关，对帧预算没有实际意义。
+- 光栅与 combined 的轮间离散度远大于后端中位数差：SCROLL total p95 覆盖 21.0–28.2 ms，而中位数差仅 1.2 ms，且 p=0.33。多轮 raster p50 在约 4 ms 与 7–10 ms 两档之间跳变，提示 DVFS/频率状态主导轮间波动；按 4 轮一组的 ABBA 配对方向也不一致（前三组 Impeller 更低，后三组 Skia 更低或接近）。
+- **没有可复现证据支持在旧 Mali 设备关闭 Impeller**；不建议把后端切换作为冲 60fps 的手段。strict 60fps 仍未达成（本轮 SCROLL total p95 中位 24.5–25.7 ms），光栅缺口仍由基线全屏绘制与新内容首绘构成，与 §4.6 一致。
+- 限制：重建探针的正文长度与 §4.4 不同，而且 500 px/帧扫掠是压力相，不代表慢速自然滚动；`FrameTiming.rasterDuration` 仍含排队/围栏等待。证据：`build/adr0036-evidence/b1/`（原始 logcat、perf 过滤、`summary.tsv`、`report.md/json`）；临时探针与 workspace 项已清理。

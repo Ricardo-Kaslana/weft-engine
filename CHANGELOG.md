@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- B1 backend A/B on JNY-AL10 (12 Impeller + 12 Skia ABBA rounds, profile, reconstructed 901-element probe): no reproducible raster advantage for either backend — SCROLL total p95 median 25.70 vs 24.49 ms (p=0.33), PAINT_ONLY stable raster p95 8.77 vs 9.75 ms (p=0.42); the only significant delta is SCROLL build p95 (0.38 ms lower on Skia), which does not affect the frame budget. Do not disable Impeller on this Mali class; strict 60fps remains unmet. Evidence under `build/adr0036-evidence/b1/`.
 - Lazy layout now materializes measured windows from a conservative paint-bounds index (ADR 0036): admission, block-flow margins/lists and suffix estimates are cached per snapshot, while only entering/leaving blocks rebuild or release commands. Formatting whitespace between body blocks no longer disables virtualization; body text, NBSP and `white-space: pre` keep the full-layout path.
 - Float exclusions are restored from the measured prefix when a block rematerializes, body chrome still follows the current estimated extent, and `correctBy` extent corrections now sync the surface to the real scroll offset instead of replaying corrections.
 - Windows host profile (300/1000 paragraphs): warm `layoutViewport` p95 dropped from 1.37/85.35ms to 0.67/0.49ms for compact/newline documents; first viewport for the 1000-paragraph newline document went from 78.67ms (full) to 10.08ms (lazy). These are API timings, not device frame times.
