@@ -1,0 +1,35 @@
+{
+    "name": "Weft Live — 界面，开始自己呼吸",
+    "short_name": "Weft Live",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#F3EFE6",
+    "theme_color": "#12161D",
+    "description": "A live editorial page rendered entirely by Weft.",
+    "orientation": "any",
+    "prefer_related_applications": false,
+    "icons": [
+        {
+            "src": "icons/Icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-maskable-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "icons/Icon-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}

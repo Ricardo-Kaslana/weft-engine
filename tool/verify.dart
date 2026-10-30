@@ -13,6 +13,7 @@ const flutterPackages = <String>[
   'packages/weft_engine',
   'packages/weft',
   'example/weft_lab',
+  'example/weft_live',
   'example/weft_fallback',
 ];
 

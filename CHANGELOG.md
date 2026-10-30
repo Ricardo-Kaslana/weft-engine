@@ -7,6 +7,7 @@
 - Windows host profile (300/1000 paragraphs): warm `layoutViewport` p95 dropped from 1.37/85.35ms to 0.67/0.49ms for compact/newline documents; first viewport for the 1000-paragraph newline document went from 78.67ms (full) to 10.08ms (lazy). These are API timings, not device frame times.
 - Verified on Huawei JNY-AL10 (Android 10, profile, 901-element formatted article): 635ms median cold start, 25.5–26.0ms combined scroll p95 with no frame above 50ms, 37.12ms max deep jump, +9.4–10.0MB memory. Strict 60fps (p95 ≤16.7ms) is not met; raster p95 ≈17.2ms dominates.
 - 15 new regressions cover formatted-window budgets, negative-margin upward overflow, body chrome, invalidation, ownership transfer, async-anchor cancellation and correction convergence.
+- Added `example/weft_live`, a web-target live editorial demo rendered in one Weft surface: auto-refreshed metrics and pulse chart, streaming updates, topic filters, light/dark themes, deep links, poll/clap custom tags, and end-to-end tests that tap tags through the semantics tree.
 
 ## 0.6.0-dev.1 (2026-10-28)
 

@@ -1,0 +1,22 @@
+name: weft_live
+description: A live editorial demo rendered entirely by Weft.
+version: 0.6.0-dev.1
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  weft:
+    path: ../../packages/weft
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true

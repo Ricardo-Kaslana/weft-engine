@@ -20,4 +20,5 @@ workspace:
   - packages/weft_runtime_contract
   - packages/weft
   - example/weft_lab
+  - example/weft_live
   - example/weft_fallback

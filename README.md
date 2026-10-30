@@ -59,7 +59,7 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - 严格 60fps 的滚动预算：JNY-AL10 上 combined p95 ≈26ms，瓶颈在 raster；冷跳分帧期间仍会有短暂空白，见 `docs/device-matrix.md` §4.4。
 - 真机证据：Android 已完成构建、打包与真机执行验证（Huawei JNY-AL10 / Android 10）；iOS 的构建与真机验证**暂缓**（暂无 macOS 环境，2026-10-28 决定），未验证前不宣称 iOS 可用，见 `docs/device-matrix.md`。
 
-`example/weft_lab` 已展示真实可滚动的静态文章，但仍不用于验收完整 HTML/CSS 兼容性。当前限制与后续顺序见 `docs/supported-subset.md` 和 `docs/development-plan.md`。
+`example/weft_lab` 展示真实可滚动的静态文章；`example/weft_live` 把实时图表、自动快照、投票、主题切换和深链接聚合到一张专题页里。两者均不用于验收完整 HTML/CSS 兼容性。当前限制与后续顺序见 `docs/supported-subset.md` 和 `docs/development-plan.md`。
 
 ## 仓库结构
 
@@ -76,6 +76,7 @@ packages/
   weft_runtime_fake/    脚本化 FakeRuntime 后端
   weft_runtime_contract/  后端中立 JsSession 契约测试套件
 example/weft_lab/       开发、示例和图片资源实验室
+example/weft_live/      实时专题页演示（Web target、自定义标签、动态快照）
 example/weft_fallback/  WebView 回退示例（requiresWebView 决策演示）
 conformance/            语料、固定字体、Flutter 基线和浏览器参考输入
 docs/                   架构、规范、计划和管理文档
@@ -157,6 +158,21 @@ flutter run
 ```
 
 平台生成步骤不会实现 QuickJS；Runtime 的原生接入将在对应里程碑单独交付。
+
+## 运行实时专题页
+
+`example/weft_live` 是一张由 Weft 渲染的实时专题页，包含每 2 秒更新的现场
+指标与脉冲图、自动进入的直播记录、可投票/鼓掌的自定义标签、明暗主题、
+频道筛选、站内锚点导航和可直接分享的深链接（如
+`/?theme=dark&section=agenda`）。它已带 Web 平台目录：
+
+```bash
+cd example/weft_live
+flutter run -d chrome
+```
+
+页面只使用受控 HTML/CSS 子集和受信任的 Dart 自定义标签，不使用 WebView、
+DOM 或第三方脚本。详情见 `example/weft_live/README.md`。
 
 ## 文档导航
 
