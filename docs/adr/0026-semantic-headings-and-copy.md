@@ -3,6 +3,8 @@
 - 状态：已接受
 - 日期：2026-10-27
 
+> 版本基线后续更新：ADR 0038 已将最低 Flutter 提高到 3.35.5，并纠正了 3.22 元数据与实际 `SemanticsRole` 依赖不符的问题；本 ADR 中“最低支持 Flutter 3.22”的表述仅反映当时决策。
+
 ## 背景
 
 ADR 0024 建立了单表面的阅读顺序语义，但标题没有 header 标记，辅助技术也无法直接复制当前选区。Flutter 3.35.5 新增了 `SemanticsRole.list/table` 与 `headingLevel`，但本包最低支持 Flutter 3.22；这些 role 在当前原生桥接中主要影响 Web，且 table/list 要求严格直接父子节点。本轮选择跨平台收益明确、不会破坏现有扁平语义树的增强。

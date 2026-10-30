@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+## 0.7.0-dev.1 (2026-10-31)
+
+- Compatibility baseline (ADR 0038): all Flutter-dependent packages and examples now declare `flutter: ">=3.35.5"`, and every package moves to `0.7.0-dev.1`. `weft_engine` has used `SemanticsRole` (Flutter 3.35.5) since ADR 0030 while the pubspecs still advertised 3.22; hosts on Flutter 3.22–3.34 could resolve the package but never compile it. No runtime, layout, snapshot, bridge or golden changes; pure Dart packages keep Dart `>=3.5.0`.
 - Cold deep-jump settling (ADR 0037): `WeftView.lazySettlingBuilder` lets hosts cover the viewport while budgeted lazy passes measure a deep target; `onLazySettlingChanged` and `WeftViewState.isLazySettling` report start/finish from post-frame callbacks. No layout, overscan, budget or raster changes; unconfigured views keep the existing progressive fill. `example/weft_live` wires a static skeleton and a jump-to-bottom control, and the Android device run records the overlay timing in `docs/device-matrix.md` §4.8.
 - B1 backend A/B on JNY-AL10 (12 Impeller + 12 Skia ABBA rounds, profile, reconstructed 901-element probe): no reproducible raster advantage for either backend — SCROLL total p95 median 25.70 vs 24.49 ms (p=0.33), PAINT_ONLY stable raster p95 8.77 vs 9.75 ms (p=0.42); the only significant delta is SCROLL build p95 (0.38 ms lower on Skia), which does not affect the frame budget. Do not disable Impeller on this Mali class; strict 60fps remains unmet. Evidence under `build/adr0036-evidence/b1/`.
 - Lazy layout now materializes measured windows from a conservative paint-bounds index (ADR 0036): admission, block-flow margins/lists and suffix estimates are cached per snapshot, while only entering/leaving blocks rebuild or release commands. Formatting whitespace between body blocks no longer disables virtualization; body text, NBSP and `white-space: pre` keep the full-layout path.

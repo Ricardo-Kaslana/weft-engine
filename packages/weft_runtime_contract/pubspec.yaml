@@ -1,6 +1,6 @@
 name: weft_runtime_contract
 description: Shared contract test suite for Weft JsRuntimeBackend implementations.
-version: 0.6.0-dev.1
+version: 0.7.0-dev.1
 publish_to: none
 resolution: workspace
 

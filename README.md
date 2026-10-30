@@ -8,6 +8,7 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 
 已实现：
 
+- Flutter 3.35.5 兼容基线（ADR 0038）：Flutter 依赖包与示例声明 `flutter: ">=3.35.5"`，纯 Dart 包保持 Dart 3.5；包版本统一为 0.7.0-dev.1。
 - 受控 HTML 解析、标签白名单、属性清洗、支持度诊断和显式回退。
 - 标签、类、ID、后代和子代选择器，以及基础层叠、内联样式和常用文本/盒模型属性。
 - 标题、段落、强调、链接、列表、引用、代码块、分隔线和强制换行。
@@ -91,8 +92,8 @@ tool/compare_goldens.py     跨引擎像素差异报告
 
 ## 环境要求
 
-- Dart SDK 3.5 或更高，低于 4.0。
-- Flutter SDK 3.22 或更高，建议使用 stable。
+- Dart SDK 3.5 或更高，低于 4.0（纯 Dart 包；Flutter 3.35.5 随带 Dart 3.9.2）。
+- Flutter SDK 3.35.5 或更高，建议使用 stable（引擎与示例的编译下限，ADR 0038）。
 - Android/iOS 真机验证需要对应平台工具链。
 - Node.js 22 或更高仅用于可选的 Chrome/Edge 参考截图工具。
 - Python 3.11 或更高与 Pillow 仅用于可选的跨引擎像素报告。

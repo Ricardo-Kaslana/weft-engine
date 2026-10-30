@@ -1,12 +1,12 @@
 name: weft_lab
 description: Development and conformance laboratory for Weft.
-version: 0.6.0-dev.1
+version: 0.7.0-dev.1
 publish_to: none
 resolution: workspace
 
 environment:
   sdk: ">=3.5.0 <4.0.0"
-  flutter: ">=3.22.0"
+  flutter: ">=3.35.5"
 
 dependencies:
   flutter:

@@ -19,7 +19,7 @@ Pod::Spec.new do |s|
   native_dir = File.expand_path('../native', __dir__)
 
   s.name             = 'weft_quickjs'
-  s.version          = '0.6.0-dev.1'
+  s.version          = '0.7.0-dev.1'
   s.summary          = 'QuickJS native backend for the Weft rendering engine.'
   s.description      = <<-DESC
 Compiles the vendored QuickJS 2024-01-13 engine and the Weft FFI shim into the

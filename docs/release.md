@@ -6,7 +6,7 @@
 
 ## 版本兼容
 
-公开 Dart API、能力 Schema、规范化策略和 QuickJS 原生库可能独立演进。发布清单必须记录它们的兼容组合，以及 Flutter/Dart 最低版本和平台构建环境。
+公开 Dart API、能力 Schema、规范化策略和 QuickJS 原生库可能独立演进。发布清单必须记录它们的兼容组合，以及 Flutter/Dart 最低版本和平台构建环境。自 `0.7.0-dev.1` 起 Flutter 依赖包与示例要求 Flutter `>=3.35.5`（ADR 0038）；纯 Dart 包仍保持 Dart `>=3.5.0`。
 
 稳定版后公开包采用语义化版本。破坏性接口、行为或规范化变化需要迁移说明；预发布版本允许通过 ADR 调整，但必须在 Changelog 标明。
 
