@@ -64,7 +64,7 @@ flowchart TB
 - 行内内容由跨样式文本片段组成，经 `TextPainter` 完成空白折叠、换行、对齐和多行绘制；行高按 CSS 半行距分配（`TextLeadingDistribution.even`），固定字体下与 Chromium 的块级几何误差小于 0.5px。
 - 列表标记单独绘制，不进入正文选择文本。
 - 链接显示文本在布局后按字符范围查询行盒，生成跨行命中矩形；命中由单一表面解析，宿主通过 `onLinkTap` 决定导航。
-- `RenderWeftSurface` 手动组装 SemanticsNode：文档树与文本索引提供阅读顺序，布局命令提供矩形，链接动作与选区更新走同一宿主通路；屏外节点不参与绘制视口裁剪（ADR 0024）。
+- `RenderWeftSurface` 手动组装 SemanticsNode：文档树与文本索引提供阅读顺序，布局命令提供矩形，链接动作与选区更新走同一宿主通路；屏外节点不参与绘制视口裁剪（ADR 0024）。标题片段输出 `headingLevel`，显式 `aria-live` 子树的叶子输出 `liveRegion`，有序列表 marker 使用 `ol start`/`li value`（ADR 0039）；不为 live region 创建额外容器。
 - 图片是块级替换元素：由 `WeftImageResolver` 提供 `ImageProvider`，`RenderWeftSurface` 监听解码结果并在完成后触发布局失效；布局只接收已解码的 `ui.Image`。
 - Float 使用共享的 `_FloatContext` 保存排除矩形。每个行盒按当前 `y` 查询左右可用边界，空间不足时下移到最近浮动底部；`clear` 将后续块级元素推到对应浮动下方。
 - Float 环绕走逐行分行路径，每行单独生成 `TextPainter` 和链接矩形；无浮动内容仍使用整段文本布局，避免改变已验收的静态路径。
@@ -135,3 +135,4 @@ JS 不获得节点、盒树或渲染对象。它只能通过 `__weftBridge`（�
 - `0036`：已测窗口索引直物化、增量后缀估算、格式化空白准入及滚动校正收敛；JNY-AL10 profile 四项设备标准已通过。
 - `0037`：冷深跳 settling——宿主视口遮罩与 post-frame 状态信号，引擎不画占位、不改布局预算；未配置 builder 时保持空白渐进填充。
 - `0038`：Flutter 3.35.5 兼容基线——Flutter 依赖包与示例统一收紧下限，纯 Dart 包保持 Dart 3.5；版本对齐到 0.7.0-dev.1，运行时行为不变。
+- `0039`：语义补全——headingLevel、`aria-live` live region 与有序列表 `start`/`value` marker；规范化保留新属性并重新生成列表向量。

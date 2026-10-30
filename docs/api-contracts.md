@@ -39,6 +39,8 @@ const WeftDocumentSnapshot({
 
 `WeftView.onLinkTap` 接收命中的 `WeftLinkRegion`，负责把经过清洗的链接交还宿主；pointer 与 Semantics tap 都走这一回调，各由单一入口触发。引擎不自行打开 URL、启动外部应用或执行导航。独立使用 `WeftSurface` 时，`onSemanticsLinkTap` 默认回退到 `onLinkTap`；同时提供两个回调时分别服务辅助技术与 pointer。`WeftSurface.onSemanticsCopy(String)` 为选区注册语义 copy action；WeftView 自动接到与复制按钮相同的 Clipboard 策略，standalone 未提供回调时不暴露 copy。
 
+语义派生同时输出 `h1..h6` 的 `headingLevel`、`ol start`/`li value` 的列表 marker，以及显式 `aria-live="polite/assertive"` 子树的叶子 `liveRegion` 标志（`off` 关闭，缺省继承）；Flutter 只提供布尔 liveRegion，因此 `polite` 与 `assertive` 的优先级不区分，也不创建额外容器或播报队列（ADR 0039）。
+
 `WeftView.imageResolver` / `WeftSurface.imageResolver` 接收受控图片请求：
 
 ```dart

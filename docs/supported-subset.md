@@ -20,7 +20,7 @@
 | 上下标 | `sub/sup` | 部分实现 | 缩小字号，尚未做基线位移 |
 | 引用 | `blockquote` | 已实现 | 左右缩进和块级间距 |
 | 代码 | `pre/code` | 部分实现 | 等宽字体、背景和预格式化换行；无横向滚动 |
-| 列表 | `ul/ol/li` | 部分实现 | disc、decimal、none 和无障碍外的独立标记 |
+| 列表 | `ul/ol/li` | 部分实现 | disc、decimal、none 和无障碍外的独立标记；有序列表支持 `ol start` 与 `li value` |
 | 描述列表 | `dl/dt/dd` | 部分实现 | 块级显示，无专用样式 |
 | 链接 | `a` | 已实现 | URL 清洗、视觉样式、跨行命中矩形和宿主回调；导航由宿主决定 |
 | 图片 | `img` | 部分实现 | `src/alt/width/height`、块级替换盒、左右 Float、`clear` 和宿主资源解析；img 默认 `display: inline`，以原子参与基线混排，`display: block` 退回块级替换盒（ADR 0018） |
@@ -105,13 +105,13 @@
 
 ## 可访问性语义
 
-当前能力（ADR 0024/0026/0028/0030）：
+当前能力（ADR 0024/0026/0028/0030/0039）：
 
 - `RenderWeftSurface` 手动暴露阅读顺序文本、链接、图片和非折叠选区；普通文本不与子链接重复朗读，链接支持宿主 Semantics tap，已解析图片使用 alt，空 alt 作为装饰跳过。
-- 标题与 `<th>` 子树暴露 header flag；有序/无序列表项的首个朗读片段带 `1. ` / `• ` 标记，标记不进入复制文本（ADR 0028）。`ul/ol→li` 与 `table→tr→td/th` 生成嵌套 list/listItem、table/row/cell/columnHeader 角色，listItem/row/cell 带 indexInParent，thead/tbody 透明、caption 作为 table 前兄弟（ADR 0030）。标题内的链接/强调仍保留语义顺序。选区提供 value/selected/rect，并在宿主提供回调时暴露 copy action（ADR 0026）；WeftView 与复制按钮共用 Clipboard 策略，standalone 默认无 copy。同 document.id 的流式追加保留未变 SemanticsNode.id，屏外内容保留并支持 showOnScreen 滚动。
+- 标题与 `<th>` 子树暴露 header flag；`h1..h6` 的文本、链接、强调和图片 alt 同时输出 `headingLevel`（ADR 0039）。有序/无序列表项的首个朗读片段带 `1. ` / `• ` 标记，有序列表的 `start`/`value` 同时作用于视觉与语义 marker；标记不进入复制文本（ADR 0028/0039）。`ul/ol→li` 与 `table→tr→td/th` 生成嵌套 list/listItem、table/row/cell/columnHeader 角色，listItem/row/cell 带 indexInParent，thead/tbody 透明、caption 作为 table 前兄弟（ADR 0030）。显式 `aria-live="polite/assertive"` 子树的文本、链接、图片与自定义标签叶子带 Flutter `liveRegion` 标志；`off` 显式关闭并向下继承（ADR 0039）。标题内的链接/强调仍保留语义顺序。选区提供 value/selected/rect，并在宿主提供回调时暴露 copy action（ADR 0026）；WeftView 与复制按钮共用 Clipboard 策略，standalone 默认无 copy。同 document.id 的流式追加保留未变 SemanticsNode.id，屏外内容保留并支持 showOnScreen 滚动。
 - 宿主可用 `ExcludeSemantics` 排除表面；`WeftSurface.onSemanticsLinkTap` 默认回退到 `onLinkTap`，WeftView 自动接入同一宿主回调。
 
-边界与限制：尚无 headingLevel、table/list 角色导航、可编辑 setSelection/caret 动作、逐文本节点 selected state、RTL/语言属性、live region 或语义虚拟化。已解析图片位于链接内时不额外提供 tap，与当前 pointer 命中能力一致。
+边界与限制：尚无 table/list 角色导航、可编辑 setSelection/caret 动作、逐文本节点 selected state、RTL/语言属性、完整 ARIA role/atomic、`polite`/`assertive` 播报优先级或语义虚拟化；live region 只标记显式子树内的叶子片段，可能由辅助技术逐叶子播报。已解析图片位于链接内时不额外提供 tap，与当前 pointer 命中能力一致。
 
 ## 流式增量布局
 

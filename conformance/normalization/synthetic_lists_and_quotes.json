@@ -14,7 +14,7 @@
     "version": 1,
     "id": "vector-synthetic_lists_and_quotes",
     "revision": 1,
-    "normalizedHtml": "<ol><li>one<ul><li>nested</li></ul></li></ol><blockquote><p>quote</p></blockquote><pre><code>x = 1;</code></pre>",
+    "normalizedHtml": "<ol start=\"3\"><li>one<ul><li>nested</li></ul></li></ol><blockquote><p>quote</p></blockquote><pre><code>x = 1;</code></pre>",
     "supportReport": {
       "issues": [
         {
@@ -32,6 +32,9 @@
         {
           "id": 1,
           "tag": "ol",
+          "attributes": {
+            "start": "3"
+          },
           "children": [
             {
               "id": 2,

@@ -27,7 +27,7 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - CJK 禁则（ADR 0016）：可配置行首/行尾禁则表（默认覆盖常用中日标点），逐行分行路径显式执行禁则；整段路径经 ICU 对照零违规。
 - 分块渲染（ADR 0017）：绘制命令按 body 顶层子节点分块缓存为 `ui.Picture`，绘制时按可见窗口裁剪、只重绘相交块；选区矩形独立缓存，选区变化不重建 Picture。
 - 流式增量布局（ADR 0023）：同 id 追加复用未变顶层前缀与 TextPainter；未变前缀 Picture 也跨快照保留。
-- 可访问性语义（ADR 0024/0026/0028/0030）：单表面文本、链接、图片与选区 Semantics，支持标题/表头 header、列表标记、list/table 嵌套角色与 indexInParent、链接语义 tap、选区 copy 和屏外 showOnScreen。
+- 可访问性语义（ADR 0024/0026/0028/0030/0039）：单表面文本、链接、图片与选区 Semantics，支持标题 headingLevel 与表头 header、有序列表 start/value 标记、`aria-live` live region、list/table 嵌套角色与 indexInParent、链接语义 tap、选区 copy 和屏外 showOnScreen。
 - 渐进式布局虚拟化（ADR 0025）：WeftView 简单长文只物化可见块，首屏不创建全文 TextPainter；`lazyOverscan` 可调预取窗口，顶层块内及 body 直属图片 Float 通过排除区 checkpoint 参与 lazy，selection/Semantics/复杂文档回退 full。
 - 懒布局异步分帧与同快照复用（ADR 0031）：深跳/深 seed 每帧至多新测 32 个顶层块并逐帧收敛，消除冷跳底部的单帧全量测量停顿；同快照滚动 relayout 跳过节点 diff、复用跨帧样式缓存与文本索引。
 - 已测窗口直物化（ADR 0036）：按保守绘制区间索引定位窗口，缓存准入、块流元数据与后缀估算；支持 body 格式化空白，热态不再重扫全文，extent 校正后同步实际视口。JNY-AL10 profile 已验收（冷启动中位 635ms、滚动 p95 ≈26ms 且无 >50ms 帧、深跳最大 37ms、内存 +10MB）。
@@ -56,7 +56,7 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 
 - CJK 像素基线（无可分发 CJK 像素字体，跨引擎像素验收已按 ADR 0032 重定界为结构几何门禁）。
 - 表格的嵌套表格（触发回退）与浏览器级 auto 列宽分配精度。
-- 选择工具条（完整菜单）、chrome 动画打磨，以及 headingLevel、live region、语言/RTL 等语义增强。
+- 选择工具条（完整菜单）、chrome 动画打磨，以及完整 ARIA 角色/atomic、RTL/语言属性和语义虚拟化等增强。
 - 未测区域的精确 O(1)/O(log N) 随机跳转，以及超高顶层块/表内行/图片解码资源虚拟化；冷跳仍分帧测量前缀，配置 `lazySettlingBuilder` 时由宿主遮罩覆盖，但仍不承诺零空白（ADR 0037）。
 - 严格 60fps 的滚动预算：JNY-AL10 上 combined p95 ≈26ms，瓶颈在 raster；12+12 轮 Impeller/Skia A/B（device-matrix §4.7）未发现可复现的后端优势（SCROLL total p95 25.70 vs 24.49ms，p≈0.33），不建议旧 Mali 关闭 Impeller；冷跳分帧期间仍会有短暂空白，见 `docs/device-matrix.md` §4.4/§4.7。
 - 真机证据：Android 已完成构建、打包与真机执行验证（Huawei JNY-AL10 / Android 10）；iOS 的构建与真机验证**暂缓**（暂无 macOS 环境，2026-10-28 决定），未验证前不宣称 iOS 可用，见 `docs/device-matrix.md`。

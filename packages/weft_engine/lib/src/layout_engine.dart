@@ -1128,7 +1128,7 @@ final class _LayoutContext {
     var leadingCollapses = style.borderTop.width == 0 && style.paddingTop == 0;
     var trailingCollapses =
         style.borderBottom.width == 0 && style.paddingBottom == 0;
-    var orderedItem = 0;
+    var orderedItem = _orderedListStart(element) - 1;
     final inline = _InlineAccumulator(this, containingWidth: contentWidth);
 
     double flushInline() {
@@ -1372,8 +1372,14 @@ final class _LayoutContext {
       }
 
       flushInline();
-      if (child.tag == 'li' && childStyle.listStyle == WeftListStyle.decimal) {
-        orderedItem += 1;
+      if (child.tag == 'li') {
+        if (element.tag == 'ol') {
+          final explicit = _orderedListItemValue(child);
+          if (explicit != null) orderedItem = explicit - 1;
+          orderedItem += 1;
+        } else if (childStyle.listStyle == WeftListStyle.decimal) {
+          orderedItem += 1;
+        }
       }
 
       final outerTop = outerMarginTop(child, childStyle, childAncestors);
@@ -2046,6 +2052,16 @@ final class _LayoutContext {
         ),
       );
     }
+  }
+
+  int _orderedListStart(WeftElement element) {
+    if (element.tag != 'ol') return 1;
+    return int.tryParse(element.attribute('start') ?? '') ?? 1;
+  }
+
+  int? _orderedListItemValue(WeftElement element) {
+    if (element.tag != 'li') return null;
+    return int.tryParse(element.attribute('value') ?? '');
   }
 
   String? _markerFor({

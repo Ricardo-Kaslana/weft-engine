@@ -108,6 +108,7 @@
 - 懒布局窗口直物化（ADR 0036）：JNY-AL10 四项设备标准通过，严格 60fps 受 raster 限制，见 `docs/device-matrix.md` §4.4。
 - 冷深跳 settling 遮罩（ADR 0037）：WeftView 宿主视口遮罩 + post-frame settling 信号；未配置 builder 时保持原空白渐进填充。
 - Flutter 3.35.5 兼容基线（ADR 0038）：Flutter 依赖包与示例统一收紧下限，纯 Dart 包保持 Dart 3.5；包版本对齐到 0.7.0-dev.1，运行时行为不变。
+- 语义补全（ADR 0039）：标题 headingLevel、`aria-live` live region 与有序列表 `start`/`value`；规范化保留新属性，列表一致性向量重新生成并审查。
 
 ## 并行规则
 

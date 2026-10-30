@@ -20,7 +20,7 @@ dart analyze
 dart run tool/verify.dart
 ```
 
-当前主 CI 覆盖格式、静态分析、纯 Dart 测试和 Flutter 单元/Widget 测试，共 491 项（weft_engine 255、weft_document 77、weft 77、weft_quickjs 28、weft_capabilities 15、weft_runtime_fake 12、weft_runtime_contract 9、weft_runtime_api 2、weft_lab 1、weft_live 8、weft_fallback 7；2026-10-31 实测；QuickJS FFI 测试在 native 库缺失时跳过）；阶段 5 起还有两类门禁：规范化一致性向量（`conformance/normalization/` 21 个固化快照，逐字节复现）与公开 API 文档覆盖（`tool/doc_coverage.dart` 零缺口）；另有 Windows 独立执行的 3 项 Flutter 像素基线测试：
+当前主 CI 覆盖格式、静态分析、纯 Dart 测试和 Flutter 单元/Widget 测试，共 495 项（weft_engine 258、weft_document 78、weft 77、weft_quickjs 28、weft_capabilities 15、weft_runtime_fake 12、weft_runtime_contract 9、weft_runtime_api 2、weft_lab 1、weft_live 8、weft_fallback 7；2026-10-31 实测；QuickJS FFI 测试在 native 库缺失时跳过）；阶段 5 起还有两类门禁：规范化一致性向量（`conformance/normalization/` 21 个固化快照，逐字节复现）与公开 API 文档覆盖（`tool/doc_coverage.dart` 零缺口）；另有 Windows 独立执行的 3 项 Flutter 像素基线测试：
 
 - 规范化：标签、属性、URL、未知元素、回退能力、节点上限、图片地址与尺寸。
 - CSS：选择器结构、后代/子代匹配、特异性、内联覆盖、声明过滤。
@@ -65,7 +65,7 @@ CJK 结构化布局已有测试，但尚无固定 CJK 字体，因此不提交�
 
 ## 可访问性语义测试
 
-`weft_surface_semantics_test.dart` 与 `weft_view_semantics_test.dart` 使用真实 `SemanticsOwner` 和公开 `find.semantics`/`containsSemantics` API，覆盖阅读顺序、文本不重复、链接 tap、图片 alt、标题/表头 header、列表标记、list/table 嵌套角色父子关系、选区 copy、流式节点身份、ExcludeSemantics 和屏外 `showOnScreen` 滚动；列表 marker 不得进入 selection/复制文本。测试必须显式 dispose `tester.ensureSemantics()` 返回的 handle；不依赖 Flutter SDK 内部 SemanticsTester，也不对无关祖先结构做全树 golden。
+`weft_surface_semantics_test.dart` 与 `weft_view_semantics_test.dart` 使用真实 `SemanticsOwner` 和公开 `find.semantics`/`containsSemantics` API，覆盖阅读顺序、文本不重复、链接 tap、图片 alt、标题/表头 header、标题 `headingLevel`、列表标记与 `ol start`/`li value` marker、list/table 嵌套角色父子关系、`aria-live` 的三态继承与 `liveRegion` 标志、选区 copy、流式节点身份、ExcludeSemantics 和屏外 `showOnScreen` 滚动；列表 marker 不得进入 selection/复制文本。测试必须显式 dispose `tester.ensureSemantics()` 返回的 handle；不依赖 Flutter SDK 内部 SemanticsTester，也不对无关祖先结构做全树 golden。
 
 ## 性能测量
 

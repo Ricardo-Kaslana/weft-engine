@@ -595,6 +595,35 @@ final class _TreeBuilder {
           continue;
         }
         value = parsed;
+      } else if (name == 'aria-live') {
+        final normalized = value.toLowerCase();
+        if (normalized != 'off' &&
+            normalized != 'polite' &&
+            normalized != 'assertive') {
+          _addIssue(
+            const SupportIssue(
+              code: 'aria.live.invalid',
+              message: 'Invalid aria-live value was removed; use off, polite '
+                  'or assertive.',
+            ),
+          );
+          continue;
+        }
+        value = normalized;
+      } else if ((name == 'start' && tag == 'ol') ||
+          (name == 'value' && tag == 'li')) {
+        final number = int.tryParse(value);
+        if (number == null) {
+          _addIssue(
+            SupportIssue(
+              code:
+                  name == 'start' ? 'list.start.invalid' : 'list.value.invalid',
+              message: 'Invalid $tag $name attribute was removed.',
+            ),
+          );
+          continue;
+        }
+        value = '$number';
       } else if (name == 'colspan' || name == 'rowspan' || name == 'span') {
         final span = int.tryParse(value);
         if (span == null || span <= 0) {

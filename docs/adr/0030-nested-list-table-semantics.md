@@ -3,6 +3,8 @@
 - 状态：已接受
 - 日期：2026-10-27
 
+> 后续：ADR 0039 为列表 marker 增加 `ol start`/`li value` 编号，并补充 headingLevel/liveRegion；本 ADR 的嵌套 role 模型不变。
+
 ## 背景
 
 ADR 0028 已提供列表标记和表头 header flag，但语义节点仍是扁平结构，没有 Flutter 的 list/listItem、table/row/cell 角色。Flutter 在 debug 下严格校验这些角色的直接父子关系，因此不能只给叶子节点加 role。

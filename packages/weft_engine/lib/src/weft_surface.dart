@@ -1112,7 +1112,11 @@ class RenderWeftSurface extends RenderBox {
           ..isImage = fragment.isImage
           ..isSelected = fragment.isSelected
           ..isHeader = fragment.isHeader
-          ..isLink = fragment.link != null;
+          ..isLink = fragment.link != null
+          ..liveRegion = fragment.isLiveRegion;
+        if (fragment.headingLevel > 0) {
+          childConfig.headingLevel = fragment.headingLevel;
+        }
         final link = fragment.link;
         if (link != null && _onSemanticsLinkTap != null) {
           childConfig.onTap = () => _onSemanticsLinkTap?.call(link);
@@ -1846,6 +1850,7 @@ final class _WeftSemanticFragment {
     this.isSelection = false,
     this.isHeader = false,
     this.headingLevel = 0,
+    this.isLiveRegion = false,
     this.link,
     this.tag,
     this.globalStart,
@@ -1867,6 +1872,7 @@ final class _WeftSemanticFragment {
   final bool isSelection;
   final bool isHeader;
   final int headingLevel;
+  final bool isLiveRegion;
   final WeftLinkRegion? link;
   final WeftTagRegion? tag;
   final int? globalStart;
@@ -1884,6 +1890,7 @@ final class _WeftSemanticFragment {
       isSelection: isSelection,
       isHeader: isHeader,
       headingLevel: headingLevel,
+      isLiveRegion: isLiveRegion,
       link: link,
       tag: tag,
       globalStart: globalStart,
@@ -1974,6 +1981,26 @@ bool _sameContainers(
   return true;
 }
 
+bool? _liveRegionSetting(WeftNode node) {
+  if (node is! WeftElement) return null;
+  final value = node.attribute('aria-live')?.trim().toLowerCase();
+  return switch (value) {
+    'polite' || 'assertive' => true,
+    'off' => false,
+    _ => null,
+  };
+}
+
+int _semanticListStart(WeftElement element) {
+  if (element.tag != 'ol') return 1;
+  return int.tryParse(element.attribute('start') ?? '') ?? 1;
+}
+
+int? _semanticListItemValue(WeftElement element) {
+  if (element.tag != 'li') return null;
+  return int.tryParse(element.attribute('value') ?? '');
+}
+
 List<_WeftSemanticFragment> _buildContentSemantics({
   required WeftDocumentSnapshot document,
   required WeftLayoutResult layout,
@@ -2001,6 +2028,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
     WeftLinkRegion? link,
     int headingLevel,
     bool isHeader,
+    bool isLiveRegion,
     List<String?>? prefixBox, {
     int? entryGlobalStart,
   }) {
@@ -2028,6 +2056,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
               _sameContainers(previous.containers, activeContainers) &&
               previous.isHeader == isHeader &&
               previous.headingLevel == headingLevel &&
+              previous.isLiveRegion == isLiveRegion &&
               previous.globalEnd != null &&
               previous.globalEnd == globalStart;
           if (canMerge) {
@@ -2039,6 +2068,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
               containers: previous.containers,
               isHeader: previous.isHeader,
               headingLevel: previous.headingLevel,
+              isLiveRegion: previous.isLiveRegion,
               globalStart: previous.globalStart,
               globalEnd: globalEnd,
             );
@@ -2056,6 +2086,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
                 ),
                 isHeader: isHeader,
                 headingLevel: headingLevel,
+                isLiveRegion: isLiveRegion,
                 globalStart: globalStart,
                 globalEnd: globalEnd,
               ),
@@ -2072,6 +2103,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
     WeftLinkRegion? currentLink,
     int headingLevel,
     bool isHeader,
+    bool isLive,
     List<String?>? prefixBox,
   ) {
     if (node is WeftText) {
@@ -2083,6 +2115,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
           currentLink,
           headingLevel,
           isHeader,
+          isLive,
           prefixBox,
           entryGlobalStart: entry.globalStart,
         );
@@ -2090,6 +2123,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
       return;
     }
     if (node is! WeftElement) return;
+    final childLive = _liveRegionSetting(node) ?? isLive;
     if (node.tag == 'img') {
       final image = images[node.id];
       final alt = node.attribute('alt')?.trim() ?? '';
@@ -2109,6 +2143,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
               ),
               isHeader: isHeader,
               headingLevel: headingLevel,
+              isLiveRegion: childLive,
             ),
           );
         }
@@ -2119,6 +2154,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
           currentLink,
           headingLevel,
           isHeader,
+          childLive,
           prefixBox,
         );
       }
@@ -2138,6 +2174,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
             ),
             isHeader: isHeader,
             headingLevel: headingLevel,
+            isLiveRegion: childLive,
             tag: tagRegion,
           ),
         );
@@ -2168,13 +2205,19 @@ List<_WeftSemanticFragment> _buildContentSemantics({
         _WeftSemanticContainerSpec(id: node.id, role: SemanticsRole.list),
       );
       var itemIndex = 0;
+      var itemNumber = node.tag == 'ol' ? _semanticListStart(node) : 0;
       for (final child in node.children) {
         List<String?>? childPrefix;
         if (child is WeftElement && child.tag == 'li') {
           itemIndex += 1;
-          childPrefix = <String?>[
-            node.tag == 'ol' ? '$itemIndex. ' : '• ',
-          ];
+          if (node.tag == 'ol') {
+            final explicit = _semanticListItemValue(child);
+            if (explicit != null) itemNumber = explicit;
+            childPrefix = <String?>['$itemNumber. '];
+            itemNumber += 1;
+          } else {
+            childPrefix = <String?>['• '];
+          }
           activeContainers.add(
             _WeftSemanticContainerSpec(
               id: child.id,
@@ -2182,10 +2225,24 @@ List<_WeftSemanticFragment> _buildContentSemantics({
               indexInParent: itemIndex - 1,
             ),
           );
-          visit(child, link, childHeading, childHeader, childPrefix);
+          visit(
+            child,
+            link,
+            childHeading,
+            childHeader,
+            childLive,
+            childPrefix,
+          );
           activeContainers.removeLast();
         } else {
-          visit(child, link, childHeading, childHeader, childPrefix);
+          visit(
+            child,
+            link,
+            childHeading,
+            childHeader,
+            childLive,
+            childPrefix,
+          );
         }
       }
       activeContainers.removeLast();
@@ -2194,7 +2251,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
     if (node.tag == 'table') {
       for (final child in node.children) {
         if (child is WeftElement && child.tag == 'caption') {
-          visit(child, link, childHeading, childHeader, null);
+          visit(child, link, childHeading, childHeader, childLive, null);
         }
       }
       activeContainers.add(
@@ -2225,7 +2282,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
             ),
           );
           cellIndex += 1;
-          visit(cell, link, childHeading, childHeader, null);
+          visit(cell, link, childHeading, childHeader, childLive, null);
           activeContainers.removeLast();
         }
         activeContainers.removeLast();
@@ -2247,12 +2304,13 @@ List<_WeftSemanticFragment> _buildContentSemantics({
       return;
     }
     for (final child in node.children) {
-      visit(child, link, childHeading, childHeader, prefixBox);
+      visit(child, link, childHeading, childHeader, childLive, prefixBox);
     }
   }
 
+  final bodyLive = _liveRegionSetting(body) ?? false;
   for (final child in body.children) {
-    visit(child, null, 0, false, null);
+    visit(child, null, 0, false, bodyLive, null);
   }
   return _buildSemanticForest(fragments);
 }

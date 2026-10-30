@@ -102,6 +102,28 @@ void main() {
     expect(texts, containsAll(<String>['1.', 'First', '2.', 'Second']));
   });
 
+  test('ordered list start and item value control the marker numbers', () {
+    final document = const WeftNormalizer().normalize(
+      '<ol start="3"><li>Third</li><li value="7">Seventh</li>'
+      '<li>Eighth</li></ol>'
+      '<ul><li value="9">Bullet</li></ul>',
+      id: 'list-start-value',
+    );
+    final layout = const WeftLayoutEngine().layout(document, width: 320);
+    addTearDown(layout.dispose);
+
+    final texts = layout.commands
+        .whereType<WeftTextPaintCommand>()
+        .map((command) => command.painter.text?.toPlainText())
+        .toList();
+    expect(
+      texts,
+      containsAll(<String>['3.', 'Third', '7.', 'Seventh', '8.', 'Eighth']),
+    );
+    expect(texts, contains('\u2022'));
+    expect(texts, isNot(contains('1.')));
+  });
+
   test('empty list items still render their marker', () {
     final document = const WeftNormalizer().normalize(
       '<ul><li></li><li>Item</li></ul>',

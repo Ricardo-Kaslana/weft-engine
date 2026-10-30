@@ -142,6 +142,39 @@ void main() {
     );
   });
 
+  test('keeps live-region and ordered-list numbering attributes', () {
+    final snapshot = const WeftNormalizer().normalize(
+      '<div aria-live=" POLITE "><p>Status</p></div>'
+      '<ol start="5"><li>Fifth</li><li value="9">Ninth</li><li>Tenth</li></ol>'
+      '<p aria-live="loud">Bad live</p>'
+      '<ol start="x"><li value="y">Bad numbering</li></ol>',
+      id: 'aria-and-lists',
+    );
+
+    expect(snapshot.supportReport.canRender, isTrue);
+    final elements = snapshot.body!.children.whereType<WeftElement>().toList();
+    final live = elements[0];
+    expect(live.attributes['aria-live'], 'polite');
+    final ordered = elements[1];
+    expect(ordered.attribute('start'), '5');
+    final items = ordered.children.whereType<WeftElement>().toList();
+    expect(items.map((item) => item.attribute('value')), [null, '9', null]);
+    final invalidLive = elements[2];
+    expect(invalidLive.attributes.containsKey('aria-live'), isFalse);
+    final invalidOrdered = elements[3];
+    expect(invalidOrdered.attributes.containsKey('start'), isFalse);
+    final invalidItem = invalidOrdered.children.whereType<WeftElement>().single;
+    expect(invalidItem.attributes.containsKey('value'), isFalse);
+    expect(
+      snapshot.supportReport.issues.map((issue) => issue.code),
+      containsAll(<String>[
+        'aria.live.invalid',
+        'list.start.invalid',
+        'list.value.invalid',
+      ]),
+    );
+  });
+
   test('node limit fails safely instead of returning partial content', () {
     const normalizer = WeftNormalizer(
       limits: WeftNormalizationLimits(maxNodes: 4),

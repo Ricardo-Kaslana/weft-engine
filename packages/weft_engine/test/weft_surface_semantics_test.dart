@@ -87,6 +87,32 @@ void main() {
       _node(find.semantics.byLabel('Data cell')),
       containsSemantics(isHeader: false),
     );
+    expect(
+      _node(find.semantics.byLabel('Main ')).getSemanticsData().headingLevel,
+      1,
+    );
+    expect(
+      _node(find.semantics.byLabel('link')).getSemanticsData().headingLevel,
+      1,
+    );
+    expect(
+      _node(find.semantics.byLabel('Subheading'))
+          .getSemanticsData()
+          .headingLevel,
+      3,
+    );
+    expect(
+      _node(find.semantics.byLabel('Body text'))
+          .getSemanticsData()
+          .headingLevel,
+      0,
+    );
+    expect(
+      _node(find.semantics.byLabel('Header cell'))
+          .getSemanticsData()
+          .headingLevel,
+      0,
+    );
     final headerNode = _node(find.semantics.byLabel('Header cell'));
     expect(headerNode.parent?.role, SemanticsRole.columnHeader);
     expect(headerNode.parent?.indexInParent, 0);
@@ -133,6 +159,51 @@ void main() {
     final nestedItem = _node(find.semantics.byLabel('• Nested'));
     expect(nestedItem.parent?.role, SemanticsRole.listItem);
     expect(nestedItem.parent?.parent?.role, SemanticsRole.list);
+    semantics.dispose();
+  });
+
+  testWidgets('aria-live marks descendant text as live regions',
+      (tester) async {
+    final semantics = tester.ensureSemantics();
+    final document = _normalize(
+      '<p>Quiet</p>'
+      '<div aria-live="polite"><p>Live <strong>update</strong></p>'
+      '<p aria-live="off">Nested off</p></div>'
+      '<p aria-live="off">Off</p>'
+      '<p aria-live="assertive">Alert</p>',
+    );
+    await tester.pumpWidget(_wrap(WeftSurface(document: document)));
+
+    bool live(String label) => _node(find.semantics.byLabel(label))
+        .getSemanticsData()
+        .flagsCollection
+        .isLiveRegion;
+    expect(live('Quiet'), isFalse);
+    expect(live('Live update'), isTrue);
+    expect(live('Nested off'), isFalse);
+    expect(live('Off'), isFalse);
+    expect(live('Alert'), isTrue);
+    expect(find.semantics.byLabel('Live update'), findsOneWidget);
+    semantics.dispose();
+  });
+
+  testWidgets('ordered list start and value reach semantic markers', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final document = _normalize(
+      '<ol start="3"><li>Third</li><li value="7">Seventh</li>'
+      '<li>Eighth</li></ol>',
+    );
+    await tester.pumpWidget(_wrap(WeftSurface(document: document)));
+
+    final third = _node(find.semantics.byLabel('3. Third'));
+    final seventh = _node(find.semantics.byLabel('7. Seventh'));
+    final eighth = _node(find.semantics.byLabel('8. Eighth'));
+    expect(third.parent?.role, SemanticsRole.listItem);
+    expect(third.parent?.indexInParent, 0);
+    expect(seventh.parent?.indexInParent, 1);
+    expect(eighth.parent?.indexInParent, 2);
     semantics.dispose();
   });
 

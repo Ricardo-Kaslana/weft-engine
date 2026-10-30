@@ -28,10 +28,11 @@
 - 移动端原生构建（ADR 0035）：`weft_quickjs` 声明为 ffiPlugin；Android 模块用 CMake 就地编出 `libweft_quickjs.so`（16 KB 页对齐、只导出 `weft_*`），iOS pod 把垫片静态编进 app image 并用 ObjC 锚点防止 dead-strip；加载器按平台分派，显式路径可覆盖。
 
 请继续下一个切片，优先级如下：
-1. C0 Flutter 3.35.5 兼容基线已完成（ADR 0038）：Flutter 依赖包与示例统一收紧下限，包版本对齐到 0.7.0-dev.1，运行时行为不变。B2 冷深跳 settling 已完成（ADR 0037）：WeftView 宿主视口遮罩 + post-frame 状态信号，未配置 builder 时行为不变；Android 验收见 device-matrix §4.8。**下一步优先语义增强（C1：headingLevel/live region/有序列表起始序号）或增量布局扩展，不要再改 layout/overscan、重复后端 A/B，或把遮罩当成零空白；禁止把桌面 layoutViewport 画像当真机帧耗时。**
-2. 深跳尖峰定性：ADR 0036 复测已把 FrameTiming 拆成 build/raster，~313ms 尖峰未复现且全程无 >50ms 帧；若再现，按 §4.4 的 build/raster 方法继续定位。
-3. iOS 构建与真机验证（**暂缓**：暂无 macOS 环境）：按 docs/device-matrix.md §2.2 清单执行；未验证前 iOS 不得宣称可用，发布说明要写明缺席。
-4. 语义增强 / 增量布局扩展：按产品需要，见下文「建议的下一步」。
+1. C1 语义补全已完成（ADR 0039）：`h1..h6` headingLevel、显式 `aria-live` live region、`ol start`/`li value` 的视觉与语义 marker；列表一致性向量已更新。C0 Flutter 3.35.5 兼容基线（ADR 0038）与 B2 冷深跳 settling（ADR 0037）均已完成；Android 验收见 device-matrix §4.8。**下一步优先语义虚拟化、RTL/语言、完整 ARIA role/atomic，或增量布局扩展；不要再改 layout/overscan、重复后端 A/B，或把遮罩当成零空白；禁止把桌面 layoutViewport 画像当真机帧耗时。**
+2. 语义真机抽查：C1 只在 `SemanticsOwner` 层验证 headingLevel/liveRegion 标志，尚未在 TalkBack/Web 读屏上验收播报；若产品需要，按 JNY-AL10 手动验证标题导航和 live region 播报并记录到 device-matrix。
+3. 深跳尖峰定性：ADR 0036 复测已把 FrameTiming 拆成 build/raster，~313ms 尖峰未复现且全程无 >50ms 帧；若再现，按 §4.4 的 build/raster 方法继续定位。
+4. iOS 构建与真机验证（**暂缓**：暂无 macOS 环境）：按 docs/device-matrix.md §2.2 清单执行；未验证前 iOS 不得宣称可用，发布说明要写明缺席。
+5. 语义/增量布局后续：按产品需要，见下文「建议的下一步」。
 
 硬性约束：
 - 不做完整浏览器；不执行不可信脚本；不把 HTML 节点映射为独立 Widget。
@@ -40,7 +41,7 @@
 - 每次修改必须运行 `dart format --output=none --set-exit-if-changed .`、`dart analyze`、`dart run tool/verify.dart` 和 `packages/weft_engine/tool/golden_pixel_test.dart`。
 - 新增能力必须附带单元测试；影响布局时必须评估黄金基线与 conformance/reference/ 下的浏览器几何基线。
 - 改动 `packages/weft_quickjs/native/`、`android/` 或 `ios/` 后必须跑 `packages/weft_quickjs/tool/build_native.sh` 重编桌面库并执行 `dart test`（weft_quickjs）；平台工程的编译参数必须与桌面脚本保持一致（ADR 0035）。
-- 重要技术取舍写入 docs/adr/（下一个编号为 0039）。
+- 重要技术取舍写入 docs/adr/（下一个编号为 0040）。
 
 接手前先知道的坑（本轮实测踩出来的，能省你几个小时）：
 - 历史上美化排版会关掉懒布局，首帧退化成 1801 节点全量排版（198–280ms）。ADR 0036 已在窗口化之后接入 ASCII 格式化空白，但保留了正文/NBSP/pre 的 full 边界；旧真机数字不能用于宣称改后通过，详见 device-matrix §4.3/§4.4。
@@ -58,15 +59,16 @@
 
 - 分支：`main`
 - 最新提交：见 `git log`（本节只保证指南有效，不追踪哈希）
-- Flutter：3.35.5 stable（引擎/示例编译下限，ADR 0038）；Dart：3.9.2；ADR 38 份（0001–0038）；包版本 0.7.0-dev.1
-- 常规测试 491 项（weft_engine 255、weft_document 77、weft 77、weft_quickjs 28、weft_capabilities 15、weft_runtime_fake 12、weft_runtime_contract 9、weft_runtime_api 2、weft_lab 1、weft_live 8、weft_fallback 7；ADR 0037 新增 17 项）、像素黄金 3 项 + 选区高亮 1 项、性能门禁 14 场景（7 布局 + 3 绘制 + 4 命中）；`dart analyze` 无问题，公开 API 文档覆盖零缺口。开发计划阶段 0–5 已完成（阶段 5 见 ADR 0034），阶段 5 之后补了移动端原生构建（ADR 0035）、懒布局窗口直物化（ADR 0036）、冷深跳 settling 遮罩（ADR 0037）与 Flutter 3.35.5 兼容基线（ADR 0038）。
+- Flutter：3.35.5 stable（引擎/示例编译下限，ADR 0038）；Dart：3.9.2；ADR 39 份（0001–0039）；包版本 0.7.0-dev.1
+- 常规测试 495 项（weft_engine 258、weft_document 78、weft 77、weft_quickjs 28、weft_capabilities 15、weft_runtime_fake 12、weft_runtime_contract 9、weft_runtime_api 2、weft_lab 1、weft_live 8、weft_fallback 7；C1 新增 4 项）、像素黄金 3 项 + 选区高亮 1 项、性能门禁 14 场景（7 布局 + 3 绘制 + 4 命中）；`dart analyze` 无问题，公开 API 文档覆盖零缺口。开发计划阶段 0–5 已完成（阶段 5 见 ADR 0034），阶段 5 之后补了移动端原生构建（ADR 0035）、懒布局窗口直物化（ADR 0036）、冷深跳 settling 遮罩（ADR 0037）、Flutter 3.35.5 兼容基线（ADR 0038）与语义补全（ADR 0039）。
 - GitHub Actions 使用 Windows 执行像素黄金门禁（仓库尚无远端，CI 尚未真正跑过）。
 - 2026-10-28 增量：Android 真机构建与执行验证、插件单 ABI 裁剪、回环直连修复与首轮矩阵；之后交付 ADR 0036 窗口直物化及桌面结构/耗时证据（docs/device-matrix.md §4.4）。真实 Flutter Web＋Edge 的滚动、锚点与选择复制已验证；JNY-AL10 profile 复测四项标准通过（中位冷启 635ms、滚动 p95 ≈26ms、深跳最大 37ms、内存 +10MB），strict 60fps 受 raster 限制。证据位于本地 build/adr0036-evidence。iOS 验证仍暂缓。
 - 2026-10-31 增量：B1 后端 A/B 完成（12 Impeller + 12 Skia，ABBA，JNY-AL10 profile，24 轮全部有效）。PAINT_ONLY 与 SCROLL 的 raster/total 均无显著差异（SCROLL total p95 中位 25.70 vs 24.49ms，p=0.33；PAINT_ONLY stable raster p95 8.77 vs 9.75ms，p=0.42），唯一显著项是 SCROLL build p95 差 0.38ms，无实际意义。结论：不建议旧 Mali 关闭 Impeller；strict 60fps 仍未达成。证据在本地 `build/adr0036-evidence/b1/`，详见 device-matrix §4.7。
 - 2026-10-31 增量（B2）：冷深跳 settling 交付（ADR 0037）。`WeftView.lazySettlingBuilder` 在分帧测量期间渲染宿主视口遮罩；`onLazySettlingChanged` 与 `WeftViewState.isLazySettling` 从 post-frame 报告起止，未配置 builder 时树与黄金不变。引擎不改布局预算/overscan/后端，也不伪造未测量块；首帧仍可能空白，遮罩不加速测量。Android 验收（遮罩 544ms、29 帧收敛、无 >50ms 帧；异步/近距不触发）与证据见 device-matrix §4.8。
 - 2026-10-31 增量（C0）：Flutter 3.35.5 兼容基线（ADR 0038）。所有 Flutter 依赖包与示例声明 `flutter: ">=3.35.5"`，纯 Dart 包保持 Dart 3.5；包版本统一升到 0.7.0-dev.1。此前的 3.22 下限与实际 `SemanticsRole` 依赖不符，3.22–3.34 宿主无法编译。无运行时行为、快照/bridge 契约或黄金变化，测试仍为 491 项。
+- 2026-10-31 增量（C1）：语义补全（ADR 0039）。`h1..h6` 输出 `headingLevel`；显式 `aria-live` 子树按三态继承标记叶子 `liveRegion`（`polite/assertive` 统一为布尔，`off` 关闭）；`ol start`/`li value` 同时控制视觉 marker 与语义 marker。规范化器保留三个新属性、非法值丢弃并诊断；`synthetic_lists_and_quotes` 向量随 `<ol start>` 保留重新生成，其余 20 个向量未变。无新语义容器，像素黄金不变。
 
-已实现至 ADR 0038（Android 四项设备标准已通过，strict 60fps raster 待优化；B2 冷跳 settling 遮罩已交付；C0 兼容基线已交付）。ADR 0038：Flutter 3.35.5 兼容基线——Flutter 依赖包/示例统一下限，版本 0.7.0-dev.1，运行时不变。ADR 0037：冷深跳 settling——WeftView 宿主视口遮罩与 post-frame 信号，未配置 builder 时行为不变。ADR 0036：已测区间索引直接物化、单所有者块元数据、增量后缀估算、格式化空白准入与 correctBy 后视口同步。ADR 0017–0033：分块渲染与命中裁剪（ADR 0017/0020）、行内图片（ADR 0018）、选择 chrome（ADR 0019）、块级盒模型（ADR 0021）、表格列轨道（ADR 0022）、流式顶层前缀复用（ADR 0023）、单表面 Semantics（ADR 0024/0026/0028/0030）、渐进式布局虚拟化（ADR 0025）、同步/异步锚点导航（ADR 0027/0029）、懒布局异步分帧与同快照复用（ADR 0031）、阶段 0–3 验收证据与重定界（ADR 0032）和受限 JS 运行时（QuickJS FFI + 能力网关 + 恢复去重 + 自定义标签，ADR 0033）。ADR 0034（阶段 5）：快照 JSON 线格式（format+version 门禁）与 21 个规范化一致性向量、种子化模糊测试（CI 快跑 + tool/fuzz.dart 长跑，修复诊断上限绕过与 toString 崩溃两个真实问题）、能力策略 8 子集矩阵、example/weft_fallback WebView 回退示例、发布手册与回滚演练测试、API 文档门禁、真机矩阵计划。ADR 0035：QuickJS 移动平台构建——ffiPlugin 声明、Android CMake 就地编译（16 KB 对齐）、iOS 静态链接与 dead-strip 锚点、按平台分派的加载器。
+已实现至 ADR 0039（Android 四项设备标准已通过，strict 60fps raster 待优化；B2 冷跳 settling 遮罩已交付；C0 兼容基线已交付；C1 语义补全已交付）。ADR 0039：语义补全——headingLevel、`aria-live` live region 与有序列表 `start`/`value`；规范化向量同步更新。ADR 0038：Flutter 3.35.5 兼容基线——Flutter 依赖包/示例统一下限，版本 0.7.0-dev.1，运行时不变。ADR 0037：冷深跳 settling——WeftView 宿主视口遮罩与 post-frame 信号，未配置 builder 时行为不变。ADR 0036：已测区间索引直接物化、单所有者块元数据、增量后缀估算、格式化空白准入与 correctBy 后视口同步。ADR 0017–0033：分块渲染与命中裁剪（ADR 0017/0020）、行内图片（ADR 0018）、选择 chrome（ADR 0019）、块级盒模型（ADR 0021）、表格列轨道（ADR 0022）、流式顶层前缀复用（ADR 0023）、单表面 Semantics（ADR 0024/0026/0028/0030）、渐进式布局虚拟化（ADR 0025）、同步/异步锚点导航（ADR 0027/0029）、懒布局异步分帧与同快照复用（ADR 0031）、阶段 0–3 验收证据与重定界（ADR 0032）和受限 JS 运行时（QuickJS FFI + 能力网关 + 恢复去重 + 自定义标签，ADR 0033）。ADR 0034（阶段 5）：快照 JSON 线格式（format+version 门禁）与 21 个规范化一致性向量、种子化模糊测试（CI 快跑 + tool/fuzz.dart 长跑，修复诊断上限绕过与 toString 崩溃两个真实问题）、能力策略 8 子集矩阵、example/weft_fallback WebView 回退示例、发布手册与回滚演练测试、API 文档门禁、真机矩阵计划。ADR 0035：QuickJS 移动平台构建——ffiPlugin 声明、Android CMake 就地编译（16 KB 对齐）、iOS 静态链接与 dead-strip 锚点、按平台分派的加载器。
 
 ## 包结构
 
@@ -110,11 +112,11 @@ docs/adr/               架构决策记录
 - 命中裁剪（ADR 0020）：`WeftLayoutResult.attachDocument` 后命中查询经分块索引（段 bounds 条带）裁剪，语义与全量倒扫逐点等价；`WeftView.scrollController` 可注入。
 - 列轨道（ADR 0022）：`colgroup/col` 的 px 固定列（min=max=声明值）、百分比列（基数 = 表内容宽）、span 轨道与 colspan 平摊绕过固定列；带轨道 collapse 表采用 Chrome 盒语义。
 - 流式增量（ADR 0023）：公共顶层前缀按规范化子树与全局输入键复用，在原块流中跳过递归排版并保留 TextPainter；连续快照重新绑定缓存节点。旧结果含 Float、全局输入变化等情况全量回退；文本索引仍全量重建，未变前缀 Picture 跨布局保留。
-- Semantics（ADR 0024/0026）：RenderWeftSurface 手动组装阅读顺序文本、链接、图片和选区节点；标题子树带 header flag，链接语义 tap 与选区 copy 走独立回调入口，WeftView pointer/剪贴板职责不变。节点 key 对齐 NodeId，流式更新保留身份；屏外节点可 showOnScreen，选区仅暴露 value/selected/rect/copy，不伪装 text field。
+- Semantics（ADR 0024/0026/0028/0030/0039）：RenderWeftSurface 手动组装阅读顺序文本、链接、图片和选区节点；标题子树带 header flag 与 `headingLevel`，显式 `aria-live` 子树的叶子带 `liveRegion`，有序列表 marker 使用 `ol start`/`li value`。链接语义 tap 与选区 copy 走独立回调入口，WeftView pointer/剪贴板职责不变。节点 key 对齐 NodeId，流式更新保留身份；屏外节点可 showOnScreen，选区仅暴露 value/selected/rect/copy，不伪装 text field。live region 不创建额外容器，`polite/assertive` 统一为布尔。
 - 布局虚拟化（ADR 0025）：`layoutViewport` 在原块流中连续测量精确前缀，只物化 viewport+250px 窗口；未测后缀按同类块中位数估算 extent。隐藏块释放 commands/painter，previous/current 继续单 owner 转移；跳到估算底部用 correctBy 跟随。顶层块内及 body 直属的已解析图片 Float 都以块级排除区 checkpoint 跨离屏复用；非图片/inline 祖先 Float、非空 selection（含首帧）、Semantics、未解析图片/loose inline 回退或粘滞 full。full 退出会递增 generation 并清除陈旧校正，初始 ScrollController offset 会 seed 首帧物化窗口。
 - 懒布局异步分帧与同快照复用（ADR 0031）：视口末端距已测前缀超过一屏或首帧 seed 深于 overscan 时，每帧至多新测 32 个顶层块，post-frame 续帧按 `_needsLazyRelayout` 收敛，`_lazyGeneration` 取消；同快照 relayout 跳过节点 diff 与样式表比对，元素级样式缓存随增量缓存跨帧存活（宽度/缩放/图片不参与计算样式），文本索引实例直接复用。300 块冷跳底部从 124.8ms 单帧降为 10 帧 × 中位 5.8ms。
 - 冷深跳 settling（ADR 0037）：`RenderWeftSurface.isLazySettling`/`onLazySettlingChanged` 在 budgeted pass 后判定，post-frame 去重上报；`WeftView.lazySettlingBuilder` 提供视口固定的宿主遮罩（`IgnorePointer`），`onLazySettlingChanged`/`WeftViewState.isLazySettling` 暴露起止。near-frontier、异步锚点、已测量窗口不触发；`_exitLazyMode`/文档替换/dispose 复位。未配置 builder 时树与黄金不变。
-- 测试：规范化、布局、margin、盒模型、图片、浮动、表格（17 项）、选择（15 项，含 10 万字符随机选区与流式重映射）、CJK、长文档、公开层、像素基线、两个浏览器几何基线，以及语料结构断言（无丢失/无重叠/无越界）与敌意输入诊断扫描（ADR 0032）。
+- 测试：规范化、布局、margin、盒模型、图片、浮动、表格（17 项）、选择（15 项，含 10 万字符随机选区与流式重映射）、CJK、长文档、公开层、语义（headingLevel/liveRegion 与列表 start/value）、像素基线、两个浏览器几何基线，以及语料结构断言（无丢失/无重叠/无越界）与敌意输入诊断扫描（ADR 0032）。
 - 移动端原生构建（ADR 0035）：`weft_quickjs` 的 `flutter.plugin.platforms` 声明 android/ios 为 ffiPlugin，包本身不依赖 Flutter；Android 由 `android/src/main/cpp/CMakeLists.txt` 就地编译 vendor 源码（`-fvisibility=hidden`、16 KB 页对齐、`compileSdk 36`/NDK 27），iOS 由 podspec 编进 app image，`WEFT_EXPORT` 的 `used` 属性 + ObjC 锚点防止 `-dead_strip` 丢掉 `dlsym` 目标；`librarySourceFor()` 按平台分派（显式路径 > iOS process() > Android 按名打开 > 桌面文件搜索）。APK 已实测含三 ABI 的 `libweft_quickjs.so` 且恰好导出 10 个 `weft_*`；真机（Huawei JNY-AL10 / Android 10）跑通加载、JSON/字符串求值与内存/墙钟两类预算中断。
 
 ## 明确未实现
@@ -124,7 +126,7 @@ docs/adr/               架构决策记录
 - 非图片 Float 与表格局部 Float 的 checkpoint；增量布局的后缀平移与行级复用；行内原子的 margin 参与行框与 top/bottom 对齐。
 - CJK 像素基线（跨引擎像素验收已按 ADR 0032 重定界为结构几何门禁；真机帧计时仍以 weft_lab 为准）。
 - 表格：嵌套表格（触发回退）、浏览器级 auto 列宽分配精度、`col` 的 min/max 语义。
-- Semantics 的 headingLevel、跨行跨列语义索引、CSS 列表样式/起始序号、可编辑 selection/caret 动作、RTL/语言属性、live region 与语义虚拟化。
+- Semantics 的跨行跨列语义索引、table/list 角色导航、可编辑 selection/caret 动作、RTL/语言属性、完整 ARIA role/atomic、`polite`/`assertive` 播报优先级与语义虚拟化。live region 目前只标记显式子树内的叶子，可能逐叶子播报。
 - 受限 JS 的既有边界：bridge 风暴上限按单轮计数、`weft.net` 仅 GET、自定义标签不支持行内混排与 Float 环绕、JSON 编组把 undefined 折叠为 null（ADR 0033 后续小节）。
 - 移动端验收证据：Android 已完成构建、打包与真机执行（Huawei JNY-AL10 / Android 10，加载/求值/内存与墙钟预算共 6 项冒烟全过）；iOS 构建与运行（需 macOS + Xcode + CocoaPods）**暂缓**——podspec 与锚点只经过代码审查，未执行过 `pod install`（ADR 0035）。
 
@@ -204,11 +206,11 @@ B1 后端 A/B 已完成（device-matrix §4.7）：12 Impeller + 12 Skia ABBA �
 
 引擎侧没有免费的 60fps 优化空间：继续压榨需要后端层手段（图片光栅缓存、减少每帧新内容面积），或接受 A 档 ≤33ms 标准（当前已满足）。B2 已完成（ADR 0037）：冷跳空白可由宿主遮罩覆盖，但测量速度与 60fps 缺口不变。下一步转 C 语义增强或 D 增量布局；不要再改 layout/overscan、重复后端 A/B，或把遮罩当成零空白。
 
-### C. 语义增强（C0 已完成，下一步 C1）
+### C. 语义增强（C0/C1 已完成）
 
-C0 兼容基线（ADR 0038）已完成：Flutter 依赖包/示例要求 `>=3.35.5`，包版本 `0.7.0-dev.1`，纯 Dart 包保持 Dart 3.5。下一步建议 C1：headingLevel、显式 `aria-live` live region、有序列表 `start/value` 序号；table/list 嵌套角色已在 ADR 0030 交付，不要重复实现，也不要为它们再做扁平化“优化”。
+C0 兼容基线（ADR 0038）与 C1 语义补全（ADR 0039）已完成：Flutter 依赖包/示例要求 `>=3.35.5`，包版本 `0.7.0-dev.1`，纯 Dart 包保持 Dart 3.5。C1 交付 headingLevel、显式 `aria-live` live region 与有序列表 `start/value` 标记。table/list 嵌套角色已在 ADR 0030 交付，不要重复实现或扁平化。
 
-注意：继续使用 describeSemanticsConfiguration/assembleSemanticsNode 的单表面模型；新增语义容器必须满足 Flutter 的严格父子校验。不要把静态文档伪装成 text field，也不要让语义节点持有旧 TextPainter。lazy 路径在 assemble 前必须升级 full。
+后续候选：语义虚拟化（当前 Semantics 仍升级 full）、RTL/语言属性、完整 ARIA role/atomic 与可编辑 selection/caret 动作。注意：继续使用 describeSemanticsConfiguration/assembleSemanticsNode 的单表面模型；新增语义容器必须满足 Flutter 的严格父子校验。不要把静态文档伪装成 text field，也不要让语义节点持有旧 TextPainter。lazy 路径在 assemble 前必须升级 full。
 
 ### D. 增量布局扩展
 
@@ -238,4 +240,6 @@ C0 兼容基线（ADR 0038）已完成：Flutter 依赖包/示例要求 `>=3.35.
 - 桌面测试的 lazy pass 耗时（3–6ms）不能直接当设备预算：A 档真机放大约 3–4 倍（18–27ms），定目标时按 4× 估。
 - 不要用 `tool/check.sh | tail` 判断成败：管道会吞掉退出码，重定向到文件再看 `$?`。
 - Flutter 下限已在 0.7.0-dev.1 统一为 `>=3.35.5`（ADR 0038），不要再写回 3.22：`weft_engine` 自 ADR 0030 起使用 Flutter 3.35.5 的 `SemanticsRole`，3.22–3.34 宿主会在编译期失败；包含 ADR 0030 的 0.5/0.6 版本在实际编译时同样要求 3.35.5。
+- live region 不是语义容器：`aria-live` 只给叶子片段打 `liveRegion`，多个叶子可能被辅助技术分别播报；不要把整页包进 aria-live，也不要指望引擎合并临时消息或保留 polite/assertive 优先级。
+- 规范化向量重新生成后必须人工审查 diff；C1 只改变了 `synthetic_lists_and_quotes`（保留 `ol start`），其余 20 个向量必须保持不变。
 - 不要删除 iOS 的锚点类或 `WEFT_EXPORT` 的 `used` 属性：它们不是死代码，去掉后 `-dead_strip` 会连同 `dlsym` 目标一起丢弃，而桌面测试完全发现不了。

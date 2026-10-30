@@ -82,7 +82,13 @@ abstract final class WeftHtmlSpec {
   static const transparentTags = <String>{'body', 'html'};
 
   /// Attributes allowed on every element.
-  static const globalAttributes = <String>{'class', 'id', 'style', 'title'};
+  static const globalAttributes = <String>{
+    'aria-live',
+    'class',
+    'id',
+    'style',
+    'title',
+  };
 
   /// Per-tag attribute whitelist on top of [globalAttributes].
   static const tagAttributes = <String, Set<String>>{
@@ -90,6 +96,8 @@ abstract final class WeftHtmlSpec {
     'col': {'span', 'width'},
     'colgroup': {'span'},
     'img': {'src', 'alt', 'width', 'height'},
+    'li': {'value'},
+    'ol': {'start'},
     'td': {'colspan', 'rowspan'},
     'th': {'colspan', 'rowspan'},
   };
