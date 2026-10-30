@@ -124,6 +124,77 @@ void main() {
 
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  testWidgets('direct bottom jump shows the settling skeleton', (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1280, 900);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(const WeftLiveApp(enableLiveUpdates: false));
+    await tester.pump();
+    // The editorial page wraps its body in one top-level block, so lazy
+    // layout cannot window it. Inject a document with many top-level blocks
+    // to exercise the same host wiring the page exposes.
+    tester
+        .widget<WeftView>(find.byType(WeftView))
+        .controller
+        .loadDocument(_longArticle());
+    await tester.pump();
+    await tester.pump();
+    final state = tester.state<WeftViewState>(find.byType(WeftView));
+    expect(state.isLazySettling, isFalse);
+    expect(
+      find.byKey(const ValueKey<String>('settling-skeleton')),
+      findsNothing,
+    );
+
+    await tester.tap(find.byKey(const ValueKey<String>('jump-bottom')));
+    await tester.pump();
+    expect(state.isLazySettling, isTrue);
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey<String>('settling-skeleton')),
+      findsOneWidget,
+    );
+
+    await tester.pumpAndSettle(
+      const Duration(milliseconds: 16),
+      EnginePhase.sendSemanticsUpdate,
+      const Duration(seconds: 10),
+    );
+    expect(state.isLazySettling, isFalse);
+    expect(
+      find.byKey(const ValueKey<String>('settling-skeleton')),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
+  }, semanticsEnabled: false);
+
+  testWidgets('async section navigation never shows the settling skeleton',
+      (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1280, 900);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(const WeftLiveApp(enableLiveUpdates: false));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey<String>('nav-agenda')));
+    await tester.pump();
+    for (var frame = 0; frame < 80; frame++) {
+      expect(
+        find.byKey(const ValueKey<String>('settling-skeleton')),
+        findsNothing,
+      );
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(
+      find.byKey(const ValueKey<String>('settling-skeleton')),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
+  });
 }
 
 SemanticsNode? _findLabeledNode(SemanticsNode node, String prefix) {
@@ -148,4 +219,18 @@ Offset _globalCenter(SemanticsNode node, SemanticsNode root) {
     current = current.parent;
   }
   return MatrixUtils.transformPoint(transform, node.rect.center);
+}
+
+WeftDocumentSnapshot _longArticle() {
+  final html = StringBuffer('<h1>长文测量演示</h1>');
+  for (var i = 0; i < 300; i++) {
+    html.write(
+      '<p>Paragraph $i with enough words to wrap across lines and keep the '
+      'document deep enough for a budgeted lazy jump.</p>',
+    );
+  }
+  return const WeftNormalizer().normalize(
+    html.toString(),
+    id: 'weft-live-long-demo',
+  );
 }

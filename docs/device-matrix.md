@@ -258,3 +258,31 @@ iOS 继续暂缓；Web debug 与桌面画像只作结构性证据，不替代设
 - 光栅与 combined 的轮间离散度远大于后端中位数差：SCROLL total p95 覆盖 21.0–28.2 ms，而中位数差仅 1.2 ms，且 p=0.33。多轮 raster p50 在约 4 ms 与 7–10 ms 两档之间跳变，提示 DVFS/频率状态主导轮间波动；按 4 轮一组的 ABBA 配对方向也不一致（前三组 Impeller 更低，后三组 Skia 更低或接近）。
 - **没有可复现证据支持在旧 Mali 设备关闭 Impeller**；不建议把后端切换作为冲 60fps 的手段。strict 60fps 仍未达成（本轮 SCROLL total p95 中位 24.5–25.7 ms），光栅缺口仍由基线全屏绘制与新内容首绘构成，与 §4.6 一致。
 - 限制：重建探针的正文长度与 §4.4 不同，而且 500 px/帧扫掠是压力相，不代表慢速自然滚动；`FrameTiming.rasterDuration` 仍含排队/围栏等待。证据：`build/adr0036-evidence/b1/`（原始 logcat、perf 过滤、`summary.tsv`、`report.md/json`）；临时探针与 workspace 项已清理。
+
+### 4.8 B2 冷深跳 settling 设备验证（2026-10-31）
+
+目标：验证 ADR 0037 的宿主遮罩在真机上只在 budgeted 深跳期间出现，且不改变懒布局收敛与帧预算。
+
+方法：
+
+- 设备同上（JNY-AL10 / Android 10，profile，arm64-v8a，Impeller 默认 Vulkan）。临时探针 `build/adr0037-probe` 重建 901 元素/1801 body 子节点的长文（DOC 断言 `elements=901`、`rawChildren=1801`、`section270Id=2425`），WeftView 配置 `lazySettlingBuilder`（绿色静态 `MEASURING` 遮罩）与 `onLazySettlingChanged` 日志。
+- 顺序：near-frontier `jumpTo(200)` → 直接 `jumpTo(maxScrollExtent)` → `jumpTo(0)` → `scrollToNodeAsync` 第 270 节。每个阶段清空 settling 记录；`SchedulerBinding.addTimingsCallback` 汇总 build/raster/total。
+- 截图在检测到 `PROBE|JUMP|DIRECT_BOTTOM` 后连续抓取；完整 logcat 与截图保存在 `build/adr0037-evidence/`。临时探针、安装与 workspace 项已清理。
+
+结果：
+
+| 阶段 | 结果 |
+|---|---|
+| near-frontier（offset 200） | 1 帧，`events=[]`，无遮罩；prefix 12/901，lazy=true |
+| 直接跳底（from 200） | 29 帧；`SETTLE|true` → `SETTLE|false` 间隔 544ms，事件恰为 `[true,false]`；`MEASURING` 截图命中；结束后 prefix 901/901、materialized 10、lazy=true、`fullReason=null` |
+| 回顶 | `events=[]`，无遮罩；全量已测，lazy=true |
+| 异步锚点第 270 节 | 2 帧，`events=[]`，无遮罩；返回 true，offset 89617.32，lazy=true |
+
+直接跳底的 FrameTiming（29 帧）：build p50/p95 11.68/21.36ms，raster p50/p95 2.47/5.89ms，total p50/p95 15.09/29.26ms，max 37.58ms；>33ms 1 帧，>50ms 0 帧。遮罩是静态 `ColoredBox`，未引入额外连续帧；settled 后探针正常结束。
+
+结论：
+
+- 宿主遮罩从深跳后的 budgeted pass 开始显示，在目标窗口物化后移除；异步锚点、回顶与 near-frontier 同步滚动均不触发，符合 ADR 0037 的边界。
+- 遮罩不改变 lazy 收敛路径（仍 29 帧、prefix 901/901、`fullReason=null`），本次未出现 >50ms 帧；A 档 ≤33ms 的标准不因遮罩改变（p95 29.26ms）。
+- 未在设备上单独跑“深初始 seed”场景；该路径由 widget 测试覆盖。遮罩不加速测量，首帧仍可能可见空白，不宣称零空白；strict 60fps 与后端选择不在本次范围。
+- 证据：`build/adr0037-evidence/direct-1.png`（MEASURING）、`direct-3/6.png` 与 `settled.png`（物化后内容）、`probe.raw.log`、`live.log`、`adr0037.mp4`。

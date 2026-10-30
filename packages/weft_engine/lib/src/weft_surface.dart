@@ -93,6 +93,7 @@ class WeftSurface extends StatefulWidget {
     this.viewportHeight,
     this.initialViewportPixels = 0,
     this.onLazyExtentCorrection,
+    this.onLazySettlingChanged,
     this.showSelectionHandles = true,
     this.showCaret = true,
     this.showCopyButton = true,
@@ -142,6 +143,14 @@ class WeftSurface extends StatefulWidget {
   /// Called when a lazy layout corrects its estimated extent, so the host
   /// can adjust its scroll metrics.
   final ValueChanged<double>? onLazyExtentCorrection;
+
+  /// Called when a budgeted lazy pass starts or finishes filling the
+  /// viewport window (ADR 0037).
+  ///
+  /// Surfaces never paint an overlay themselves; hosts use this signal to
+  /// place their own placeholder. The callback runs post-frame and reports
+  /// each transition once.
+  final ValueChanged<bool>? onLazySettlingChanged;
 
   /// Whether [RenderWeftSurface.selectionControlsGeometry] exposes drag
   /// handle touch targets. Handles are overlay widgets owned by WeftView and
@@ -202,6 +211,7 @@ class _WeftSurfaceState extends State<WeftSurface> {
       viewportHeight: widget.viewportHeight,
       initialViewportPixels: widget.initialViewportPixels,
       onLazyExtentCorrection: widget.onLazyExtentCorrection,
+      onLazySettlingChanged: widget.onLazySettlingChanged,
       showSelectionHandles: widget.showSelectionHandles,
       showCaret: widget.showCaret,
       showCopyButton: widget.showCopyButton,
@@ -232,6 +242,7 @@ class _RawWeftSurface extends LeafRenderObjectWidget {
     this.viewportHeight,
     this.initialViewportPixels = 0,
     this.onLazyExtentCorrection,
+    this.onLazySettlingChanged,
     this.showSelectionHandles = true,
     this.showCaret = true,
     this.showCopyButton = true,
@@ -273,6 +284,9 @@ class _RawWeftSurface extends LeafRenderObjectWidget {
   /// Called when a lazy layout corrects its estimated extent.
   final ValueChanged<double>? onLazyExtentCorrection;
 
+  /// Called when a budgeted lazy pass starts or finishes settling.
+  final ValueChanged<bool>? onLazySettlingChanged;
+
   /// Whether drag handle touch targets are exposed to the view layer.
   final bool showSelectionHandles;
 
@@ -302,6 +316,7 @@ class _RawWeftSurface extends LeafRenderObjectWidget {
       viewportHeight: viewportHeight,
       initialViewportPixels: initialViewportPixels,
       onLazyExtentCorrection: onLazyExtentCorrection,
+      onLazySettlingChanged: onLazySettlingChanged,
       imageConfiguration: createLocalImageConfiguration(context),
       showSelectionHandles: showSelectionHandles,
       showCaret: showCaret,
@@ -328,6 +343,7 @@ class _RawWeftSurface extends LeafRenderObjectWidget {
       ..lazyOverscan = lazyOverscan
       ..viewportHeight = viewportHeight
       ..onLazyExtentCorrection = onLazyExtentCorrection
+      ..onLazySettlingChanged = onLazySettlingChanged
       ..showSelectionHandles = showSelectionHandles
       ..showCaret = showCaret
       ..showCopyButton = showCopyButton
@@ -357,6 +373,7 @@ class RenderWeftSurface extends RenderBox {
     double? viewportHeight,
     double initialViewportPixels = 0,
     ValueChanged<double>? onLazyExtentCorrection,
+    ValueChanged<bool>? onLazySettlingChanged,
     ImageConfiguration imageConfiguration = ImageConfiguration.empty,
     bool showSelectionHandles = true,
     bool showCaret = true,
@@ -375,6 +392,7 @@ class RenderWeftSurface extends RenderBox {
         _viewportHeight = viewportHeight,
         _viewportPixels = initialViewportPixels,
         _onLazyExtentCorrection = onLazyExtentCorrection,
+        _onLazySettlingChanged = onLazySettlingChanged,
         _imageConfiguration = imageConfiguration,
         _showSelectionHandles = showSelectionHandles,
         _showCaret = showCaret,
@@ -411,6 +429,10 @@ class RenderWeftSurface extends RenderBox {
   double? _viewportHeight;
   double _viewportPixels;
   ValueChanged<double>? _onLazyExtentCorrection;
+  ValueChanged<bool>? _onLazySettlingChanged;
+  bool _lazySettling = false;
+  bool _reportedLazySettling = false;
+  bool _lazySettlingReportScheduled = false;
   bool _fullLayoutRequired = false;
   String? _debugFullLayoutReason;
   bool _followLazyBottom = false;
@@ -575,6 +597,56 @@ class RenderWeftSurface extends RenderBox {
     _onLazyExtentCorrection = value;
   }
 
+  /// Whether a budgeted lazy pass is still filling the viewport window.
+  ///
+  /// True between a deep jump or deep initial seed and the frame that
+  /// materializes the target window (ADR 0037). False for synchronous
+  /// near-frontier scrolls, async anchor measurement, and after lazy mode
+  /// ends. Updated during layout, so reads observe the last completed frame.
+  bool get isLazySettling => _lazySettling;
+
+  /// Receives [isLazySettling] transitions from a post-frame callback.
+  ///
+  /// Never invoked during build or layout, and equal consecutive values are
+  /// not repeated. Installing a callback while settling reports true on the
+  /// next frame. No callback fires after detach or dispose; hosts must treat
+  /// unmount as settled.
+  ValueChanged<bool>? get onLazySettlingChanged => _onLazySettlingChanged;
+
+  /// Sets the settling callback; see [onLazySettlingChanged].
+  set onLazySettlingChanged(ValueChanged<bool>? value) {
+    if (_onLazySettlingChanged == value) return;
+    _onLazySettlingChanged = value;
+    if (value == null) {
+      _reportedLazySettling = false;
+      return;
+    }
+    if (_lazySettling && !_reportedLazySettling) {
+      _scheduleLazySettlingReport();
+    }
+  }
+
+  void _updateLazySettling(bool settling) {
+    if (_lazySettling == settling) return;
+    _lazySettling = settling;
+    if (_onLazySettlingChanged == null) return;
+    if (_reportedLazySettling == settling) return;
+    _scheduleLazySettlingReport();
+  }
+
+  void _scheduleLazySettlingReport() {
+    if (_lazySettlingReportScheduled || _onLazySettlingChanged == null) return;
+    _lazySettlingReportScheduled = true;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _lazySettlingReportScheduled = false;
+      if (!attached) return;
+      final callback = _onLazySettlingChanged;
+      if (callback == null || _reportedLazySettling == _lazySettling) return;
+      _reportedLazySettling = _lazySettling;
+      callback(_lazySettling);
+    });
+  }
+
   /// Updates the scroll offset within the document and triggers a relayout
   /// when the viewport moves beyond the measured lazy window.
   void setViewportPixels(double value) {
@@ -590,6 +662,7 @@ class RenderWeftSurface extends RenderBox {
     _pendingLazyCorrection = 0;
     _lazyCorrectionScheduled = false;
     _lazyGeneration += 1;
+    _updateLazySettling(false);
   }
 
   void _markFullLayoutRequired(String reason) {
@@ -818,6 +891,12 @@ class RenderWeftSurface extends RenderBox {
     if (current.debugIsLazy) {
       _scheduleLazyExtentCorrection(oldHeight, current.size.height);
     }
+    _updateLazySettling(
+      useLazy &&
+          current.debugIsLazy &&
+          measureBudget != null &&
+          _needsLazyRelayout(),
+    );
   }
 
   /// The block measurement budget for this lazy pass, or null when the pass
@@ -1717,8 +1796,19 @@ class RenderWeftSurface extends RenderBox {
   }
 
   @override
+  void detach() {
+    _lazySettling = false;
+    _reportedLazySettling = false;
+    _lazySettlingReportScheduled = false;
+    super.detach();
+  }
+
+  @override
   void dispose() {
     _anchorMeasureGeneration += 1;
+    _onLazySettlingChanged = null;
+    _lazySettling = false;
+    _reportedLazySettling = false;
     _exitLazyMode();
     _discardPaintCache();
     _layout?.dispose();

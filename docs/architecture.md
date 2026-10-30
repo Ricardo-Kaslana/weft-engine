@@ -72,7 +72,7 @@ flowchart TB
 - `WeftView` 使用内部 `SingleChildScrollView`；在简单文档中把 250px overscan 视窗传给 RenderWeftSurface，只物化可见顶层块，复杂文档和需要完整几何的 selection/Semantics 走 canonical full。
 - 文本缩放来自 `MediaQuery`，背景和文本命令在单一表面内按顺序绘制。
 
-绘制、命中、选择和 Semantics 已按各自契约实现；WeftView lazy 路径对简单块流按窗口物化，复杂块流回退完整布局。未测滚动高度是渐进估算；深跳与深 seed 由表面逐帧预算推进（每帧至多新测 32 个顶层块，ADR 0031），窗口外的尾部块保持估算。同快照的滚动 relayout 复用上一结果的节点 diff 结论、跨帧样式缓存与文本索引实例，不重建样式或逻辑文本。ADR 0036 进一步持有块流元数据与保守绘制区间索引，直接物化已测窗口、增量维护后缀估算；body 格式化空白保留在快照但不进入块流，Float 从已测排除区恢复。超高顶层块、表内行与图片解码资源仍不细分虚拟化。
+绘制、命中、选择和 Semantics 已按各自契约实现；WeftView lazy 路径对简单块流按窗口物化，复杂块流回退完整布局。未测滚动高度是渐进估算；深跳与深 seed 由表面逐帧预算推进（每帧至多新测 32 个顶层块，ADR 0031），窗口外的尾部块保持估算。同快照的滚动 relayout 复用上一结果的节点 diff 结论、跨帧样式缓存与文本索引实例，不重建样式或逻辑文本。ADR 0036 进一步持有块流元数据与保守绘制区间索引，直接物化已测窗口、增量维护后缀估算；body 格式化空白保留在快照但不进入块流，Float 从已测排除区恢复。像素深跳测量期间，WeftView 可用宿主的 `lazySettlingBuilder` 覆盖视口，并通过 post-frame 的 `onLazySettlingChanged` / `WeftViewState.isLazySettling` 报告起止（ADR 0037）；引擎不绘制占位、不伪造未测量块。超高顶层块、表内行与图片解码资源仍不细分虚拟化。
 
 ## 5. 选择模型
 
@@ -133,3 +133,4 @@ JS 不获得节点、盒树或渲染对象。它只能通过 `__weftBridge`（�
 - `0034`：回退、硬化与发布——快照 JSON 线格式与一致性向量、种子化模糊测试、WebView 回退示例、版本兼容锚点与回滚演练、API 文档门禁。
 - `0035`：QuickJS 移动平台构建——Android CMake 就地编译、iOS 静态链接与 dead-strip 锚点、按平台分派的加载器。
 - `0036`：已测窗口索引直物化、增量后缀估算、格式化空白准入及滚动校正收敛；JNY-AL10 profile 四项设备标准已通过。
+- `0037`：冷深跳 settling——宿主视口遮罩与 post-frame 状态信号，引擎不画占位、不改布局预算；未配置 builder 时保持空白渐进填充。

@@ -28,7 +28,7 @@
 - 移动端原生构建（ADR 0035）：`weft_quickjs` 声明为 ffiPlugin；Android 模块用 CMake 就地编出 `libweft_quickjs.so`（16 KB 页对齐、只导出 `weft_*`），iOS pod 把垫片静态编进 app image 并用 ObjC 锚点防止 dead-strip；加载器按平台分派，显式路径可覆盖。
 
 请继续下一个切片，优先级如下：
-1. 光栅画像与后端 A/B 已完成（§4.5/§4.6/§4.7）：B1 12+12 轮交替未发现可复现的 Impeller/Skia 差异（SCROLL total p95 中位 25.70 vs 24.49ms，p=0.33），**不建议为旧 Mali 关闭 Impeller，也不要再重复后端切换测试**。strict 60fps 仍未达成；若继续，只能做基线绘制面积/新内容首绘的后端层手段或接受 A 档。**禁止把桌面 layoutViewport 画像当真机帧耗时，也禁止仅靠放宽准入或增大 overscan 提速。**
+1. B2 冷深跳 settling 已完成（ADR 0037）：WeftView 宿主视口遮罩 + post-frame 状态信号，未配置 builder 时行为不变；Android 验收见 device-matrix §4.8。**下一步优先语义增强（headingLevel/表格角色/live region）或增量布局扩展，不要再改 layout/overscan、重复后端 A/B，或把遮罩当成零空白；禁止把桌面 layoutViewport 画像当真机帧耗时。**
 2. 深跳尖峰定性：ADR 0036 复测已把 FrameTiming 拆成 build/raster，~313ms 尖峰未复现且全程无 >50ms 帧；若再现，按 §4.4 的 build/raster 方法继续定位。
 3. iOS 构建与真机验证（**暂缓**：暂无 macOS 环境）：按 docs/device-matrix.md §2.2 清单执行；未验证前 iOS 不得宣称可用，发布说明要写明缺席。
 4. 语义增强 / 增量布局扩展：按产品需要，见下文「建议的下一步」。
@@ -40,7 +40,7 @@
 - 每次修改必须运行 `dart format --output=none --set-exit-if-changed .`、`dart analyze`、`dart run tool/verify.dart` 和 `packages/weft_engine/tool/golden_pixel_test.dart`。
 - 新增能力必须附带单元测试；影响布局时必须评估黄金基线与 conformance/reference/ 下的浏览器几何基线。
 - 改动 `packages/weft_quickjs/native/`、`android/` 或 `ios/` 后必须跑 `packages/weft_quickjs/tool/build_native.sh` 重编桌面库并执行 `dart test`（weft_quickjs）；平台工程的编译参数必须与桌面脚本保持一致（ADR 0035）。
-- 重要技术取舍写入 docs/adr/（下一个编号为 0037）。
+- 重要技术取舍写入 docs/adr/（下一个编号为 0038）。
 
 接手前先知道的坑（本轮实测踩出来的，能省你几个小时）：
 - 历史上美化排版会关掉懒布局，首帧退化成 1801 节点全量排版（198–280ms）。ADR 0036 已在窗口化之后接入 ASCII 格式化空白，但保留了正文/NBSP/pre 的 full 边界；旧真机数字不能用于宣称改后通过，详见 device-matrix §4.3/§4.4。
@@ -58,13 +58,14 @@
 
 - 分支：`main`
 - 最新提交：见 `git log`（本节只保证指南有效，不追踪哈希）
-- Flutter：3.35.5 stable；Dart：3.9.2；ADR 36 份（0001–0036）
-- 常规测试 468 项（weft_engine 251、weft_document 77、weft 66、weft_quickjs 28、weft_capabilities 15、weft_runtime_fake 12、weft_runtime_contract 9、weft_runtime_api 2、weft_lab 1、weft_fallback 7；ADR 0036 新增 15 项回归）、像素黄金 3 项 + 选区高亮 1 项、性能门禁 14 场景（7 布局 + 3 绘制 + 4 命中）；`dart analyze` 无问题，公开 API 文档覆盖零缺口。开发计划阶段 0–5 已完成（阶段 5 见 ADR 0034），阶段 5 之后补了移动端原生构建（ADR 0035）与懒布局窗口直物化（ADR 0036）。
+- Flutter：3.35.5 stable；Dart：3.9.2；ADR 37 份（0001–0037）
+- 常规测试 491 项（weft_engine 255、weft_document 77、weft 77、weft_quickjs 28、weft_capabilities 15、weft_runtime_fake 12、weft_runtime_contract 9、weft_runtime_api 2、weft_lab 1、weft_live 8、weft_fallback 7；ADR 0037 新增 17 项）、像素黄金 3 项 + 选区高亮 1 项、性能门禁 14 场景（7 布局 + 3 绘制 + 4 命中）；`dart analyze` 无问题，公开 API 文档覆盖零缺口。开发计划阶段 0–5 已完成（阶段 5 见 ADR 0034），阶段 5 之后补了移动端原生构建（ADR 0035）、懒布局窗口直物化（ADR 0036）与冷深跳 settling 遮罩（ADR 0037）。
 - GitHub Actions 使用 Windows 执行像素黄金门禁（仓库尚无远端，CI 尚未真正跑过）。
 - 2026-10-28 增量：Android 真机构建与执行验证、插件单 ABI 裁剪、回环直连修复与首轮矩阵；之后交付 ADR 0036 窗口直物化及桌面结构/耗时证据（docs/device-matrix.md §4.4）。真实 Flutter Web＋Edge 的滚动、锚点与选择复制已验证；JNY-AL10 profile 复测四项标准通过（中位冷启 635ms、滚动 p95 ≈26ms、深跳最大 37ms、内存 +10MB），strict 60fps 受 raster 限制。证据位于本地 build/adr0036-evidence。iOS 验证仍暂缓。
 - 2026-10-31 增量：B1 后端 A/B 完成（12 Impeller + 12 Skia，ABBA，JNY-AL10 profile，24 轮全部有效）。PAINT_ONLY 与 SCROLL 的 raster/total 均无显著差异（SCROLL total p95 中位 25.70 vs 24.49ms，p=0.33；PAINT_ONLY stable raster p95 8.77 vs 9.75ms，p=0.42），唯一显著项是 SCROLL build p95 差 0.38ms，无实际意义。结论：不建议旧 Mali 关闭 Impeller；strict 60fps 仍未达成。证据在本地 `build/adr0036-evidence/b1/`，详见 device-matrix §4.7。
+- 2026-10-31 增量（B2）：冷深跳 settling 交付（ADR 0037）。`WeftView.lazySettlingBuilder` 在分帧测量期间渲染宿主视口遮罩；`onLazySettlingChanged` 与 `WeftViewState.isLazySettling` 从 post-frame 报告起止，未配置 builder 时树与黄金不变。引擎不改布局预算/overscan/后端，也不伪造未测量块；首帧仍可能空白，遮罩不加速测量。Android 验收（遮罩 544ms、29 帧收敛、无 >50ms 帧；异步/近距不触发）与证据见 device-matrix §4.8。
 
-已实现至 ADR 0036（Android 四项设备标准已通过，strict 60fps raster 待优化）。ADR 0036：已测区间索引直接物化、单所有者块元数据、增量后缀估算、格式化空白准入与 correctBy 后视口同步。ADR 0017–0033：分块渲染与命中裁剪（ADR 0017/0020）、行内图片（ADR 0018）、选择 chrome（ADR 0019）、块级盒模型（ADR 0021）、表格列轨道（ADR 0022）、流式顶层前缀复用（ADR 0023）、单表面 Semantics（ADR 0024/0026/0028/0030）、渐进式布局虚拟化（ADR 0025）、同步/异步锚点导航（ADR 0027/0029）、懒布局异步分帧与同快照复用（ADR 0031）、阶段 0–3 验收证据与重定界（ADR 0032）和受限 JS 运行时（QuickJS FFI + 能力网关 + 恢复去重 + 自定义标签，ADR 0033）。ADR 0034（阶段 5）：快照 JSON 线格式（format+version 门禁）与 21 个规范化一致性向量、种子化模糊测试（CI 快跑 + tool/fuzz.dart 长跑，修复诊断上限绕过与 toString 崩溃两个真实问题）、能力策略 8 子集矩阵、example/weft_fallback WebView 回退示例、发布手册与回滚演练测试、API 文档门禁、真机矩阵计划。ADR 0035：QuickJS 移动平台构建——ffiPlugin 声明、Android CMake 就地编译（16 KB 对齐）、iOS 静态链接与 dead-strip 锚点、按平台分派的加载器。
+已实现至 ADR 0037（Android 四项设备标准已通过，strict 60fps raster 待优化；B2 冷跳 settling 遮罩已交付）。ADR 0037：冷深跳 settling——WeftView 宿主视口遮罩与 post-frame 信号，未配置 builder 时行为不变。ADR 0036：已测区间索引直接物化、单所有者块元数据、增量后缀估算、格式化空白准入与 correctBy 后视口同步。ADR 0017–0033：分块渲染与命中裁剪（ADR 0017/0020）、行内图片（ADR 0018）、选择 chrome（ADR 0019）、块级盒模型（ADR 0021）、表格列轨道（ADR 0022）、流式顶层前缀复用（ADR 0023）、单表面 Semantics（ADR 0024/0026/0028/0030）、渐进式布局虚拟化（ADR 0025）、同步/异步锚点导航（ADR 0027/0029）、懒布局异步分帧与同快照复用（ADR 0031）、阶段 0–3 验收证据与重定界（ADR 0032）和受限 JS 运行时（QuickJS FFI + 能力网关 + 恢复去重 + 自定义标签，ADR 0033）。ADR 0034（阶段 5）：快照 JSON 线格式（format+version 门禁）与 21 个规范化一致性向量、种子化模糊测试（CI 快跑 + tool/fuzz.dart 长跑，修复诊断上限绕过与 toString 崩溃两个真实问题）、能力策略 8 子集矩阵、example/weft_fallback WebView 回退示例、发布手册与回滚演练测试、API 文档门禁、真机矩阵计划。ADR 0035：QuickJS 移动平台构建——ffiPlugin 声明、Android CMake 就地编译（16 KB 对齐）、iOS 静态链接与 dead-strip 锚点、按平台分派的加载器。
 
 ## 包结构
 
@@ -110,13 +111,14 @@ docs/adr/               架构决策记录
 - Semantics（ADR 0024/0026）：RenderWeftSurface 手动组装阅读顺序文本、链接、图片和选区节点；标题子树带 header flag，链接语义 tap 与选区 copy 走独立回调入口，WeftView pointer/剪贴板职责不变。节点 key 对齐 NodeId，流式更新保留身份；屏外节点可 showOnScreen，选区仅暴露 value/selected/rect/copy，不伪装 text field。
 - 布局虚拟化（ADR 0025）：`layoutViewport` 在原块流中连续测量精确前缀，只物化 viewport+250px 窗口；未测后缀按同类块中位数估算 extent。隐藏块释放 commands/painter，previous/current 继续单 owner 转移；跳到估算底部用 correctBy 跟随。顶层块内及 body 直属的已解析图片 Float 都以块级排除区 checkpoint 跨离屏复用；非图片/inline 祖先 Float、非空 selection（含首帧）、Semantics、未解析图片/loose inline 回退或粘滞 full。full 退出会递增 generation 并清除陈旧校正，初始 ScrollController offset 会 seed 首帧物化窗口。
 - 懒布局异步分帧与同快照复用（ADR 0031）：视口末端距已测前缀超过一屏或首帧 seed 深于 overscan 时，每帧至多新测 32 个顶层块，post-frame 续帧按 `_needsLazyRelayout` 收敛，`_lazyGeneration` 取消；同快照 relayout 跳过节点 diff 与样式表比对，元素级样式缓存随增量缓存跨帧存活（宽度/缩放/图片不参与计算样式），文本索引实例直接复用。300 块冷跳底部从 124.8ms 单帧降为 10 帧 × 中位 5.8ms。
+- 冷深跳 settling（ADR 0037）：`RenderWeftSurface.isLazySettling`/`onLazySettlingChanged` 在 budgeted pass 后判定，post-frame 去重上报；`WeftView.lazySettlingBuilder` 提供视口固定的宿主遮罩（`IgnorePointer`），`onLazySettlingChanged`/`WeftViewState.isLazySettling` 暴露起止。near-frontier、异步锚点、已测量窗口不触发；`_exitLazyMode`/文档替换/dispose 复位。未配置 builder 时树与黄金不变。
 - 测试：规范化、布局、margin、盒模型、图片、浮动、表格（17 项）、选择（15 项，含 10 万字符随机选区与流式重映射）、CJK、长文档、公开层、像素基线、两个浏览器几何基线，以及语料结构断言（无丢失/无重叠/无越界）与敌意输入诊断扫描（ADR 0032）。
 - 移动端原生构建（ADR 0035）：`weft_quickjs` 的 `flutter.plugin.platforms` 声明 android/ios 为 ffiPlugin，包本身不依赖 Flutter；Android 由 `android/src/main/cpp/CMakeLists.txt` 就地编译 vendor 源码（`-fvisibility=hidden`、16 KB 页对齐、`compileSdk 36`/NDK 27），iOS 由 podspec 编进 app image，`WEFT_EXPORT` 的 `used` 属性 + ObjC 锚点防止 `-dead_strip` 丢掉 `dlsym` 目标；`librarySourceFor()` 按平台分派（显式路径 > iOS process() > Android 按名打开 > 桌面文件搜索）。APK 已实测含三 ABI 的 `libweft_quickjs.so` 且恰好导出 10 个 `weft_*`；真机（Huawei JNY-AL10 / Android 10）跑通加载、JSON/字符串求值与内存/墙钟两类预算中断。
 
 ## 明确未实现
 
 - **严格 60fps 未达成**：ADR 0036 在 JNY-AL10 上四项标准通过（冷启动中位 635ms、滚动 p95 ≈26ms 无 >50ms、深跳最大 37ms、内存 +10MB），但 combined p95 仍高于 16.7ms，瓶颈是 raster；冷跳分帧期间可能有短暂空白。B1（12+12 轮后端 A/B，device-matrix §4.7）未发现可复现后端优势，切换 Skia 不解决该缺口。
-- 未测区域的精确 O(1)/O(log N) 随机跳转，以及超高顶层块/表内行/图片解码资源虚拟化；冷跳与首次深锚点仍需逐帧测量目标前缀，病态区间重叠或大量 Float 可能退化。
+- 未测区域的精确 O(1)/O(log N) 随机跳转，以及超高顶层块/表内行/图片解码资源虚拟化；冷跳与首次深锚点仍需逐帧测量目标前缀，病态区间重叠或大量 Float 可能退化。配置 `lazySettlingBuilder` 时可由宿主遮罩空白，但首帧仍可能可见、遮罩不加速测量，不承诺零空白（ADR 0037）。
 - 非图片 Float 与表格局部 Float 的 checkpoint；增量布局的后缀平移与行级复用；行内原子的 margin 参与行框与 top/bottom 对齐。
 - CJK 像素基线（跨引擎像素验收已按 ADR 0032 重定界为结构几何门禁；真机帧计时仍以 weft_lab 为准）。
 - 表格：嵌套表格（触发回退）、浏览器级 auto 列宽分配精度、`col` 的 min/max 语义。
@@ -198,7 +200,7 @@ python tool/generate_assets.py
 
 B1 后端 A/B 已完成（device-matrix §4.7）：12 Impeller + 12 Skia ABBA 交替、24 轮全部有效；PAINT_ONLY 与 SCROLL 的 raster/total 均无显著差异（SCROLL total p95 中位 25.70 vs 24.49ms，p=0.33），唯一显著项是 SCROLL build p95 差 0.38ms，无实际意义。**结论：不建议旧 Mali 设备关闭 Impeller，也不要把后端切换当作 60fps 方案。** strict 60fps 仍未达成，轮间 DVFS 离散度大于后端差异。
 
-引擎侧没有免费的 60fps 优化空间：继续压榨需要后端层手段（图片光栅缓存、减少每帧新内容面积），或接受 A 档 ≤33ms 标准（当前已满足）。下一步转 B2（冷深跳留白的渐进体验）或语义增强；不要再改 layout/overscan 或重复后端 A/B。
+引擎侧没有免费的 60fps 优化空间：继续压榨需要后端层手段（图片光栅缓存、减少每帧新内容面积），或接受 A 档 ≤33ms 标准（当前已满足）。B2 已完成（ADR 0037）：冷跳空白可由宿主遮罩覆盖，但测量速度与 60fps 缺口不变。下一步转 C 语义增强或 D 增量布局；不要再改 layout/overscan、重复后端 A/B，或把遮罩当成零空白。
 
 ### C. 语义增强
 

@@ -137,8 +137,9 @@
 - `WeftViewState.scrollToAnchor` 可按逻辑文本锚点导航；懒布局使用 focus 精确测量并物化目标块，保留当前窗口和 lazy 状态，alignment 支持顶部/居中/底部，无效锚点安全返回 false。
 - `scrollToAnchorAsync` 将深链测量拆成逐帧预算（默认每 pass 32 块）；测量期间保持当前滚动内容，完成后才定位，取消/文档变化返回 false。
 - 非锚点的深跳与深 seed 同样分帧（ADR 0031）：视口末端距已测前缀超过一屏或首帧 seed 深于 overscan 时，每帧最多新测 32 个顶层块，post-frame 续帧逐帧推进直至窗口覆盖；近距滚动保持单次同步测量。同快照 relayout 跳过节点 diff 与样式表比对，复用跨帧样式缓存与文本索引实例。
+- 冷深跳/深 seed 分帧测量期间，`WeftView.lazySettlingBuilder` 可在视口上覆盖宿主提供的静态占位；`WeftViewState.isLazySettling` / `onLazySettlingChanged` 报告开始与结束（post-frame、去重，ADR 0037）。引擎不绘制占位，未配置 builder 时仍是空白渐进填充。异步锚点与近 frontier 同步滚动不会触发 settling。
 - `scrollToNode` / `scrollToNodeAsync` 定位元素内首个可朗读文本锚点，复用同一 alignment/lazy focus 与分帧路径。
-- 边界与限制：滚动条长度在未测完时是估算值；深跳目标区在测到之前为空白（渐进填充）；分帧预算为内部常量；首次锚点导航目标靠后时仍需逐帧测量前缀，不承诺未测区域的精确 O(1)/O(log N) 随机定位。病态区间重叠和大量历史 Float 可能退化；超高顶层块、表内局部 Float 和图片解码资源仍未细分虚拟化。
+- 边界与限制：滚动条长度在未测完时是估算值；深跳目标区在测到之前为空白（渐进填充），配置 `lazySettlingBuilder` 时由宿主遮罩覆盖，但仍不承诺零空白；分帧预算为内部常量；首次锚点导航目标靠后时仍需逐帧测量前缀，不承诺未测区域的精确 O(1)/O(log N) 随机定位。病态区间重叠和大量历史 Float 可能退化；超高顶层块、表内局部 Float 和图片解码资源仍未细分虚拟化。
 
 ## 当前明确限制
 

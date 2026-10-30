@@ -30,6 +30,7 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - 渐进式布局虚拟化（ADR 0025）：WeftView 简单长文只物化可见块，首屏不创建全文 TextPainter；`lazyOverscan` 可调预取窗口，顶层块内及 body 直属图片 Float 通过排除区 checkpoint 参与 lazy，selection/Semantics/复杂文档回退 full。
 - 懒布局异步分帧与同快照复用（ADR 0031）：深跳/深 seed 每帧至多新测 32 个顶层块并逐帧收敛，消除冷跳底部的单帧全量测量停顿；同快照滚动 relayout 跳过节点 diff、复用跨帧样式缓存与文本索引。
 - 已测窗口直物化（ADR 0036）：按保守绘制区间索引定位窗口，缓存准入、块流元数据与后缀估算；支持 body 格式化空白，热态不再重扫全文，extent 校正后同步实际视口。JNY-AL10 profile 已验收（冷启动中位 635ms、滚动 p95 ≈26ms 且无 >50ms 帧、深跳最大 37ms、内存 +10MB）。
+- 冷深跳 settling 遮罩（ADR 0037）：`WeftView.lazySettlingBuilder` 在分帧测量期间覆盖宿主视口，`onLazySettlingChanged` / `WeftViewState.isLazySettling` post-frame 报告起止；未配置时不改变原有渐进填充，引擎不绘制占位。`example/weft_live` 接入静态骨架，Android 验收见 `docs/device-matrix.md` §4.8。
 - 阶段 0–3 验收证据（ADR 0032）：商品/帮助文档语料的无丢失/无重叠/无越界结构断言、敌意输入诊断扫描、10 万字符随机跨段选区与复制（代理对安全）、流式选区重映射/安全清除、滚动缓存预算稳定、晚解码 Float 等价，以及"标签→Widget"基线与滚动帧耗时两个基准工具。
 - 锚点导航（ADR 0027/0029）：`scrollToAnchor` / `scrollToNode` 精确定位，异步版本逐帧测量深链前缀并保持当前内容；无效或取消请求安全返回 false。
 - 性能门禁：布局/绘制/命中 14 场景基准工具与 10 倍宽上限的 CI 稳定门禁（见 docs/testing-strategy.md）；命中解析经分块索引裁剪（ADR 0020），`WeftView.scrollController` 可注入。
@@ -55,11 +56,11 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - CJK 像素基线（无可分发 CJK 像素字体，跨引擎像素验收已按 ADR 0032 重定界为结构几何门禁）。
 - 表格的嵌套表格（触发回退）与浏览器级 auto 列宽分配精度。
 - 选择工具条（完整菜单）、chrome 动画打磨和语义角色/live region 增强。
-- 未测区域的精确 O(1)/O(log N) 随机跳转，以及超高顶层块/表内行/图片解码资源虚拟化；冷跳仍分帧测量前缀。
+- 未测区域的精确 O(1)/O(log N) 随机跳转，以及超高顶层块/表内行/图片解码资源虚拟化；冷跳仍分帧测量前缀，配置 `lazySettlingBuilder` 时由宿主遮罩覆盖，但仍不承诺零空白（ADR 0037）。
 - 严格 60fps 的滚动预算：JNY-AL10 上 combined p95 ≈26ms，瓶颈在 raster；12+12 轮 Impeller/Skia A/B（device-matrix §4.7）未发现可复现的后端优势（SCROLL total p95 25.70 vs 24.49ms，p≈0.33），不建议旧 Mali 关闭 Impeller；冷跳分帧期间仍会有短暂空白，见 `docs/device-matrix.md` §4.4/§4.7。
 - 真机证据：Android 已完成构建、打包与真机执行验证（Huawei JNY-AL10 / Android 10）；iOS 的构建与真机验证**暂缓**（暂无 macOS 环境，2026-10-28 决定），未验证前不宣称 iOS 可用，见 `docs/device-matrix.md`。
 
-`example/weft_lab` 展示真实可滚动的静态文章；`example/weft_live` 把实时图表、自动快照、投票、主题切换和深链接聚合到一张专题页里。两者均不用于验收完整 HTML/CSS 兼容性。当前限制与后续顺序见 `docs/supported-subset.md` 和 `docs/development-plan.md`。
+`example/weft_lab` 展示真实可滚动的静态文章；`example/weft_live` 把实时图表、自动快照、投票、主题切换和深链接聚合到一张专题页里，并接入冷跳 settling 骨架与跳底控件。两者均不用于验收完整 HTML/CSS 兼容性。当前限制与后续顺序见 `docs/supported-subset.md` 和 `docs/development-plan.md`。
 
 ## 仓库结构
 

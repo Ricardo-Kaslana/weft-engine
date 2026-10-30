@@ -20,6 +20,15 @@ typedef WeftFallbackBuilder = Widget Function(
   SupportReport report,
 );
 
+/// Builds the viewport-fixed overlay shown while a deep lazy jump is still
+/// measuring its target window (ADR 0037).
+///
+/// The overlay is positioned over the viewport, not the document, and wrapped
+/// in [IgnorePointer]; it must not be scrollable content. Returning a static,
+/// theme-aware placeholder is recommended because measurement frames are
+/// already running. Null disables the overlay and no default is supplied.
+typedef WeftLazySettlingBuilder = Widget Function(BuildContext context);
+
 /// Snapshot of the current selection reported through
 /// [WeftView.onSelectionChanged].
 final class WeftSelectionInfo {
@@ -60,6 +69,8 @@ class WeftView extends StatefulWidget {
     this.imageResolver,
     this.enableLazyLayout = true,
     this.lazyOverscan = 250,
+    this.lazySettlingBuilder,
+    this.onLazySettlingChanged,
     this.showSelectionHandles = true,
     this.showCaret = true,
     this.showCopyButton = true,
@@ -104,6 +115,20 @@ class WeftView extends StatefulWidget {
   /// Extra document pixels materialized above and below the viewport.
   final double lazyOverscan;
 
+  /// Builds a viewport-fixed overlay while a deep lazy jump is still
+  /// measuring its target window (ADR 0037).
+  ///
+  /// WeftView places the widget over the viewport and wraps it in
+  /// [IgnorePointer]. Null leaves the existing progressive-fill (blank)
+  /// behavior unchanged; no default placeholder is supplied.
+  final WeftLazySettlingBuilder? lazySettlingBuilder;
+
+  /// Reports lazy settling transitions after the surface paints a frame.
+  ///
+  /// Never invoked during build, and equal consecutive values are
+  /// suppressed. No callback fires after the view is unmounted.
+  final ValueChanged<bool>? onLazySettlingChanged;
+
   /// Whether drag handles overlay the current selection. Forwarded to the
   /// surface's geometry query and used to gate the overlay widgets here.
   final bool showSelectionHandles;
@@ -143,6 +168,15 @@ class WeftViewState extends State<WeftView> {
 
   bool _viewportSyncScheduled = false;
   int _anchorScrollGeneration = 0;
+  bool _lazySettling = false;
+  bool _reportedLazySettling = false;
+  String? _settlingDocumentId;
+
+  /// Whether the surface is still measuring a budgeted deep jump.
+  ///
+  /// Updated from the surface's post-frame signal; false before the first
+  /// layout and after the target window settles or lazy mode ends.
+  bool get isLazySettling => _lazySettling;
 
   double get _viewportPixelsSeed {
     final controller = _scrollController;
@@ -170,6 +204,10 @@ class WeftViewState extends State<WeftView> {
   @override
   void didUpdateWidget(WeftView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      _resetLazySettling();
+      _settlingDocumentId = widget.controller.document?.id;
+    }
     if (oldWidget.scrollController != widget.scrollController) {
       (oldWidget.scrollController ?? _internalScrollController)
           .removeListener(_handleScroll);
@@ -193,9 +231,38 @@ class WeftViewState extends State<WeftView> {
     }
   }
 
+  void _handleLazySettlingChanged(bool settling) {
+    if (!mounted) return;
+    _lazySettling = settling;
+    if (_reportedLazySettling == settling) {
+      if (widget.lazySettlingBuilder != null) setState(() {});
+      return;
+    }
+    _reportedLazySettling = settling;
+    if (widget.lazySettlingBuilder != null) {
+      setState(() {});
+    }
+    widget.onLazySettlingChanged?.call(settling);
+  }
+
+  /// Ends the current settling state and reports false once if the host was
+  /// already told true. A newer settling transition before the post-frame
+  /// report wins, in which case no stale false is emitted.
+  void _resetLazySettling() {
+    _lazySettling = false;
+    if (!_reportedLazySettling) return;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _lazySettling || !_reportedLazySettling) return;
+      _reportedLazySettling = false;
+      widget.onLazySettlingChanged?.call(false);
+    });
+  }
+
   @override
   void dispose() {
     _anchorScrollGeneration += 1;
+    _lazySettling = false;
+    _reportedLazySettling = false;
     _scrollController.removeListener(_handleScroll);
     _internalScrollController.dispose();
     super.dispose();
@@ -564,9 +631,14 @@ class WeftViewState extends State<WeftView> {
       builder: (context, _) {
         _scheduleSelectionReportIfNeeded();
         final document = widget.controller.document;
+        if (document?.id != _settlingDocumentId) {
+          _settlingDocumentId = document?.id;
+          _resetLazySettling();
+        }
         if (document == null) return const SizedBox.shrink();
 
         if (!document.supportReport.canRender) {
+          _resetLazySettling();
           final fallback = widget.fallbackBuilder;
           if (fallback != null) {
             return fallback(context, document.supportReport);
@@ -595,6 +667,7 @@ class WeftViewState extends State<WeftView> {
                   constraints.hasBoundedHeight ? constraints.maxHeight : null,
               initialViewportPixels: _viewportPixelsSeed,
               onLazyExtentCorrection: _correctLazyExtent,
+              onLazySettlingChanged: _handleLazySettlingChanged,
               showSelectionHandles: widget.showSelectionHandles,
               showCaret: widget.showCaret,
               showCopyButton: widget.showCopyButton,
@@ -621,7 +694,7 @@ class WeftViewState extends State<WeftView> {
             // The surface reports an estimated or exact document extent. Its
             // block window follows this controller, while selection chrome
             // keeps the same document-local coordinates as the content.
-            return SingleChildScrollView(
+            final scrollView = SingleChildScrollView(
               controller: _scrollController,
               primary: false,
               child: Stack(
@@ -630,6 +703,20 @@ class WeftViewState extends State<WeftView> {
                   ..._buildSelectionOverlays(),
                 ],
               ),
+            );
+            final settlingBuilder = widget.lazySettlingBuilder;
+            if (settlingBuilder == null) return scrollView;
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                scrollView,
+                if (_lazySettling)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: Builder(builder: settlingBuilder),
+                    ),
+                  ),
+              ],
             );
           },
         );

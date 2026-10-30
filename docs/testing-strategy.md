@@ -120,6 +120,8 @@ flutter test test/perf_gate_test.dart --no-pub --timeout 120s     # CI 门禁
 
 布局虚拟化(ADR 0025)的验收分两层:计时对比 lazy 首屏与 full article300,结构计数则断言首屏只布局/物化连续可见前缀,且必须远小于全文块数。`test/lazy_layout_test.dart` 覆盖精确前缀、冷跳收敛、结构化内容、multi-screen 正反向、首帧 selection、空命令块,以及嵌套图片 Float checkpoint 的多代往返、extent 和准入矩阵;`weft_view_lazy_test.dart` 覆盖滚动、初始 offset、约束变化、默认/强制 eager、底部校正、流式、Float 回退、selection 与 Semantics 升级,并验证 full 升级会清除 stale follow/pending 校正。
 
+冷深跳 settling(ADR 0037)由 `weft_view_settling_test.dart` 覆盖遮罩出现/消失、回调 true→false 序列、无 builder 时信号仍工作、近 frontier 与异步锚点不触发、底部跟随、文档替换/selection/Semantics 复位,以及 settled 后无额外帧调度;`lazy_layout_test.dart` 额外覆盖 surface 级回调序列、lazy 退出与文档替换复位、同 id 流式更新。
+
 ## Runtime 安全测试
 
 至少包含无限循环、递归爆栈、内存炸弹、微任务风暴、超大桥接消息、队列积压、非法 URL、重定向越权、取消、销毁竞争和恢复后的副作用去重。测试必须验证整个宿主没有继续暴露已撤销能力。

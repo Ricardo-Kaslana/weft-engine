@@ -106,6 +106,7 @@
 
 - 移动端原生构建（ADR 0035）：Android 构建/打包/真机加载与预算中断通过；iOS 暂缓。
 - 懒布局窗口直物化（ADR 0036）：JNY-AL10 四项设备标准通过，严格 60fps 受 raster 限制，见 `docs/device-matrix.md` §4.4。
+- 冷深跳 settling 遮罩（ADR 0037）：WeftView 宿主视口遮罩 + post-frame settling 信号；未配置 builder 时保持原空白渐进填充。
 
 ## 并行规则
 

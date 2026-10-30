@@ -387,6 +387,13 @@ class _WeftLivePageState extends State<WeftLivePage> {
     );
   }
 
+  void _goToBottom() {
+    if (!_scrollController.hasClients) return;
+    // A direct pixel jump bypasses scrollToNodeAsync so the budgeted lazy
+    // passes (and the host settling skeleton) are exercised.
+    _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+  }
+
   void _applyDeepLink() {
     final queryTarget = Uri.base.queryParameters['section'];
     final target = queryTarget?.replaceFirst('/', '') ??
@@ -536,6 +543,8 @@ class _WeftLivePageState extends State<WeftLivePage> {
                           onTagTap: _handleTagTap,
                           onLinkTap: _handleLink,
                           lazyOverscan: 280,
+                          lazySettlingBuilder: (context) =>
+                              _SettlingSkeleton(palette: palette),
                           fallbackBuilder: (context, report) {
                             return _FallbackCard(report: report);
                           },
@@ -606,6 +615,12 @@ class _WeftLivePageState extends State<WeftLivePage> {
                           ? Icons.pause_circle_outline
                           : Icons.play_circle_outline,
                     ),
+                  ),
+                  IconButton(
+                    key: const ValueKey<String>('jump-bottom'),
+                    tooltip: '跳到文末',
+                    onPressed: _goToBottom,
+                    icon: const Icon(Icons.vertical_align_bottom),
                   ),
                   IconButton(
                     key: const ValueKey<String>('theme-toggle'),
@@ -994,3 +1009,41 @@ const _incomingUpdates = <_IncomingUpdate>[
         '现场把这条边界写进了演示的页脚。',
   ),
 ];
+
+class _SettlingSkeleton extends StatelessWidget {
+  const _SettlingSkeleton({required this.palette});
+
+  final LivePalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final bar = palette.line.withValues(alpha: 0.55);
+    return ColoredBox(
+      key: const ValueKey<String>('settling-skeleton'),
+      color: palette.page,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(30, 34, 30, 0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(width: 150, height: 18, color: bar),
+            const SizedBox(height: 22),
+            for (var i = 0; i < 7; i++) ...[
+              Container(
+                width: i.isEven ? double.infinity : 260,
+                height: 12,
+                color: bar,
+              ),
+              const SizedBox(height: 12),
+            ],
+            const SizedBox(height: 8),
+            Text(
+              '正在测量长文…',
+              style: TextStyle(color: palette.muted, fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

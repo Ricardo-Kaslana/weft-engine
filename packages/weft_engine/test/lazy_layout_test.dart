@@ -892,15 +892,182 @@ void main() {
     expect(render.debugLayout!.size, canonical.size);
   }, semanticsEnabled: false);
 
+  testWidgets('surface reports settling across budgeted deep passes',
+      (tester) async {
+    const engine = WeftLayoutEngine();
+    final document = _article(300);
+    final canonical = engine.layout(document, width: 360);
+    addTearDown(canonical.dispose);
+    final values = <bool>[];
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+          child: SizedBox(
+            width: 360,
+            height: 800,
+            child: WeftSurface(
+              document: document,
+              enableLazyLayout: true,
+              viewportHeight: 800,
+              onLazySettlingChanged: values.add,
+            ),
+          ),
+        ),
+      ),
+    );
+    final render = tester.renderObject<RenderWeftSurface>(
+      find.byType(WeftSurface),
+    );
+    expect(render.isLazySettling, isFalse);
+    expect(values, isEmpty);
+
+    render.setViewportPixels(canonical.size.height - 800);
+    await tester.pump();
+    expect(render.isLazySettling, isTrue);
+    expect(values, [true]);
+
+    var passes = 1;
+    while (render.isLazySettling) {
+      await tester.pump();
+      passes += 1;
+      expect(passes, lessThan(400));
+    }
+    expect(values, [true, false]);
+    expect(render.debugLayout!.debugIsLazy, isTrue);
+    expect(render.debugLayout!.commands, isNotEmpty);
+    expect(render.debugLayout!.size, canonical.size);
+  }, semanticsEnabled: false);
+
+  testWidgets('settling resets when lazy mode ends', (tester) async {
+    const engine = WeftLayoutEngine();
+    final document = _article(200);
+    final canonical = engine.layout(document, width: 360);
+    addTearDown(canonical.dispose);
+    final values = <bool>[];
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+          child: SizedBox(
+            width: 360,
+            height: 800,
+            child: WeftSurface(
+              document: document,
+              enableLazyLayout: true,
+              viewportHeight: 800,
+              onLazySettlingChanged: values.add,
+            ),
+          ),
+        ),
+      ),
+    );
+    final render = tester.renderObject<RenderWeftSurface>(
+      find.byType(WeftSurface),
+    );
+    render.setViewportPixels(canonical.size.height - 800);
+    await tester.pump();
+    expect(render.isLazySettling, isTrue);
+    expect(values, [true]);
+
+    render.enableLazyLayout = false;
+    expect(render.isLazySettling, isFalse);
+    await tester.pump();
+    expect(values, [true, false]);
+  }, semanticsEnabled: false);
+
+  testWidgets('settling resets on document replacement', (tester) async {
+    const engine = WeftLayoutEngine();
+    final document = _article(200);
+    final canonical = engine.layout(document, width: 360);
+    addTearDown(canonical.dispose);
+    final values = <bool>[];
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+          child: SizedBox(
+            width: 360,
+            height: 800,
+            child: WeftSurface(
+              document: document,
+              enableLazyLayout: true,
+              viewportHeight: 800,
+              onLazySettlingChanged: values.add,
+            ),
+          ),
+        ),
+      ),
+    );
+    final render = tester.renderObject<RenderWeftSurface>(
+      find.byType(WeftSurface),
+    );
+    render.setViewportPixels(canonical.size.height - 800);
+    await tester.pump();
+    expect(render.isLazySettling, isTrue);
+    expect(values, [true]);
+
+    render.document = _article(40, id: 'replacement');
+    expect(render.isLazySettling, isFalse);
+    await tester.pump();
+    await tester.pump();
+    expect(values, [true, false]);
+  }, semanticsEnabled: false);
+
+  testWidgets('settling survives a same-id streaming update', (tester) async {
+    const engine = WeftLayoutEngine();
+    final document = _article(200);
+    final canonical = engine.layout(document, width: 360);
+    addTearDown(canonical.dispose);
+    final values = <bool>[];
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+          child: SizedBox(
+            width: 360,
+            height: 800,
+            child: WeftSurface(
+              document: document,
+              enableLazyLayout: true,
+              viewportHeight: 800,
+              onLazySettlingChanged: values.add,
+            ),
+          ),
+        ),
+      ),
+    );
+    final render = tester.renderObject<RenderWeftSurface>(
+      find.byType(WeftSurface),
+    );
+    render.setViewportPixels(canonical.size.height - 800);
+    await tester.pump();
+    expect(render.isLazySettling, isTrue);
+    expect(values, [true]);
+
+    render.document = _article(200, id: 'lazy-layout');
+    expect(render.isLazySettling, isTrue);
+    expect(values, [true]);
+    var passes = 0;
+    while (render.isLazySettling) {
+      await tester.pump();
+      passes += 1;
+      expect(passes, lessThan(400));
+    }
+    expect(values, [true, false]);
+  }, semanticsEnabled: false);
+
   test('scrolls near the frontier still measure synchronously', () {
     const engine = WeftLayoutEngine();
     final document = _article(120);
+    final values = <bool>[];
     final render = RenderWeftSurface(
       document: document,
       enableLazyLayout: true,
       viewportHeight: 800,
     );
     addTearDown(render.dispose);
+    render.onLazySettlingChanged = values.add;
     render.layout(const BoxConstraints.tightFor(width: 360));
     final prefix = render.debugLayout!.incrementalCache!.measuredPrefixLength;
 
@@ -922,6 +1089,8 @@ void main() {
       expect(render.debugLayout!.commands[i].nodeId, fresh.commands[i].nodeId);
       expect(render.debugLayout!.commands[i].bounds, fresh.commands[i].bounds);
     }
+    expect(render.isLazySettling, isFalse);
+    expect(values, isEmpty);
   });
 
   testWidgets('scroll round trips keep caches in a stable budget',
