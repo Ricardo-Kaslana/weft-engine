@@ -80,8 +80,11 @@ CJK 结构化布局已有测试，但尚无固定 CJK 字体，因此不提交�
 ```bash
 cd packages/weft_engine
 flutter test tool/layout_benchmark_test.dart --no-pub             # 人工参考数字
+flutter test tool/incremental_profile_test.dart --no-pub          # 增量布局画像(E0/E1/E3)
 flutter test test/perf_gate_test.dart --no-pub --timeout 120s     # CI 门禁
 ```
+
+`tool/incremental_profile_test.dart` 负责增量布局画像(ADR 0043):E0 把流式轮分解为 diff/样式/textIndex/复用走查,E1 测各流式形态(尾部追加、尾块增长、中部编辑、头部插入、lazy 宿主),E3 测 Float 宿主路径与逐行环绕标度;print 报告并按形态契约断言复用计数,不进 CI 门禁。增量优化动手前先跑它留底,改完在同一实验组复测比较成分与形态中位数;桌面 Stopwatch 只做相对比较,不当真机帧耗时。
 
 | 场景 | 内容(宽度 360) | 实测中位数(Windows 开发机,2026-10) | 门禁上限 |
 |---|---|---|---|

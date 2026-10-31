@@ -112,6 +112,7 @@
 - ARIA 基础（ADR 0040）：role 保守映射、aria-hidden/label 与 aria-atomic 整组播报；修复 aria-label 接缝错位；21 个一致性向量不变。
 - 语义虚拟化（ADR 0041）：Semantics 不再触发 lazy→full 升级，直接在 lazy 结果上组装窗口化语义；语义开启的冷深跳进入 settling。
 - RTL/语言属性（ADR 0042）：dir/lang 白名单、块级基方向（auto first-strong + CSS direction）、RTL 对齐/断行/列表镜像/caret 边缘、lang→locale；新增 rtl_paragraph Chrome 几何参考与第 22 个规范化向量。
+- 增量布局画像（ADR 0043）：新工具 `tool/incremental_profile_test.dart` 把流式轮分解为 diff/样式/textIndex/复用走查（textIndex 占 56–81%、diff 近乎免费），测得形态阶梯（尾部追加 84–93% saving、中部编辑 44–60%、头部插入 ≈0）与 Float 逐行路径成本（30× 常数 + 段内 O(n²)）；决策下一方向为文本索引增量，引擎零改动、523 项测试不变。
 
 ## 并行规则
 
