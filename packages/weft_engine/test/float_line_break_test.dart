@@ -161,7 +161,7 @@ void _expectCoverage(String plainText, List<String> lines) {
 }
 
 void _expectKinsoku(List<String> lines) {
-  final rules = const WeftLineBreakRules();
+  const rules = WeftLineBreakRules();
   for (var i = 0; i < lines.length; i++) {
     final line = lines[i];
     if (line.isEmpty) continue;
@@ -199,7 +199,7 @@ Future<ui.Image> _createImage() async {
   final recorder = ui.PictureRecorder();
   final canvas = ui.Canvas(recorder);
   canvas.drawRect(
-    Rect.fromLTWH(0, 0, 120, 96),
+    const Rect.fromLTWH(0, 0, 120, 96),
     Paint()..color = const Color(0xFF3366CC),
   );
   final picture = recorder.endRecording();
