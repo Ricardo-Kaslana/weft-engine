@@ -45,7 +45,7 @@ flowchart TB
 
 当前复用 Dart `html`、`csslib` 的解析能力，但仅存在于适配层。内部节点使用稳定 `NodeId`，生成不可变 `WeftElement`/`WeftText` 树和结构化 `WeftStyleSheet`，外部不暴露完整 DOM。
 
-阶段 1A 已实现规范化、节点树、结构化 CSS、计算样式和基础静态布局。快照可编码为规范 JSON（`WeftDocumentJson`，format+version 门禁，ADR 0034）：服务端规范化一次、客户端解码消费，一致性由 `conformance/normalization/` 固化向量逐字节约束。当前尚未引入独立盒树与通用 Fragment 层；布局直接遍历不可变节点并生成绘制命令。图片 Float 通过共享排除区和逐行文本测量交付（ADR 0011），表格采用整体两遍布局；流式追加会缓存 body 顶层块输出并复用未变前缀（ADR 0023），但不等同于通用 Fragment 树。分块 `ui.Picture`、命中索引和单表面 Semantics 树均已实现（ADR 0024）；WeftView 的简单文档使用连续前缀测量与可见块物化，未测后缀仅估算滚动高度（ADR 0025）。
+阶段 1A 已实现规范化、节点树、结构化 CSS、计算样式和基础静态布局。快照可编码为规范 JSON（`WeftDocumentJson`，format+version 门禁，ADR 0034）：服务端规范化一次、客户端解码消费，一致性由 `conformance/normalization/` 固化向量逐字节约束。当前尚未引入独立盒树与通用 Fragment 层；布局直接遍历不可变节点并生成绘制命令。图片 Float 通过共享排除区和逐行文本测量交付（ADR 0011），表格采用整体两遍布局；流式追加会缓存 body 顶层块输出并复用未变前缀，变化区之后的形状相同块平移复用（ADR 0023/0046），但不等同于通用 Fragment 树。分块 `ui.Picture`、命中索引和单表面 Semantics 树均已实现（ADR 0024）；WeftView 的简单文档使用连续前缀测量与可见块物化，未测后缀仅估算滚动高度（ADR 0025）。
 
 ## 4. 布局与渲染
 
@@ -139,3 +139,7 @@ JS 不获得节点、盒树或渲染对象。它只能通过 `__weftBridge`（�
 - `0040`：ARIA 基础——role 保守映射（button/link/img/heading/dialog/alert/status/presentation）、aria-hidden/label 与 aria-atomic 整组播报；修复 aria-label 接缝错位。
 - `0041`：语义虚拟化——Semantics 不再触发 lazy→full 升级，在 lazy 结果上组装窗口化语义（物化窗口精确、band 内未物化块粗叶子、未测后缀滚动物化后出现）。
 - `0042`：RTL 基础方向与语言属性——dir/lang 白名单、块级基方向（auto first-strong + CSS direction）、RTL 对齐/断行/列表镜像/caret 边缘、lang→locale（缺省 zh 零回归）。
+- `0043`：增量布局画像——`tool/incremental_profile_test.dart` 分解流式轮成本（textIndex 56–81%、diff 近乎免费）与形态阶梯，方向选择的数据依据。
+- `0044`：文本索引前缀复用——流式新快照按块 diff 前缀复用条目、只构建后缀（共享 walker + 每块 checkpoint + 尾 trim 还原），未命中回退全量。
+- `0045`：逐行 probe 窗口化——Float 断行探测按「两行字符量起步、margin=16、翻倍至段尾」的窗口，fit 前缀单调保证断点不变；run 前缀表二分定位。
+- `0046`：后缀平移——变化区之后形状相同的块按共享垂直增量平移复用，先序 id 经形状比较 + 映射重写；Float 守卫与 body 级 li 截断保等价。
