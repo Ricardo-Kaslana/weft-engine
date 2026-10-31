@@ -119,6 +119,7 @@
 - 样式状态家族画像（ADR 0047）：E4 实验分解 lazy 流式轮——U−F = 3.3–42ms（host）而同快照地板 ≈ 0.1ms，97–99% 为每快照重付的家族工作（全量索引 T 38–63%、准入样式 S 12–18%、估算走查残差）；走查顶层样式占全量解析 ~1/4，每 resolve 成本随规则数陡增（8 → 256 条约 7–9×），float-plain 轮 99% 为走查残差；决策方向① lazy 流式轮 O(change) 化分步走（索引门放宽 → 准入/估算持久化 → 视数据走查采用）、② plain 样式跨快照采用、③ k=0 索引条目平移，行级缓存留案。引擎零改动，551 项测试不变。
 - lazy 轮文本索引增量参与（ADR 0048）：_incrementalTextIndex 门按内容纯函数论证放宽（删除 blocks.length==children、保留 checkpoint 对齐与 k 守卫），lazy 部分测量窗口参与增量索引；配套修复 0044 两个潜伏缺陷（部分前缀尾 trim/drop 还原、前缀 checkpoint 播种——链式轮不再隔轮回退）；新 e4bs 滚动形态画像：尾追加轮 6.3→2.7 / 14.7→7.1 / 48.2→15.3ms（−57/−52/−68%）；WeftTextIndex 新增 debugReusedEntryCount；测试 551 → 561。
 - lazy 准入估算前缀采用（ADR 0049）：决策块重排为 diff 先行 + `_admitLazyLayout`（前 verdict 沿用 + raw 后缀验证，provisional allowLazy 不合格重跑 plain 模式）；`_prepareLazyState` 前缀段采用上一轮 `_LazyChild`（element 重绑），边界 pendingMargin/leading/orderedItem 零歧义恢复；同机对比滚动轮 2.01→1.57 / 6.02→3.88 / 12.76→6.94ms（−22/−36/−46%），eligibility 后缀化；家族累计 0047 U(2000) 30.8–42.4 → 6.9ms；测试 561 → 572。
+- plain 走查样式跨快照采用（ADR 0050，①(c) 按数据降级缓办）：决策块成对种子化 diff 已证顶层子的上一轮样式（前缀正扫 + 后缀尾逆扫，lazy 前缓存缺条目优雅退化）；E4f 同机 A/B mid-edit@300 轮 8 条规则 2.61→1.91ms（−27%）、256 条 29.14→11.66ms（−60%）——复用轮与样式表规模脱钩；新增 debugAdoptedStyleCount；测试 572 → 579。
 
 ## 并行规则
 

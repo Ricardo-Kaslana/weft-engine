@@ -88,7 +88,11 @@ void main() {
 /// prefix, so `newSnapshotMs` no longer contains the full-build
 /// `textIndexMs`; the round should instead be close to floorMs +
 /// styleResolveMs (the walk's own resolve-all) + a suffix-only index build.
-/// The identity reading applies to fallback rounds only.
+/// Since ADR 0050 the walk's top-level styles for mapped children are
+/// adopted from the previous cache, so the round's style share drops below
+/// `styleResolveMs` by the top-level fraction and reused rounds decouple
+/// from the stylesheet size. The identity reading applies to fallback
+/// rounds only.
 void _profileDecomposition(WeftLayoutEngine engine) {
   for (final n in const [300, 1000, 2000]) {
     final html = _articleHtml(n);
@@ -514,6 +518,51 @@ Future<void> _profileStyleStateFamily(WeftLayoutEngine engine) async {
     'styleResolveMs=${_f(styleMs)} textIndexMs=${_f(textIndexMs)} '
     'walkResidualMs=${_f(roundMs - styleMs - textIndexMs)}',
   );
+
+  // E4f: direction ② (ADR 0050) — top-level style adoption. Mid-edit
+  // streaming rounds under growing stylesheets: without adoption the walk
+  // re-resolves every top-level style per round (per-resolve cost grows
+  // with the rule count, see e4d); with adoption the mapped children's
+  // styles carry over and the reused round decouples from the stylesheet
+  // size.
+  for (final rules in const [8, 256]) {
+    final id = 'profile-e4f-$rules';
+    WeftLayoutResult? current;
+    final roundMs = <double>[];
+    final adopted = <int>[];
+    for (var round = 1; round <= _streamWarmupRounds + _streamRounds; round++) {
+      final document = _normalize(
+        _styledArticleHtml(
+          rules,
+          paragraphFor: (i) => i == 150 ? _editedParagraph(i, round) : null,
+        ),
+        id,
+      );
+      final children = document.body!.children.length;
+      final watch = Stopwatch()..start();
+      final next = engine.layout(
+        document,
+        width: _viewportWidth,
+        images: const <int, ui.Image>{},
+        previous: current,
+      );
+      watch.stop();
+      current?.dispose();
+      current = next;
+      if (round > _streamWarmupRounds) {
+        expect(next.debugReusedBlockCount, children - 1,
+            reason: 'the mid-edit shape contract must hold for the cost '
+                'reading to mean anything');
+        roundMs.add(watch.elapsedMicroseconds / 1000.0);
+        adopted.add(next.debugAdoptedStyleCount);
+      }
+    }
+    current?.dispose();
+    _profileLine(
+      'e4f rules=$rules medianMs=${_f(_medianOf(roundMs))} '
+      'adoptedRange=${adopted.first}..${adopted.last}',
+    );
+  }
 }
 
 String _floatLeadParagraph() {
@@ -884,18 +933,18 @@ String _plainArticleHtml(int count,
 /// Article whose paragraphs carry one of [ruleCount] distinct classes, with
 /// a stylesheet declaring one matching rule per class — a proxy for CMS
 /// stylesheets where the resolver scans every rule on every resolve call.
-String _styledArticleHtml(int ruleCount) {
+String _styledArticleHtml(int ruleCount,
+    {String? Function(int index)? paragraphFor}) {
   final rules = StringBuffer();
   for (var i = 0; i < ruleCount; i++) {
     rules.write('.s$i { color: #33445${i % 10}; }');
   }
   final buffer = StringBuffer('<style>$rules</style>');
   for (var i = 0; i < 300; i++) {
-    buffer.write(
-      '<p class="s${i % ruleCount}">第 $i 段。Weft engine lays out mixed '
-      'English and 中文内容 at a fixed 360px viewport, exercising line '
-      'breaking deterministically.</p>',
-    );
+    buffer.write(paragraphFor?.call(i) ??
+        '<p class="s${i % ruleCount}">第 $i 段。Weft engine lays out mixed '
+            'English and 中文内容 at a fixed 360px viewport, exercising line '
+            'breaking deterministically.</p>');
   }
   return buffer.toString();
 }

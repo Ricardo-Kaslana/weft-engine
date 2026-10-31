@@ -207,6 +207,44 @@ final class WeftLayoutEngine {
         reusableBlocks: reusedMaps.prefix,
       );
     }
+    // Cross-snapshot style adoption (ADR 0050): computed style is a pure
+    // function of (element content, parent style, ancestor chain,
+    // stylesheet, custom tags), and the diff has proven the mapped
+    // children's subtrees `_sameNode`/`_sameNodeShape`-identical plus the
+    // stylesheet signature, body shell and tagRenderers equal — so their
+    // top-level styles from the previous round's cache are value-identical
+    // to a fresh resolve. Seeding them makes the walk's per-child styleFor
+    // hits instead of re-matching every selector on every streaming round,
+    // which also decouples reused rounds from the stylesheet's size.
+    var adoptedStyleCount = 0;
+    if (!sameSnapshot && previousCache != null) {
+      final previousStyles = previousCache.styleCache;
+      // Prefix: a continuous forward match — stop at the first unmapped
+      // child. A lazy previous cache may not hold prefix styles (its
+      // adopted children carry them on `_LazyChild`), so a null style ends
+      // the scan and the round resolves on demand as before.
+      for (final child in body.children) {
+        if (child is! WeftElement) break;
+        final block = reusedMaps.prefix[child.id];
+        if (block == null) break;
+        final style = previousStyles[block.element];
+        if (style == null) break;
+        styleCache[child] = style;
+        adoptedStyleCount++;
+      }
+      // Suffix (plain passes only — the map is empty for lazy): a
+      // contiguous tail, scanned from the end.
+      for (var i = body.children.length - 1; i >= 0; i--) {
+        final child = body.children[i];
+        if (child is! WeftElement) continue;
+        final block = reusedMaps.suffix[child.id];
+        if (block == null) break;
+        final style = previousStyles[block.element];
+        if (style == null) break;
+        styleCache[child] = style;
+        adoptedStyleCount++;
+      }
+    }
     final context = _LayoutContext(
       styleResolver: styleResolver,
       textScaler: textScaler,
@@ -226,6 +264,7 @@ final class WeftLayoutEngine {
       tagRenderers: tagRenderers,
       lazyState: reusableState,
       lazyAdoption: lazyAdoption,
+      adoptedStyleCount: adoptedStyleCount,
     );
     final reusedTextIndex = sameSnapshot ? previous?.textIndex : null;
     final textIndex = reusedTextIndex ??
@@ -277,6 +316,7 @@ final class WeftLayoutEngine {
       tagRegions: context.tagRegions,
       textIndex: textIndex,
       debugReusedBlockCount: context.reusedBlockCount,
+      debugAdoptedStyleCount: context.adoptedStyleCount,
       debugLaidOutBlockCount:
           lazy ? context.laidOutBlockCount : context.topLevelBlocks.length,
       debugMaterializedBlockCount:
@@ -880,6 +920,7 @@ final class _LayoutContext {
     this.tagRenderers = const <String, WeftTagRenderer>{},
     this.lazyState,
     this.lazyAdoption,
+    this.adoptedStyleCount = 0,
   });
 
   _LazyLayoutState? lazyState;
@@ -887,6 +928,9 @@ final class _LayoutContext {
   /// The diff-proven prefix's adopted per-child lazy state (ADR 0049); null
   /// when this pass prepares the estimate state from scratch.
   final _LazyPrefixAdoption? lazyAdoption;
+
+  /// Top-level styles seeded from the previous round's cache (ADR 0050).
+  final int adoptedStyleCount;
   int visitedBlockCount = 0;
   int estimatedBlockCount = 0;
 

@@ -882,6 +882,7 @@ final class WeftLayoutResult {
     Iterable<WeftTagRegion> tagRegions = const <WeftTagRegion>[],
     this.textIndex,
     this.debugReusedBlockCount = 0,
+    this.debugAdoptedStyleCount = 0,
     this.debugLaidOutBlockCount = 0,
     this.debugMaterializedBlockCount = 0,
     this.debugVisitedBlockCount = 0,
@@ -917,6 +918,10 @@ final class WeftLayoutResult {
 
   /// Debug counter: top-level blocks copied from the previous result.
   final int debugReusedBlockCount;
+
+  /// Debug counter: top-level styles adopted from the previous round's
+  /// cache (ADR 0050).
+  final int debugAdoptedStyleCount;
 
   /// Debug counter: top-level blocks laid out fresh in this pass.
   final int debugLaidOutBlockCount;
