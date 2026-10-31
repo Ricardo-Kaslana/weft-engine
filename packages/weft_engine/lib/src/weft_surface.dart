@@ -1112,7 +1112,8 @@ class RenderWeftSurface extends RenderBox {
           ..isImage = fragment.isImage
           ..isSelected = fragment.isSelected
           ..isHeader = fragment.isHeader
-          ..isLink = fragment.link != null
+          ..isLink = fragment.link != null || fragment.isLinkFlag
+          ..isButton = fragment.isButton
           ..liveRegion = fragment.isLiveRegion;
         if (fragment.headingLevel > 0) {
           childConfig.headingLevel = fragment.headingLevel;
@@ -1851,6 +1852,8 @@ final class _WeftSemanticFragment {
     this.isHeader = false,
     this.headingLevel = 0,
     this.isLiveRegion = false,
+    this.isButton = false,
+    this.isLinkFlag = false,
     this.link,
     this.tag,
     this.globalStart,
@@ -1873,6 +1876,8 @@ final class _WeftSemanticFragment {
   final bool isHeader;
   final int headingLevel;
   final bool isLiveRegion;
+  final bool isButton;
+  final bool isLinkFlag;
   final WeftLinkRegion? link;
   final WeftTagRegion? tag;
   final int? globalStart;
@@ -1891,6 +1896,8 @@ final class _WeftSemanticFragment {
       isHeader: isHeader,
       headingLevel: headingLevel,
       isLiveRegion: isLiveRegion,
+      isButton: isButton,
+      isLinkFlag: isLinkFlag,
       link: link,
       tag: tag,
       globalStart: globalStart,
@@ -1991,6 +1998,43 @@ bool? _liveRegionSetting(WeftNode node) {
   };
 }
 
+/// Elements whose structural role trees (table/row/cell) must not be
+/// collapsed into a single leaf: `aria-label` accessible names and
+/// `aria-atomic` group announcements fall back to the per-leaf behavior on
+/// them because Flutter's debug validation requires table containers to
+/// have row children (ADR 0040).
+const _ariaStructuralTags = <String>{
+  'col',
+  'colgroup',
+  'html',
+  'body',
+  'table',
+  'tbody',
+  'td',
+  'tfoot',
+  'th',
+  'thead',
+  'tr',
+};
+
+bool _ariaHidden(WeftNode node) {
+  if (node is! WeftElement) return false;
+  return node.attribute('aria-hidden')?.trim().toLowerCase() == 'true';
+}
+
+/// The element's explicit `role` value, lowercased; the normalizer only
+/// keeps values from the HTML spec's supported role set, so anything
+/// non-null here is understood by the semantic layer.
+String? _explicitRole(WeftNode node) {
+  if (node is! WeftElement) return null;
+  final value = node.attribute('role')?.trim().toLowerCase();
+  return value == null || value.isEmpty ? null : value;
+}
+
+bool _isPresentationRole(String? role) {
+  return role == 'presentation' || role == 'none';
+}
+
 int _semanticListStart(WeftElement element) {
   if (element.tag != 'ol') return 1;
   return int.tryParse(element.attribute('start') ?? '') ?? 1;
@@ -2029,6 +2073,8 @@ List<_WeftSemanticFragment> _buildContentSemantics({
     int headingLevel,
     bool isHeader,
     bool isLiveRegion,
+    bool isButton,
+    bool isLinkFlag,
     List<String?>? prefixBox, {
     int? entryGlobalStart,
   }) {
@@ -2057,6 +2103,8 @@ List<_WeftSemanticFragment> _buildContentSemantics({
               previous.isHeader == isHeader &&
               previous.headingLevel == headingLevel &&
               previous.isLiveRegion == isLiveRegion &&
+              previous.isButton == isButton &&
+              previous.isLinkFlag == isLinkFlag &&
               previous.globalEnd != null &&
               previous.globalEnd == globalStart;
           if (canMerge) {
@@ -2069,6 +2117,8 @@ List<_WeftSemanticFragment> _buildContentSemantics({
               isHeader: previous.isHeader,
               headingLevel: previous.headingLevel,
               isLiveRegion: previous.isLiveRegion,
+              isButton: previous.isButton,
+              isLinkFlag: previous.isLinkFlag,
               globalStart: previous.globalStart,
               globalEnd: globalEnd,
             );
@@ -2087,6 +2137,8 @@ List<_WeftSemanticFragment> _buildContentSemantics({
                 isHeader: isHeader,
                 headingLevel: headingLevel,
                 isLiveRegion: isLiveRegion,
+                isButton: isButton,
+                isLinkFlag: isLinkFlag,
                 globalStart: globalStart,
                 globalEnd: globalEnd,
               ),
@@ -2098,14 +2150,113 @@ List<_WeftSemanticFragment> _buildContentSemantics({
     }
   }
 
+  /// Emits one leaf fragment representing [node]'s whole subtree — used for
+  /// `aria-label` accessible names, `role=img` and `aria-atomic` live-region
+  /// group announcements (ADR 0040). When [label] is null the flattened
+  /// subtree text is announced instead. Nothing is emitted when the subtree
+  /// has no visible geometry (no text rects and no resolved images) or the
+  /// resulting name is empty; list markers do not survive collapsing.
+  void addCollapsedSubtree(
+    WeftElement node, {
+    String? label,
+    bool isImage = false,
+    bool isLiveRegion = false,
+    WeftLinkRegion? link,
+    int headingLevel = 0,
+    bool isHeader = false,
+    bool isButton = false,
+    bool isLinkFlag = false,
+  }) {
+    ui.Rect? geometry;
+    final text = StringBuffer();
+    void collect(WeftNode child) {
+      if (child is WeftText) {
+        final entry = textIndex.entryByNode[child.id];
+        if (entry == null || entry.text.isEmpty) return;
+        final rect = _unionRects(
+          layout.textRectsForNode(child.id, 0, entry.text.length),
+        );
+        if (rect != null) {
+          geometry = geometry == null ? rect : geometry!.expandToInclude(rect);
+        }
+        if (text.isNotEmpty) text.write(' ');
+        text.write(entry.text.replaceAll('\n', ' '));
+        return;
+      }
+      if (child is! WeftElement) return;
+      if (child.tag == 'img') {
+        final image = images[child.id];
+        final alt = child.attribute('aria-label')?.trim() ??
+            child.attribute('alt')?.trim() ??
+            '';
+        if (image != null) {
+          final destination = image.destination;
+          if (destination.isFinite && !destination.isEmpty) {
+            geometry = geometry == null
+                ? destination
+                : geometry!.expandToInclude(destination);
+          }
+        }
+        if (alt.isNotEmpty) {
+          if (text.isNotEmpty) text.write(' ');
+          text.write(alt);
+        }
+        return;
+      }
+      final tagRegion = tags[child.id];
+      if (tagRegion != null) {
+        final rect = tagRegion.rect;
+        if (rect.isFinite && !rect.isEmpty) {
+          geometry = geometry == null ? rect : geometry!.expandToInclude(rect);
+        }
+        final tagLabel = tagRegion.label ?? '';
+        if (tagLabel.isNotEmpty) {
+          if (text.isNotEmpty) text.write(' ');
+          text.write(tagLabel);
+        }
+        return;
+      }
+      for (final grandchild in child.children) {
+        collect(grandchild);
+      }
+    }
+
+    for (final child in node.children) {
+      collect(child);
+    }
+    final name = (label ?? text.toString()).trim();
+    if (name.isEmpty) return;
+    final rect = _clippedSemanticsRect(geometry, bounds);
+    if (rect == null) return;
+    fragments.add(
+      _WeftSemanticFragment(
+        key: ValueKey<String>('aria:${node.id}'),
+        rect: rect,
+        label: name,
+        isImage: isImage,
+        containers: List<_WeftSemanticContainerSpec>.unmodifiable(
+          activeContainers,
+        ),
+        isHeader: isHeader,
+        headingLevel: headingLevel,
+        isLiveRegion: isLiveRegion,
+        isButton: isButton,
+        isLinkFlag: isLinkFlag,
+        link: link,
+      ),
+    );
+  }
+
   void visit(
     WeftNode node,
     WeftLinkRegion? currentLink,
     int headingLevel,
     bool isHeader,
     bool isLive,
-    List<String?>? prefixBox,
-  ) {
+    List<String?>? prefixBox, {
+    bool isButton = false,
+    bool isLinkFlag = false,
+  }) {
     if (node is WeftText) {
       final entry = textIndex.entryByNode[node.id];
       if (entry != null) {
@@ -2116,6 +2267,8 @@ List<_WeftSemanticFragment> _buildContentSemantics({
           headingLevel,
           isHeader,
           isLive,
+          isButton,
+          isLinkFlag,
           prefixBox,
           entryGlobalStart: entry.globalStart,
         );
@@ -2123,10 +2276,21 @@ List<_WeftSemanticFragment> _buildContentSemantics({
       return;
     }
     if (node is! WeftElement) return;
-    final childLive = _liveRegionSetting(node) ?? isLive;
+    if (_ariaHidden(node)) return;
+    final role = _explicitRole(node);
+    final presentation = _isPresentationRole(role);
+    final roleLive = role == 'alert' || role == 'status';
+    final childLive = _liveRegionSetting(node) ?? (roleLive ? true : isLive);
     if (node.tag == 'img') {
+      // A presentation/none image is removed from the accessibility tree
+      // while still painting (ADR 0040).
+      if (presentation) return;
       final image = images[node.id];
-      final alt = node.attribute('alt')?.trim() ?? '';
+      // aria-label is the stronger accessible name per the ARIA name
+      // computation; alt is the fallback.
+      final alt = node.attribute('aria-label')?.trim() ??
+          node.attribute('alt')?.trim() ??
+          '';
       if (image != null) {
         final rect = _clippedSemanticsRect(image.destination, bounds);
         if (alt.isNotEmpty && rect != null) {
@@ -2144,6 +2308,8 @@ List<_WeftSemanticFragment> _buildContentSemantics({
               isHeader: isHeader,
               headingLevel: headingLevel,
               isLiveRegion: childLive,
+              isButton: isButton,
+              isLinkFlag: isLinkFlag,
             ),
           );
         }
@@ -2155,6 +2321,8 @@ List<_WeftSemanticFragment> _buildContentSemantics({
           headingLevel,
           isHeader,
           childLive,
+          isButton,
+          isLinkFlag,
           prefixBox,
         );
       }
@@ -2175,6 +2343,8 @@ List<_WeftSemanticFragment> _buildContentSemantics({
             isHeader: isHeader,
             headingLevel: headingLevel,
             isLiveRegion: childLive,
+            isButton: isButton,
+            isLinkFlag: isLinkFlag,
             tag: tagRegion,
           ),
         );
@@ -2182,33 +2352,87 @@ List<_WeftSemanticFragment> _buildContentSemantics({
       // Custom tag content is opaque: attribute-driven, so no subtree visit.
       return;
     }
-    final link = node.tag == 'a' ? links[node.id] : currentLink;
-    final childHeading = switch (node.tag) {
-      'h1' => 1,
-      'h2' => 2,
-      'h3' => 3,
-      'h4' => 4,
-      'h5' => 5,
-      'h6' => 6,
-      _ => headingLevel,
-    };
-    final childHeader = isHeader ||
-        node.tag == 'th' ||
-        node.tag == 'h1' ||
-        node.tag == 'h2' ||
-        node.tag == 'h3' ||
-        node.tag == 'h4' ||
-        node.tag == 'h5' ||
-        node.tag == 'h6';
-    if (node.tag == 'ul' || node.tag == 'ol') {
-      activeContainers.add(
-        _WeftSemanticContainerSpec(id: node.id, role: SemanticsRole.list),
+    // An explicit role overrides the element's implicit link semantics:
+    // `<a role="button">` announces as a button without the link flag or tap
+    // action (ADR 0040).
+    final roleOverride =
+        presentation || role == 'button' || role == 'img' || role == 'heading';
+    final link =
+        node.tag == 'a' && !roleOverride ? links[node.id] : currentLink;
+    final childHeading = presentation
+        ? headingLevel
+        : switch (node.tag) {
+            'h1' => 1,
+            'h2' => 2,
+            'h3' => 3,
+            'h4' => 4,
+            'h5' => 5,
+            'h6' => 6,
+            // ARIA gives `role=heading` without a level the default level 2.
+            _ => role == 'heading' ? 2 : headingLevel,
+          };
+    final childHeader = !presentation &&
+        (isHeader ||
+            node.tag == 'th' ||
+            node.tag == 'h1' ||
+            node.tag == 'h2' ||
+            node.tag == 'h3' ||
+            node.tag == 'h4' ||
+            node.tag == 'h5' ||
+            node.tag == 'h6');
+    final childButton = isButton || role == 'button';
+    final childLinkFlag = isLinkFlag || role == 'link';
+    // Dialog roles are container roles Flutter validates as
+    // `_noCheckRequired`, so they are safe to push as semantic containers.
+    final dialogSpec =
+        presentation || (role != 'dialog' && role != 'alertdialog')
+            ? null
+            : _WeftSemanticContainerSpec(
+                id: node.id,
+                role: role == 'dialog'
+                    ? SemanticsRole.dialog
+                    : SemanticsRole.alertDialog,
+              );
+    if (dialogSpec != null) {
+      activeContainers.add(dialogSpec);
+    }
+    final structural = _ariaStructuralTags.contains(node.tag);
+    final ariaLabel = node.attribute('aria-label')?.trim() ?? '';
+    // `aria-atomic` only groups announcements inside a live region;
+    // `role=alert`/`status` imply live + atomic per ARIA. Structural role
+    // trees fall back to the per-leaf behavior instead of collapsing.
+    final atomic = childLive &&
+        (roleLive ||
+            node.attribute('aria-atomic')?.trim().toLowerCase() == 'true');
+    if (!structural && (ariaLabel.isNotEmpty || role == 'img' || atomic)) {
+      addCollapsedSubtree(
+        node,
+        label: ariaLabel.isNotEmpty ? ariaLabel : null,
+        isImage: role == 'img',
+        isLiveRegion: childLive,
+        link: link,
+        headingLevel: childHeading,
+        isHeader: childHeader,
+        isButton: childButton,
+        isLinkFlag: childLinkFlag,
       );
+      if (dialogSpec != null) activeContainers.removeLast();
+      return;
+    }
+    if (node.tag == 'ul' || node.tag == 'ol') {
+      // A presentation list keeps announcing its content but loses the
+      // list/listItem containers and the `1. `/`• ` markers (ADR 0040).
+      if (!presentation) {
+        activeContainers.add(
+          _WeftSemanticContainerSpec(id: node.id, role: SemanticsRole.list),
+        );
+      }
       var itemIndex = 0;
-      var itemNumber = node.tag == 'ol' ? _semanticListStart(node) : 0;
+      var itemNumber =
+          !presentation && node.tag == 'ol' ? _semanticListStart(node) : 0;
       for (final child in node.children) {
         List<String?>? childPrefix;
-        if (child is WeftElement && child.tag == 'li') {
+        if (!presentation && child is WeftElement && child.tag == 'li') {
           itemIndex += 1;
           if (node.tag == 'ol') {
             final explicit = _semanticListItemValue(child);
@@ -2232,6 +2456,8 @@ List<_WeftSemanticFragment> _buildContentSemantics({
             childHeader,
             childLive,
             childPrefix,
+            isButton: childButton,
+            isLinkFlag: childLinkFlag,
           );
           activeContainers.removeLast();
         } else {
@@ -2242,13 +2468,37 @@ List<_WeftSemanticFragment> _buildContentSemantics({
             childHeader,
             childLive,
             childPrefix,
+            isButton: childButton,
+            isLinkFlag: childLinkFlag,
           );
         }
       }
-      activeContainers.removeLast();
+      if (!presentation) {
+        activeContainers.removeLast();
+      }
+      if (dialogSpec != null) activeContainers.removeLast();
       return;
     }
     if (node.tag == 'table') {
+      // A presentation table keeps announcing cell text but loses the
+      // table/row/cell containers; descendant `th` header flags survive
+      // (documented simplification in ADR 0040).
+      if (presentation) {
+        for (final child in node.children) {
+          visit(
+            child,
+            link,
+            childHeading,
+            childHeader,
+            childLive,
+            null,
+            isButton: childButton,
+            isLinkFlag: childLinkFlag,
+          );
+        }
+        if (dialogSpec != null) activeContainers.removeLast();
+        return;
+      }
       for (final child in node.children) {
         if (child is WeftElement && child.tag == 'caption') {
           visit(child, link, childHeading, childHeader, childLive, null);
@@ -2282,7 +2532,16 @@ List<_WeftSemanticFragment> _buildContentSemantics({
             ),
           );
           cellIndex += 1;
-          visit(cell, link, childHeading, childHeader, childLive, null);
+          visit(
+            cell,
+            link,
+            childHeading,
+            childHeader,
+            childLive,
+            null,
+            isButton: childButton,
+            isLinkFlag: childLinkFlag,
+          );
           activeContainers.removeLast();
         }
         activeContainers.removeLast();
@@ -2301,16 +2560,29 @@ List<_WeftSemanticFragment> _buildContentSemantics({
         }
       }
       activeContainers.removeLast();
+      if (dialogSpec != null) activeContainers.removeLast();
       return;
     }
     for (final child in node.children) {
-      visit(child, link, childHeading, childHeader, childLive, prefixBox);
+      visit(
+        child,
+        link,
+        childHeading,
+        childHeader,
+        childLive,
+        prefixBox,
+        isButton: childButton,
+        isLinkFlag: childLinkFlag,
+      );
     }
+    if (dialogSpec != null) activeContainers.removeLast();
   }
 
   final bodyLive = _liveRegionSetting(body) ?? false;
-  for (final child in body.children) {
-    visit(child, null, 0, false, bodyLive, null);
+  if (!_ariaHidden(body)) {
+    for (final child in body.children) {
+      visit(child, null, 0, false, bodyLive, null);
+    }
   }
   return _buildSemanticForest(fragments);
 }

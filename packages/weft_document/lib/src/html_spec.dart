@@ -83,11 +83,34 @@ abstract final class WeftHtmlSpec {
 
   /// Attributes allowed on every element.
   static const globalAttributes = <String>{
+    'aria-atomic',
+    'aria-hidden',
+    'aria-label',
     'aria-live',
     'class',
     'id',
+    'role',
     'style',
     'title',
+  };
+
+  /// `role` values the semantic layer understands (ADR 0040). Anything else
+  /// is dropped with an `aria.role.unsupported` diagnostic; rendering is
+  /// never affected. The set is deliberately conservative: Flutter's debug
+  /// role validation rejects role trees that violate parent/child or state
+  /// invariants, so roles needing them (table/list overrides, tab, menu,
+  /// radio, landmarks) are not offered yet.
+  static const supportedRoles = <String>{
+    'alert',
+    'button',
+    'dialog',
+    'alertdialog',
+    'heading',
+    'img',
+    'link',
+    'none',
+    'presentation',
+    'status',
   };
 
   /// Per-tag attribute whitelist on top of [globalAttributes].

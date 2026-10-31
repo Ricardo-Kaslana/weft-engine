@@ -175,6 +175,49 @@ void main() {
     );
   });
 
+  test('keeps supported role, hidden, atomic and label ARIA attributes', () {
+    final snapshot = const WeftNormalizer().normalize(
+      '<div role="Button" aria-hidden="true" aria-atomic="TRUE" '
+      'aria-label="Save changes">Text</div>'
+      '<p role="banner">Landmark</p>'
+      '<p aria-hidden="maybe">Bad hidden</p>'
+      '<p aria-atomic="yes">Bad atomic</p>'
+      '<p aria-hidden="false">Inert hidden</p>',
+      id: 'aria-attributes',
+    );
+
+    expect(snapshot.supportReport.canRender, isTrue);
+    final elements = snapshot.body!.children.whereType<WeftElement>().toList();
+    final supported = elements[0];
+    expect(supported.attributes['role'], 'button');
+    expect(supported.attributes['aria-hidden'], 'true');
+    expect(supported.attributes['aria-atomic'], 'true');
+    expect(supported.attributes['aria-label'], 'Save changes');
+    expect(elements[1].attributes.containsKey('role'), isFalse);
+    expect(elements[2].attributes.containsKey('aria-hidden'), isFalse);
+    expect(elements[3].attributes.containsKey('aria-atomic'), isFalse);
+    // `false`/`undefined` are valid values without semantics; they are
+    // dropped silently instead of producing a diagnostic.
+    expect(elements[4].attributes.containsKey('aria-hidden'), isFalse);
+    final codes = snapshot.supportReport.issues.map((issue) => issue.code);
+    expect(codes, contains('aria.role.unsupported'));
+    expect(codes, contains('aria.hidden.invalid'));
+    expect(codes, contains('aria.atomic.invalid'));
+    final roleIssue = snapshot.supportReport.issues
+        .firstWhere((issue) => issue.code == 'aria.role.unsupported');
+    expect(roleIssue.severity, SupportSeverity.info);
+  });
+
+  test('caps aria-label length like alt', () {
+    final snapshot = const WeftNormalizer().normalize(
+      '<p aria-label="${'x' * 1100}">Long</p>',
+      id: 'aria-label-cap',
+    );
+
+    final paragraph = snapshot.body!.children.whereType<WeftElement>().single;
+    expect(paragraph.attributes['aria-label']!.length, 1024);
+  });
+
   test('node limit fails safely instead of returning partial content', () {
     const normalizer = WeftNormalizer(
       limits: WeftNormalizationLimits(maxNodes: 4),

@@ -431,6 +431,257 @@ void main() {
     expect(find.semantics.byLabel('Semantic content'), findsOneWidget);
     semantics.dispose();
   });
+
+  testWidgets('role button and link map to announcement flags', (tester) async {
+    final semantics = tester.ensureSemantics();
+    final document = _normalize(
+      '<div role="button">Save draft</div>'
+      '<p><span role="link">Read more</span></p>'
+      '<p><a href="https://example.com" role="button">Anchored</a></p>',
+    );
+    await tester.pumpWidget(_wrap(WeftSurface(document: document)));
+
+    expect(
+      _node(find.semantics.byLabel('Save draft')),
+      containsSemantics(isButton: true, isLink: false, hasTapAction: false),
+    );
+    expect(
+      _node(find.semantics.byLabel('Read more')),
+      containsSemantics(isButton: false, isLink: true, hasTapAction: false),
+    );
+    // An explicit role overrides the anchor's implicit link semantics.
+    expect(
+      _node(find.semantics.byLabel('Anchored')),
+      containsSemantics(isButton: true, isLink: false, hasTapAction: false),
+    );
+    semantics.dispose();
+  });
+
+  testWidgets('aria-hidden removes a subtree from semantics, not from copy', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final document = _normalize(
+      '<p>Visible intro</p>'
+      '<div aria-hidden="true"><p>Hidden teaser</p></div>'
+      '<p>Visible outro</p>',
+    );
+    final probe = const WeftLayoutEngine().layout(document, width: 280);
+    final entries = probe.textIndex!.entries;
+    final copyText = probe.selectionText(
+      TextSelectionRange(
+        anchor: TextAnchor(entries.first.nodeId, 0),
+        extent: TextAnchor(entries.last.nodeId, 1),
+      ),
+    );
+    probe.dispose();
+    expect(copyText, contains('Hidden teaser'));
+
+    await tester.pumpWidget(_wrap(WeftSurface(document: document)));
+    expect(find.semantics.byLabel('Visible intro'), findsOneWidget);
+    expect(find.semantics.byLabel('Hidden teaser'), findsNothing);
+    expect(find.semantics.byLabel('Visible outro'), findsOneWidget);
+    semantics.dispose();
+  });
+
+  testWidgets('presentation lists lose roles and markers but keep text', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final document = _normalize(
+      '<ul role="presentation"><li>Plain one</li><li>Plain two</li></ul>'
+      '<ul><li>Real bullet</li></ul>',
+    );
+    await tester.pumpWidget(_wrap(WeftSurface(document: document)));
+
+    expect(find.semantics.byLabel('• Plain one'), findsNothing);
+    final plain = _node(find.semantics.byLabel('Plain one'));
+    // Without the list containers the leaf hangs directly under the
+    // surface root instead of a listItem role node.
+    expect(plain.parent?.role, SemanticsRole.none);
+    expect(find.semantics.byLabel('Plain two'), findsOneWidget);
+    final real = _node(find.semantics.byLabel('• Real bullet'));
+    expect(real.parent?.role, SemanticsRole.listItem);
+    semantics.dispose();
+  });
+
+  testWidgets('presentation tables drop structural roles but keep cells', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final document = _normalize(
+      '<table role="presentation"><tr><th>Layout head</th>'
+      '<td>Layout cell</td></tr></table>'
+      '<table><tr><td>Real cell</td></tr></table>',
+    );
+    await tester.pumpWidget(_wrap(WeftSurface(document: document)));
+
+    final head = _node(find.semantics.byLabel('Layout head'));
+    expect(head.parent?.role, SemanticsRole.none);
+    expect(find.semantics.byLabel('Layout cell'), findsOneWidget);
+    final real = _node(find.semantics.byLabel('Real cell'));
+    expect(real.parent?.role, SemanticsRole.cell);
+    semantics.dispose();
+  });
+
+  testWidgets('aria-atomic announces a live region as one group', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final document = _normalize(
+      '<div aria-live="polite" aria-atomic="true"><p>Status one</p>'
+      '<p>Status two</p></div>'
+      '<div aria-live="polite"><p>Leaf one</p><p>Leaf two</p></div>'
+      '<div aria-atomic="true"><p>Atomic outside live</p></div>',
+    );
+    await tester.pumpWidget(_wrap(WeftSurface(document: document)));
+
+    final group = find.semantics.byLabel('Status one Status two');
+    expect(group, findsOneWidget);
+    expect(
+        _node(group).getSemanticsData().flagsCollection.isLiveRegion, isTrue);
+    expect(find.semantics.byLabel('Status one'), findsNothing);
+    // Without atomic the leaves stay individual live regions.
+    expect(find.semantics.byLabel('Leaf one'), findsOneWidget);
+    expect(find.semantics.byLabel('Leaf two'), findsOneWidget);
+    // Atomic outside a live region changes nothing.
+    expect(find.semantics.byLabel('Atomic outside live'), findsOneWidget);
+    semantics.dispose();
+  });
+
+  testWidgets('role alert and status imply grouped live announcements', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final document = _normalize(
+      '<div role="alert"><p>Connection lost</p><p>Retry soon</p></div>'
+      '<div role="status"><p>Saved quietly</p></div>'
+      '<div role="alert" aria-live="off"><p>Muted alert</p></div>',
+    );
+    await tester.pumpWidget(_wrap(WeftSurface(document: document)));
+
+    final alert = find.semantics.byLabel('Connection lost Retry soon');
+    expect(alert, findsOneWidget);
+    expect(
+        _node(alert).getSemanticsData().flagsCollection.isLiveRegion, isTrue);
+    // The framework forbids combining these roles with the liveRegion flag,
+    // so the role itself is not mapped (ADR 0040).
+    expect(_node(alert).getSemanticsData().role, SemanticsRole.none);
+    final status = find.semantics.byLabel('Saved quietly');
+    expect(status, findsOneWidget);
+    expect(
+      _node(status).getSemanticsData().flagsCollection.isLiveRegion,
+      isTrue,
+    );
+    // An explicit aria-live="off" beats the implicit live role.
+    expect(
+      _node(find.semantics.byLabel('Muted alert'))
+          .getSemanticsData()
+          .flagsCollection
+          .isLiveRegion,
+      isFalse,
+    );
+    semantics.dispose();
+  });
+
+  testWidgets('image aria-label wins over alt and presentation images drop', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final document = _normalize(
+      '<img src="memory://cover" alt="Alt name" aria-label="Aria name" '
+      'width="40" height="20">'
+      '<img src="memory://decor" alt="Decoration" role="presentation" '
+      'width="10" height="10">',
+    );
+    final provider = MemoryImage(base64Decode(_testPngBase64));
+    await tester.pumpWidget(
+      _wrap(
+        WeftSurface(document: document, imageResolver: (_) => provider),
+      ),
+    );
+    await tester.runAsync(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    });
+    await tester.pump();
+
+    expect(find.semantics.byLabel('Aria name'), findsOneWidget);
+    expect(find.semantics.byLabel('Alt name'), findsNothing);
+    expect(find.semantics.byLabel('Decoration'), findsNothing);
+    semantics.dispose();
+  });
+
+  testWidgets('aria-label collapses a subtree into one named leaf', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final document = _normalize(
+      '<div aria-label="Rating widget"><p>Five stars</p><p>Out of five</p></div>'
+      '<p><a href="https://example.com/profile" aria-label="Open profile">'
+      'Profile</a></p>',
+    );
+    WeftLinkRegion? tapped;
+    await tester.pumpWidget(
+      _wrap(
+        WeftSurface(
+          document: document,
+          onLinkTap: (region) => tapped = region,
+        ),
+      ),
+    );
+
+    final named = find.semantics.byLabel('Rating widget');
+    expect(named, findsOneWidget);
+    expect(find.semantics.byLabel('Five stars'), findsNothing);
+    expect(find.semantics.byLabel('Out of five'), findsNothing);
+    final link = find.semantics.byLabel('Open profile');
+    expect(link, findsOneWidget);
+    expect(find.semantics.byLabel('Profile'), findsNothing);
+    expect(_node(link), containsSemantics(isLink: true, hasTapAction: true));
+    tester.semantics.tap(link);
+    expect(tapped?.href, 'https://example.com/profile');
+    semantics.dispose();
+  });
+
+  testWidgets('unsupported roles are dropped without breaking semantics', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final document = _normalize(
+      '<p role="banner">Landmarked</p><p role="tooltip">Tipped</p>',
+    );
+    await tester.pumpWidget(_wrap(WeftSurface(document: document)));
+
+    expect(find.semantics.byLabel('Landmarked'), findsOneWidget);
+    expect(
+      _node(find.semantics.byLabel('Landmarked')).getSemanticsData().role,
+      SemanticsRole.none,
+    );
+    expect(find.semantics.byLabel('Tipped'), findsOneWidget);
+    expect(
+      document.supportReport.issues.map((issue) => issue.code),
+      contains('aria.role.unsupported'),
+    );
+    semantics.dispose();
+  });
+
+  testWidgets('dialog roles become semantic containers with the name', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final document = _normalize(
+      '<div role="dialog" aria-label="Confirm"><p>Confirm body</p></div>'
+      '<div role="alertdialog"><p>Warning body</p></div>',
+    );
+    await tester.pumpWidget(_wrap(WeftSurface(document: document)));
+
+    final named = _node(find.semantics.byLabel('Confirm'));
+    expect(named.parent?.role, SemanticsRole.dialog);
+    expect(find.semantics.byLabel('Confirm body'), findsNothing);
+    final warning = _node(find.semantics.byLabel('Warning body'));
+    expect(warning.parent?.role, SemanticsRole.alertDialog);
+    semantics.dispose();
+  });
 }
 
 SemanticsNode _node(SemanticsFinder finder) => finder.evaluate().single;

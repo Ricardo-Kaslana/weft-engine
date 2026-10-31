@@ -610,6 +610,41 @@ final class _TreeBuilder {
           continue;
         }
         value = normalized;
+      } else if (name == 'role') {
+        final normalized = value.toLowerCase();
+        if (normalized.isEmpty) continue;
+        if (!WeftHtmlSpec.supportedRoles.contains(normalized)) {
+          _addIssue(
+            SupportIssue(
+              code: 'aria.role.unsupported',
+              message: 'The role "$normalized" has no semantic mapping and was '
+                  'removed; rendering is unaffected.',
+              severity: SupportSeverity.info,
+            ),
+          );
+          continue;
+        }
+        value = normalized;
+      } else if (name == 'aria-hidden' || name == 'aria-atomic') {
+        final normalized = value.toLowerCase();
+        if (normalized != 'true' &&
+            normalized != 'false' &&
+            normalized != 'undefined') {
+          _addIssue(
+            SupportIssue(
+              code: name == 'aria-hidden'
+                  ? 'aria.hidden.invalid'
+                  : 'aria.atomic.invalid',
+              message: 'Invalid $name value was removed; use true, false or '
+                  'undefined.',
+            ),
+          );
+          continue;
+        }
+        // `false`/`undefined` are valid but change nothing; only `true`
+        // carries semantics and is kept.
+        if (normalized != 'true') continue;
+        value = normalized;
       } else if ((name == 'start' && tag == 'ol') ||
           (name == 'value' && tag == 'li')) {
         final number = int.tryParse(value);

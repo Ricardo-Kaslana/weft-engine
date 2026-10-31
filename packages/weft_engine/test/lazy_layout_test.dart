@@ -1,5 +1,7 @@
 import 'dart:ui' as ui;
 
+import 'package:flutter/rendering.dart'
+    show SemanticsConfiguration, SemanticsNode;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weft_document/weft_document.dart';
@@ -350,6 +352,30 @@ void main() {
     render.layout(const BoxConstraints.tightFor(width: 320));
     expect(render.debugFullLayoutRequired, isFalse);
     expect(render.debugLayout!.debugIsLazy, isTrue);
+  });
+
+  test('semantics assembly upgrades a lazy layout to canonical full', () {
+    final document = _article(80);
+    final render = RenderWeftSurface(
+      document: document,
+      enableLazyLayout: true,
+      viewportHeight: 400,
+    );
+    addTearDown(render.dispose);
+    render.layout(const BoxConstraints.tightFor(width: 320));
+    expect(render.debugLayout!.debugIsLazy, isTrue);
+
+    final config = SemanticsConfiguration();
+    render.describeSemanticsConfiguration(config);
+    render.assembleSemanticsNode(
+      SemanticsNode(key: const ValueKey<String>('weft-semantics-probe')),
+      config,
+      const <SemanticsNode>[],
+    );
+
+    expect(render.debugFullLayoutRequired, isTrue);
+    expect(render.debugFullLayoutReason, 'semantics');
+    expect(render.debugLayout!.debugIsLazy, isFalse);
   });
 
   test('height-only blocks stay materialized without relayout', () {

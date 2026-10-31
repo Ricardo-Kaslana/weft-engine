@@ -105,13 +105,14 @@
 
 ## 可访问性语义
 
-当前能力（ADR 0024/0026/0028/0030/0039）：
+当前能力（ADR 0024/0026/0028/0030/0039/0040）：
 
 - `RenderWeftSurface` 手动暴露阅读顺序文本、链接、图片和非折叠选区；普通文本不与子链接重复朗读，链接支持宿主 Semantics tap，已解析图片使用 alt，空 alt 作为装饰跳过。
 - 标题与 `<th>` 子树暴露 header flag；`h1..h6` 的文本、链接、强调和图片 alt 同时输出 `headingLevel`（ADR 0039）。有序/无序列表项的首个朗读片段带 `1. ` / `• ` 标记，有序列表的 `start`/`value` 同时作用于视觉与语义 marker；标记不进入复制文本（ADR 0028/0039）。`ul/ol→li` 与 `table→tr→td/th` 生成嵌套 list/listItem、table/row/cell/columnHeader 角色，listItem/row/cell 带 indexInParent，thead/tbody 透明、caption 作为 table 前兄弟（ADR 0030）。显式 `aria-live="polite/assertive"` 子树的文本、链接、图片与自定义标签叶子带 Flutter `liveRegion` 标志；`off` 显式关闭并向下继承（ADR 0039）。标题内的链接/强调仍保留语义顺序。选区提供 value/selected/rect，并在宿主提供回调时暴露 copy action（ADR 0026）；WeftView 与复制按钮共用 Clipboard 策略，standalone 默认无 copy。同 document.id 的流式追加保留未变 SemanticsNode.id，屏外内容保留并支持 showOnScreen 滚动。
+- ARIA 基础（ADR 0040）：`role` 保守映射——`button`/`link` 输出 isButton/isLink 标志（无激活动作），`img`/`heading` 折叠或派生 header/headingLevel，`dialog`/`alertdialog` 成为容器角色，`alert`/`status` 隐式化为 live+atomic 播报，`presentation`/`none` 抑制元素自身派生语义（内容仍朗读），其余角色丢弃并产出 `aria.role.unsupported` 诊断；显式 role 覆盖元素隐式语义（`<a role="button">` 不再是链接）。`aria-hidden="true"` 子树从语义树移除（视觉与复制文本不变）。`aria-label` 作为可访问名称：img 上优先于 alt，其余元素（table 族除外）子树折叠为单个命名叶子，`<a aria-label>` 保留 tap。live region 内 `aria-atomic="true"`（含 alert/status 隐式）将子树折叠为单个 liveRegion 叶子整组播报，替代逐叶子播报。
 - 宿主可用 `ExcludeSemantics` 排除表面；`WeftSurface.onSemanticsLinkTap` 默认回退到 `onLinkTap`，WeftView 自动接入同一宿主回调。
 
-边界与限制：尚无 table/list 角色导航、可编辑 setSelection/caret 动作、逐文本节点 selected state、RTL/语言属性、完整 ARIA role/atomic、`polite`/`assertive` 播报优先级或语义虚拟化；live region 只标记显式子树内的叶子片段，可能由辅助技术逐叶子播报。已解析图片位于链接内时不额外提供 tap，与当前 pointer 命中能力一致。
+边界与限制：尚无 table/list 角色导航、可编辑 setSelection/caret 动作、逐文本节点 selected state、RTL/语言属性、landmark/tab/menu/radio 族角色、`aria-level`/`aria-labelledby`/`aria-describedby`、`polite`/`assertive` 播报优先级或语义虚拟化；`role=button`/`link` 只播报角色，不产生激活动作（引擎不执行脚本）；折叠类语义（aria-label/role=img/aria-atomic）不播报子树内容且不带列表 marker；presentation 表格后代 th 的 header flag 保留（记录在案的简化）。已解析图片位于链接内时不额外提供 tap，与当前 pointer 命中能力一致。
 
 ## 流式增量布局
 
