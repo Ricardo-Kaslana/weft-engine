@@ -1,6 +1,5 @@
 import 'dart:ui' as ui;
 
-import 'package:flutter/painting.dart' show Color;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weft_document/weft_document.dart';
