@@ -294,11 +294,14 @@ final class WeftLayoutEngine {
 /// The block diff in [reusableBlocks] verified its prefix by recursive
 /// `_sameNode` comparison, which covers every descendant's id, text and
 /// attributes; the entry model is a pure function of exactly those inputs
-/// plus the stylesheet (already signature-compared before the diff ran).
-/// The prefix only aligns with the index's per-block checkpoints when the
-/// previous cache covered the whole body: a partially measured lazy cache
-/// verified just its measured window through element-filtered lists, so it
-/// falls back to the full build.
+/// plus the stylesheet (already signature-compared before the diff ran),
+/// and never of geometry — so whether the previous cache measured the
+/// whole body or just a lazy window does not matter (ADR 0048). What must
+/// align is the index side: the previous index carries one checkpoint per
+/// previous body child, and the count below walks the new body's raw
+/// children, stopping at the first one the diff did not map — body-level
+/// whitespace only costs reuse (a shorter prefix or the full build), never
+/// correctness. A head insert maps no children and stays a full build.
 WeftTextIndex? _incrementalTextIndex({
   required WeftDocumentSnapshot document,
   required WeftElement body,
@@ -312,8 +315,7 @@ WeftTextIndex? _incrementalTextIndex({
   final previousIndex = previous?.textIndex;
   if (previousBody == null || previousIndex == null) return null;
   final previousChildren = previousBody.children.length;
-  if (previousCache.blocks.length != previousChildren ||
-      previousIndex.checkpointCount != previousChildren) {
+  if (previousIndex.checkpointCount != previousChildren) {
     return null;
   }
   var reused = 0;

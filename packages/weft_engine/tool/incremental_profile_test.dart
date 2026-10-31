@@ -442,6 +442,44 @@ Future<void> _profileStyleStateFamily(WeftLayoutEngine engine) async {
     );
   }
 
+  // E4b (scrolled): the fresh-viewport shape above bounds the diff prefix
+  // by the measured window, so the index still re-walks most of the body. A
+  // scrolled session has already measured the whole leading prefix — the
+  // realistic mid-session streaming shape — and the index (ADR 0048) then
+  // reuses nearly every entry, re-walking only the appended tail.
+  for (final n in const [300, 1000, 2000]) {
+    final docA = _normalize(_plainArticleHtml(n), 'profile-e4bs-$n');
+    final probe = engine.layoutViewport(
+      docA,
+      width: _viewportWidth,
+      viewportStart: 0,
+      viewportEnd: _viewportHeight,
+    );
+    final deep = math.max(0.0, probe.size.height - _viewportHeight);
+    probe.dispose();
+    final docB = _normalize(_plainArticleHtml(n + 10), 'profile-e4bs-$n');
+    final children = docB.body!.children.length;
+    final u = _relayoutLazyMs(
+      engine,
+      docA,
+      docB,
+      expectAdmission: true,
+      viewportStart: deep,
+    );
+    final floor = _relayoutLazyMs(
+      engine,
+      docB,
+      docB,
+      expectAdmission: false,
+      viewportStart: deep,
+    );
+    _profileLine(
+      'e4bs n=$n children=$children uLazyMs=${_f(u.medianMs)} '
+      'floorLazyMs=${_f(floor.medianMs)} reused=${u.reusedMin}..${u.reusedMax} '
+      'eligibility=${u.eligibilityMin}..${u.eligibilityMax}',
+    );
+  }
+
   for (final rules in const [8, 64, 256]) {
     final doc = _normalize(_styledArticleHtml(rules), 'profile-e4d-$rules');
     final resolver = WeftStyleResolver(doc.styleSheet);
@@ -643,34 +681,38 @@ double _relayoutMs(
   int eligibilityMin,
   int eligibilityMax,
   int estimatedMin,
-  int estimatedMax
+  int estimatedMax,
+  int reusedMin,
+  int reusedMax
 }) _relayoutLazyMs(
   WeftLayoutEngine engine,
   WeftDocumentSnapshot seedDoc,
   WeftDocumentSnapshot targetDoc, {
   required bool expectAdmission,
+  double viewportStart = 0,
 }) {
   final previouses = List<WeftLayoutResult>.generate(
     _sampleCount + 1,
     (_) => engine.layoutViewport(
       seedDoc,
       width: _viewportWidth,
-      viewportStart: 0,
-      viewportEnd: _viewportHeight,
+      viewportStart: viewportStart,
+      viewportEnd: viewportStart + _viewportHeight,
       images: const <int, ui.Image>{},
     ),
   );
   final samples = <double>[];
   final eligibility = <int>[];
   final estimated = <int>[];
+  final reused = <int>[];
   for (var i = 0; i < previouses.length; i++) {
     final previous = previouses[i];
     final watch = Stopwatch()..start();
     final next = engine.layoutViewport(
       targetDoc,
       width: _viewportWidth,
-      viewportStart: 0,
-      viewportEnd: _viewportHeight,
+      viewportStart: viewportStart,
+      viewportEnd: viewportStart + _viewportHeight,
       images: const <int, ui.Image>{},
       previous: previous,
     );
@@ -689,6 +731,7 @@ double _relayoutMs(
       samples.add(watch.elapsedMicroseconds / 1000.0);
       eligibility.add(next.debugEligibilityVisitCount);
       estimated.add(next.debugEstimatedBlockCount);
+      reused.add(next.debugReusedBlockCount);
     }
     previous.dispose();
     next.dispose();
@@ -699,6 +742,8 @@ double _relayoutMs(
     eligibilityMax: eligibility.reduce(math.max),
     estimatedMin: estimated.reduce(math.min),
     estimatedMax: estimated.reduce(math.max),
+    reusedMin: reused.reduce(math.min),
+    reusedMax: reused.reduce(math.max),
   );
 }
 

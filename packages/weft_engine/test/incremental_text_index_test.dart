@@ -7,6 +7,11 @@ import 'package:weft_engine/weft_engine.dart';
 /// diff proves a prefix unchanged — including the trailing-whitespace trim
 /// restore, pending `<br>` breaks and dropped whitespace-only entries at
 /// the prefix boundary — and must fall back to the full build otherwise.
+/// ADR 0048: the diff prefix proves content, not geometry, so partially
+/// measured lazy previouses engage the same incremental path, restored
+/// stream tails are also restored when they sit inside a partial prefix,
+/// and the incremental build carries its prefix checkpoints so chained
+/// rounds keep reusing every round.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const engine = WeftLayoutEngine();
@@ -26,6 +31,44 @@ void main() {
     addTearDown(canonical.dispose);
     _expectTextIndexEquals(current.textIndex!, canonical.textIndex!);
     return (current, canonical);
+  }
+
+  /// Lazy variant of [expectStreamingIndexEquals]: both rounds go through
+  /// `layoutViewport` so the previous cache is a partial measured window.
+  (WeftLayoutResult, WeftLayoutResult) expectLazyIndexEquals(
+    WeftLayoutResult previous,
+    String nextHtml, {
+    int revision = 2,
+    double width = 360,
+  }) {
+    final next = _normalize(nextHtml, revision: revision);
+    final current = engine.layoutViewport(
+      next,
+      width: width,
+      viewportStart: 0,
+      viewportEnd: 800,
+      previous: previous,
+    );
+    final canonical = engine.layoutViewport(
+      next,
+      width: width,
+      viewportStart: 0,
+      viewportEnd: 800,
+    );
+    addTearDown(current.dispose);
+    addTearDown(canonical.dispose);
+    expect(current.debugIsLazy, isTrue);
+    _expectTextIndexEquals(current.textIndex!, canonical.textIndex!);
+    return (current, canonical);
+  }
+
+  WeftLayoutResult lazyLayout(String html, {int revision = 1}) {
+    return engine.layoutViewport(
+      _normalize(html, revision: revision),
+      width: 360,
+      viewportStart: 0,
+      viewportEnd: 800,
+    );
   }
 
   test('tail append over a rich article matches the full build', () {
@@ -85,6 +128,54 @@ void main() {
       '<p>Alpha</p><p> </p><p>Beta</p>',
     );
     expect(current.textIndex!.text, 'Alpha\n \nBeta');
+    expect(current.textIndex!.text, canonical.textIndex!.text);
+  });
+
+  test('a trimmed tail inside a partial prefix is restored mid-stream', () {
+    // The previous document ends with a silent child after its emitting
+    // block, so finish() trimmed an entry that sits INSIDE the reused
+    // prefix once the diff stops at the edited child (ADR 0048).
+    final previous = engine.layout(
+      _normalize('<p>Alpha with tail space </p><div></div>'),
+      width: 360,
+    );
+    addTearDown(previous.dispose);
+    final (current, canonical) = expectStreamingIndexEquals(
+      previous,
+      '<p>Alpha with tail space </p><div>Beta</div>',
+    );
+    expect(current.textIndex!.text, 'Alpha with tail space \nBeta');
+    expect(current.textIndex!.text, canonical.textIndex!.text);
+  });
+
+  test('a dropped entry inside a partial prefix is restored mid-stream', () {
+    final previous = engine.layout(
+      _normalize('<p>Alpha</p><p> </p><div></div>'),
+      width: 360,
+    );
+    addTearDown(previous.dispose);
+    expect(previous.textIndex!.entries, hasLength(1),
+        reason: 'the whitespace-only entry is dropped, but only the last '
+            'emitting child sits before a silent child');
+    final (current, canonical) = expectStreamingIndexEquals(
+      previous,
+      '<p>Alpha</p><p> </p><div>Beta</div>',
+    );
+    expect(current.textIndex!.text, 'Alpha\n \nBeta');
+    expect(current.textIndex!.text, canonical.textIndex!.text);
+  });
+
+  test('a restored tail mid-prefix keeps a longer suffix intact', () {
+    final previous = engine.layout(
+      _normalize('<p>Alpha with tail space </p><div></div><div></div>'),
+      width: 360,
+    );
+    addTearDown(previous.dispose);
+    final (current, canonical) = expectStreamingIndexEquals(
+      previous,
+      '<p>Alpha with tail space </p><div>Beta</div><div></div>',
+    );
+    expect(current.textIndex!.text, 'Alpha with tail space \nBeta');
     expect(current.textIndex!.text, canonical.textIndex!.text);
   });
 
@@ -228,7 +319,7 @@ void main() {
     _expectTextIndexEquals(current.textIndex!, canonical.textIndex!);
   });
 
-  test('a partially measured lazy previous falls back to the full build', () {
+  test('a partially measured lazy previous reuses its measured prefix', () {
     final first = _normalize(_richArticle(30));
     final previous = engine.layoutViewport(
       first,
@@ -241,26 +332,149 @@ void main() {
     expect(
       previous.incrementalCache!.blocks.length,
       lessThan(first.body!.children.length),
-      reason: 'the lazy window must be partial for this fallback to apply',
+      reason: 'the lazy window must be partial so engagement proves the '
+          'gate relaxation (ADR 0048), not full-window coverage',
     );
-    final next = _normalize('${_richArticle(30)}${_richArticle(3, start: 30)}',
-        revision: 2);
-    final current = engine.layoutViewport(
-      next,
+    final (current, canonical) = expectLazyIndexEquals(
+      previous,
+      '${_richArticle(30)}${_richArticle(3, start: 30)}',
+    );
+    expect(current.textIndex!.debugReusedEntryCount, greaterThan(0),
+        reason: 'the diff-proven measured window is a content prefix, so '
+            'the index must reuse it despite the partial geometry');
+    expect(current.textIndex!.text, canonical.textIndex!.text);
+  });
+
+  test('a lazy mid-document edit reuses the measured prefix', () {
+    final previous = lazyLayout(_richArticle(30));
+    addTearDown(previous.dispose);
+    final (current, canonical) = expectLazyIndexEquals(
+      previous,
+      '${_richArticle(2)}<p>第 2 段被替换为一段长得多的全新正文内容, '
+      'the replacement is much longer than the original paragraph.'
+      '</p>${_richArticle(27, start: 3)}',
+    );
+    expect(current.textIndex!.debugReusedEntryCount, greaterThan(0),
+        reason: 'the edit sits inside the measured window, so a partial '
+            'prefix is proven and reused');
+    expect(current.textIndex!.text, canonical.textIndex!.text);
+  });
+
+  test('chained lazy rounds keep reusing index entries every round', () {
+    var html = _richArticle(30);
+    var current = lazyLayout(html);
+    addTearDown(current.dispose);
+    for (var round = 1; round <= 3; round++) {
+      html += _richArticle(3, start: 27 + 3 * (round - 1));
+      final document = _normalize(html, revision: round + 1);
+      final next = engine.layoutViewport(
+        document,
+        width: 360,
+        viewportStart: 0,
+        viewportEnd: 800,
+        previous: current,
+      );
+      current.dispose();
+      current = next;
+      addTearDown(current.dispose);
+      final canonical = engine.layoutViewport(
+        document,
+        width: 360,
+        viewportStart: 0,
+        viewportEnd: 800,
+      );
+      addTearDown(canonical.dispose);
+      expect(next.debugIsLazy, isTrue);
+      expect(next.textIndex!.debugReusedEntryCount, greaterThan(0),
+          reason: 'round $round must reuse — the previous incremental build '
+              'carries its prefix checkpoints, so the chain never alternates '
+              'back to a full build (ADR 0048)');
+      _expectTextIndexEquals(next.textIndex!, canonical.textIndex!);
+    }
+  });
+
+  test('two consecutive mid-document edits both reuse index entries', () {
+    final a = engine.layout(_normalize(_richArticle(6)), width: 360);
+    addTearDown(a.dispose);
+    final b = engine.layout(
+      _normalize(
+        '${_richArticle(2)}<p>第 2 段第一轮替换。</p>${_richArticle(3, start: 3)}',
+        revision: 2,
+      ),
       width: 360,
-      viewportStart: 0,
-      viewportEnd: 800,
-      previous: previous,
+      previous: a,
     );
-    final canonical = engine.layoutViewport(
-      next,
-      width: 360,
-      viewportStart: 0,
-      viewportEnd: 800,
+    addTearDown(b.dispose);
+    expect(b.textIndex!.debugReusedEntryCount, greaterThan(0));
+    final (c, canonical) = expectStreamingIndexEquals(
+      b,
+      '${_richArticle(2)}<p>第 2 段第二轮替换，这次内容又不一样了。</p>'
+      '${_richArticle(3, start: 3)}',
+      revision: 3,
     );
+    expect(c.textIndex!.debugReusedEntryCount, greaterThan(0),
+        reason: 'the first incremental build carries its prefix checkpoints, '
+            'so the second consecutive edit still reuses (ADR 0048)');
+    _expectTextIndexEquals(c.textIndex!, canonical.textIndex!);
+  });
+
+  test('interleaved body whitespace shortens the prefix, never correctness',
+      () {
+    final previous = lazyLayout('<p>Alpha</p>\n${_richArticle(30, start: 1)}');
+    addTearDown(previous.dispose);
+    expect(previous.debugIsLazy, isTrue);
+    final (current, canonical) = expectLazyIndexEquals(
+      previous,
+      '<p>Alpha</p>\n${_richArticle(30, start: 1)}'
+      '${_richArticle(3, start: 31)}',
+    );
+    // The raw child count stops at the whitespace text node (raw child 1,
+    // which no diff block can map), so exactly the first block's entry is
+    // reused and the rest of the stream is re-walked from its checkpoint.
+    expect(current.textIndex!.debugReusedEntryCount, 1);
+    expect(current.textIndex!.text, canonical.textIndex!.text);
+  });
+
+  test('a plain previous seeds a lazy next through the incremental path', () {
+    final previous = engine.layout(_normalize(_richArticle(30)), width: 360);
+    addTearDown(previous.dispose);
+    final (current, canonical) = expectLazyIndexEquals(
+      previous,
+      '${_richArticle(30)}${_richArticle(3, start: 30)}',
+    );
+    expect(current.textIndex!.debugReusedEntryCount, greaterThan(0));
+    expect(current.textIndex!.text, canonical.textIndex!.text);
+  });
+
+  test('a lazy previous falls back to the full build for a plain next', () {
+    final previous = lazyLayout(_richArticle(30));
+    addTearDown(previous.dispose);
+    final next = _normalize(
+      '${_richArticle(30)}${_richArticle(3, start: 30)}',
+      revision: 2,
+    );
+    final current = engine.layout(next, width: 360, previous: previous);
+    final canonical = engine.layout(next, width: 360);
     addTearDown(current.dispose);
     addTearDown(canonical.dispose);
+    expect(current.textIndex!.debugReusedEntryCount, 0,
+        reason: 'a lazy cache cannot seed a plain diff, so the plain round '
+            'rebuilds in full');
     _expectTextIndexEquals(current.textIndex!, canonical.textIndex!);
+  });
+
+  test('a lazy head insert keeps the full index build', () {
+    final previous = lazyLayout(_richArticle(30));
+    addTearDown(previous.dispose);
+    final (current, canonical) = expectLazyIndexEquals(
+      previous,
+      '<p>置顶的新首段。Weft prepends content, so no prefix can be '
+      'verified.</p>${_richArticle(30)}',
+    );
+    expect(current.textIndex!.debugReusedEntryCount, 0,
+        reason: 'no forward prefix exists; entry shifting is direction ③ '
+            'and stays out of scope (ADR 0048)');
+    expect(current.textIndex!.text, canonical.textIndex!.text);
   });
 
   test('selection across the seam matches the canonical rects and text', () {

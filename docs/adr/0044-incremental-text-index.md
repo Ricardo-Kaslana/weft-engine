@@ -30,7 +30,7 @@ build 时在每个 body 直接子元素走查后记录 `(entryCount, nextGlobalS
 
 ### 4. 引擎参与条件与回退（layout_engine `_incrementalTextIndex`）
 
-全部满足才增量，否则全量构建：`!sameSnapshot && previousCache != null && previous.textIndex != null && reusableBlocks 非空 && previousCache.blocks.length == 旧 body.children.length && previous.textIndex.checkpointCount == 同值 && 前缀计数 k ≥ 1`。前缀计数由新 body 子元素顺序查 `reusableBlocks` 得到（O(k)，不依赖 map 插入顺序语义）。**lazy 部分测量前缀（blocks ≪ children）不参与**：其 diff 只验证测量窗口且经元素过滤列表比较，与 checkpoint 有错位风险，保守回退全量——lazy 流式轮行为与本切片前完全一致。head 插入（k=0）、样式表/id/宽度等全局键变化、无缓存文档全部走原全量路径。
+全部满足才增量，否则全量构建：`!sameSnapshot && previousCache != null && previous.textIndex != null && reusableBlocks 非空 && previousCache.blocks.length == 旧 body.children.length && previous.textIndex.checkpointCount == 同值 && 前缀计数 k ≥ 1`。前缀计数由新 body 子元素顺序查 `reusableBlocks` 得到（O(k)，不依赖 map 插入顺序语义）。**lazy 部分测量前缀（blocks ≪ children）不参与**：其 diff 只验证测量窗口且经元素过滤列表比较，与 checkpoint 有错位风险，保守回退全量——lazy 流式轮行为与本切片前完全一致。（ADR 0048 修订：该回退已解除——条目是内容纯函数、测量窗口性无关，k 循环按 raw 子自对齐，lazy 部分窗口参与增量构建。）head 插入（k=0）、样式表/id/宽度等全局键变化、无缓存文档全部走原全量路径。
 
 ### 5. 公开面
 
@@ -54,7 +54,7 @@ E0 的 U−T−S−F 恒等式自本切片起不再适用于常规轮（U 本身
 
 ## 测试与验证
 
-- 新增 `test/incremental_text_index_test.dart`（14 项）：增量 vs canonical 全量逐条目相等（nodeId/text/globalStart + entryByNode + 逻辑串），场景覆盖尾部追加、边界尾空白还原、边界悬挂 `<br>`、纯空白末条目还原、隐藏/空边界块、变长中部编辑、头部插入回退、同内容新快照（结果回到旧索引）、**链式 A→B→C**、列表/嵌套/前导空白/CJK、无条目空白文档、样式表变化回退、lazy 部分前缀回退、跨缝选择矩形/文本一致。
+- 新增 `test/incremental_text_index_test.dart`（14 项）：增量 vs canonical 全量逐条目相等（nodeId/text/globalStart + entryByNode + 逻辑串），场景覆盖尾部追加、边界尾空白还原、边界悬挂 `<br>`、纯空白末条目还原、隐藏/空边界块、变长中部编辑、头部插入回退、同内容新快照（结果回到旧索引）、**链式 A→B→C**、列表/嵌套/前导空白/CJK、无条目空白文档、样式表变化回退、lazy 部分前缀回退、跨缝选择矩形/文本一致。（ADR 0048 修订：该场景更名为参与语义并扩为 lazy 矩阵。）
 - `incremental_layout_test.dart` 的 `_expectLayoutEquals` 升级：textIndex 比较从单字符串升级为逐条目（增量 vs 全量布局等价的既有场景全部加严）。
 - 总数 523 → 537（以 `tool/verify.dart` 输出为准）；`tool/check.sh` ALL GREEN，规范化向量与像素黄金零 diff。
 
@@ -62,12 +62,12 @@ E0 的 U−T−S−F 恒等式自本切片起不再适用于常规轮（U 本身
 
 - **逻辑串跨快照直接拼接**（prevLogical + 后缀）避免 O(total) join：还原分支的间隙/裁剪组合使拼接正确性依赖多个隐式前提，join 重建是 memcpy 级成本（实测 U(2000) 8.8ms 已含它），不值得为省 ~1–2ms 引入脆弱性。
 - **条目按 nodeId 重建映射而非前缀复用**：entryByNode 可由条目列表廉价重建，但前缀条目的 painted text/globalStart 仍需重算——等于没有省。
-- **lazy 部分前缀也参与索引复用**：可验证前缀只有测量窗口（4–5 块），收益 O(窗口)，却引入元素过滤列表与 checkpoint 错位的等价性风险——按「未命中即回退」纪律全量构建。
+- **lazy 部分前缀也参与索引复用**：可验证前缀只有测量窗口（4–5 块），收益 O(窗口)，却引入元素过滤列表与 checkpoint 错位的等价性风险——按「未命中即回退」纪律全量构建。（ADR 0048 修订：收益随滚动深度增长（滚动会话前缀 ≈ 全文），等价性由 raw 子 k 计数自对齐论证解除。）
 - **同时做样式缓存跨快照**：S(2000)=5.3ms 是流式轮剩余主导成分，但它与布局走查的 styleCache 生命周期耦合（元素实例跨快照不同），等价性论证与失效面都更大，单独立项。
 
 ## 后果
 
 - 流式新快照轮消除 textIndex 全量重建与前缀双重选择器匹配；plain 宿主全部形态受益，中部编辑/头部插入的剩余成本转移到后缀重排与走查样式（方向③/样式跨快照的输入）。
 - `WeftTextIndex` 每实例多 O(块数) checkpoint（6 字段小对象）与两个小 trim 字段；内存量级远小于条目本身。
-- 已知限制：lazy 部分测量前缀不参与（全量构建）；`buildIncremental` 的正确性依赖调用方满足前置（doc 注明）；`lastEmittedBreak` 目前恒为 false，随 checkpoint 携带以防未来 emit 规则变化破坏续走。
+- 已知限制：lazy 部分测量前缀不参与（全量构建）（ADR 0048 修订：已参与）；`buildIncremental` 的正确性依赖调用方满足前置（doc 注明）；`lastEmittedBreak` 目前恒为 false，随 checkpoint 携带以防未来 emit 规则变化破坏续走。
 - 画像工具 E0 注释更新：U 的恒等式解释改为增量形态。

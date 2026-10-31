@@ -82,6 +82,10 @@ final class _TextIndexBuilder {
   var trailingTrimmedTail = '';
   WeftTextEntry? trailingRemovedEntry;
 
+  /// Entries adopted verbatim from the previous index by an incremental
+  /// build; zero for a full build (ADR 0048).
+  var reusedEntryCount = 0;
+
   /// Adopts the reused prefix entries and resumes the walk state from
   /// [boundary], the checkpoint recorded at the end of the last reused
   /// top-level child.
@@ -232,6 +236,7 @@ final class _TextIndexBuilder {
       List.unmodifiable(checkpoints),
       trailingTrimmedTail,
       trailingRemovedEntry,
+      reusedEntryCount,
     );
   }
 }
@@ -254,6 +259,7 @@ final class WeftTextIndex {
     this._checkpoints,
     this._trailingTrimmedTail,
     this._trailingRemovedEntry,
+    this._reusedEntryCount,
   );
 
   /// Text entries in reading order.
@@ -265,6 +271,13 @@ final class WeftTextIndex {
   final List<_BlockCheckpoint> _checkpoints;
   final String _trailingTrimmedTail;
   final WeftTextEntry? _trailingRemovedEntry;
+  final int _reusedEntryCount;
+
+  /// Entries adopted verbatim from the previous snapshot's index by an
+  /// incremental build. Hosts cannot consume this directly; the profile
+  /// tool and tests read it to pin which rebuild path ran (ADR 0048).
+  /// Zero when the index came from a full build.
+  int get debugReusedEntryCount => _reusedEntryCount;
 
   /// Length of the logical text stream in UTF-16 code units.
   int get length => _logical.length;
@@ -305,13 +318,17 @@ final class WeftTextIndex {
   /// of the reused entries are identical by construction). The previous
   /// index must come from the same document identity and stylesheet, must
   /// carry one checkpoint per previous body child, and the engine only
-  /// engages this path when its full-body diff prefix is non-empty; any
-  /// other caller should use [build] — an incorrect [reusedTopLevelBlocks]
+  /// engages this path when its raw diff prefix is non-empty; any other
+  /// caller should use [build] — an incorrect [reusedTopLevelBlocks]
   /// silently corrupts the logical offsets. Because the previous index
   /// trimmed (or dropped) the stream's trailing whitespace, the reused
   /// range is restored to its untrimmed form first and this build's own
   /// trim re-applies at the new end, which also makes an incremental
   /// rebuild of a byte-identical snapshot equal the previous index.
+  ///
+  /// The previous index's per-child checkpoints are carried over for the
+  /// reused range, so the result again carries one checkpoint per body
+  /// child and chained streaming rounds keep engaging this path (ADR 0048).
   static WeftTextIndex buildIncremental({
     required WeftDocumentSnapshot document,
     required WeftStyleResolver styleResolver,
@@ -328,11 +345,18 @@ final class WeftTextIndex {
     final builder = _TextIndexBuilder(styleResolver);
     final boundary = previous._checkpoints[reusedTopLevelBlocks - 1];
     final reused = previous.entries.take(boundary.entryCount).toList();
-    if (reusedTopLevelBlocks == previous._checkpoints.length) {
-      // The reused range contains the previous document's final entry,
-      // whose trailing whitespace finish() trimmed away or whose
-      // whitespace-only text finish() dropped entirely; restore it because
-      // this snapshot continues past it.
+    // The reused range contains the previous document's final entry when it
+    // reaches the stream's end — either because every child is reused, or
+    // because the children past the boundary emitted nothing (hidden or
+    // empty blocks). That final entry's trailing whitespace finish()
+    // trimmed away, or its whitespace-only text finish() dropped entirely,
+    // must be restored: mid-stream it is interior whitespace, and the
+    // boundary's nextGlobalStart already counted it (ADR 0048).
+    final streamEndEntryCount = previous.entries.length +
+        (previous._trailingRemovedEntry != null ? 1 : 0);
+    final restoresTail = reusedTopLevelBlocks == previous._checkpoints.length ||
+        boundary.entryCount >= streamEndEntryCount;
+    if (restoresTail) {
       if (previous._trailingRemovedEntry != null) {
         reused.add(previous._trailingRemovedEntry);
       } else if (previous._trailingTrimmedTail.isNotEmpty &&
@@ -345,7 +369,13 @@ final class WeftTextIndex {
         );
       }
     }
+    builder.reusedEntryCount = boundary.entryCount;
     builder.adoptPrefix(reused, boundary);
+    // The diff proved the reused children unchanged, so their walk state is
+    // the previous build's; carrying the checkpoints keeps one per body
+    // child, which is what lets the next streaming round reuse again.
+    builder.checkpoints
+        .addAll(previous._checkpoints.take(reusedTopLevelBlocks));
     final bodyStyle = styleResolver.resolve(
       body!,
       parent: WeftComputedStyle.initial,
