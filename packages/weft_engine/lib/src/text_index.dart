@@ -82,8 +82,9 @@ final class _TextIndexBuilder {
   var trailingTrimmedTail = '';
   WeftTextEntry? trailingRemovedEntry;
 
-  /// Entries adopted verbatim from the previous index by an incremental
-  /// build; zero for a full build (ADR 0048).
+  /// Entries adopted from the previous index by an incremental build —
+  /// verbatim for a reused prefix (ADR 0048), shifted and id-remapped for a
+  /// carried suffix (ADR 0051); zero for a full build.
   var reusedEntryCount = 0;
 
   /// Adopts the reused prefix entries and resumes the walk state from
@@ -273,10 +274,11 @@ final class WeftTextIndex {
   final WeftTextEntry? _trailingRemovedEntry;
   final int _reusedEntryCount;
 
-  /// Entries adopted verbatim from the previous snapshot's index by an
-  /// incremental build. Hosts cannot consume this directly; the profile
-  /// tool and tests read it to pin which rebuild path ran (ADR 0048).
-  /// Zero when the index came from a full build.
+  /// Entries adopted from the previous snapshot's index by an incremental
+  /// build — verbatim for a reused prefix (ADR 0048), shifted and
+  /// id-remapped for a carried suffix (ADR 0051). Hosts cannot consume this
+  /// directly; the profile tool and tests read it to pin which rebuild path
+  /// ran. Zero when the index came from a full build.
   int get debugReusedEntryCount => _reusedEntryCount;
 
   /// Length of the logical text stream in UTF-16 code units.
@@ -388,6 +390,164 @@ final class WeftTextIndex {
     for (var i = reusedTopLevelBlocks; i < body.children.length; i++) {
       builder.visitNode(body.children[i], bodyStyle, [body]);
       builder._recordCheckpoint();
+    }
+    return builder.finish();
+  }
+
+  /// Builds the index for a streaming snapshot whose change sits at the
+  /// head: the layout engine's backward diff proved the trailing body
+  /// children unchanged (ADR 0046), so their previous entries are adopted
+  /// with their logical offsets shifted past the fresh head walk and their
+  /// node ids re-mapped into the new document (ADR 0051).
+  ///
+  /// [carriedTopLevelBlocks] is the count of trailing raw body children the
+  /// diff proved shape-identical (`_sameNodeShape`, which ignores node ids
+  /// because a head change shifts every pre-order id). The carried children
+  /// are considered one at a time: adoption starts at the first child whose
+  /// seam — the walk state entering it — matches the previous build's
+  /// checkpoint flag for flag. The flags decide because they are the only
+  /// state that changes how a child emits (leading-edge whitespace
+  /// stripping, pending break payment, hard-break runs): given equal flags
+  /// and diff-proven equal content, the child and everything after it emit
+  /// exactly the previous build's entries shifted by one constant offset.
+  /// A mismatch is re-walked fresh instead — the stream's leading edge is
+  /// the one state that cannot be adopted across, because the previous
+  /// build stripped its first entry's leading whitespace and this build
+  /// (whose head already emitted) must not — and the next seam is compared
+  /// against the just-walked child's checkpoint. Walking every carried
+  /// child degrades to exactly [build], so the fallback is the full build
+  /// itself, never a divergence.
+  ///
+  /// [shiftedIds] maps every adopted entry's old node id to its new id; the
+  /// adopted range consists solely of diff-proven element subtrees whose
+  /// every node the diff paired, so the mapping is total over it by
+  /// construction (asserted). An incorrect [carriedTopLevelBlocks] or an
+  /// incomplete [shiftedIds] silently corrupts the logical offsets — only
+  /// the layout engine's backward diff may drive this path; any other
+  /// caller should use [build].
+  ///
+  /// Like [buildIncremental], the previous index's trailing-trim state is
+  /// restored before this build's own trim re-applies at the same stream
+  /// end, and the adopted checkpoints keep one checkpoint per body child so
+  /// the next streaming round can reuse again.
+  static WeftTextIndex buildFromSuffix({
+    required WeftDocumentSnapshot document,
+    required WeftStyleResolver styleResolver,
+    required WeftTextIndex previous,
+    required int carriedTopLevelBlocks,
+    required Map<int, int> shiftedIds,
+  }) {
+    assert(carriedTopLevelBlocks >= 1, 'the diff suffix must be non-empty');
+    assert(
+      carriedTopLevelBlocks <= previous._checkpoints.length,
+      'the carried suffix must be covered by the previous checkpoints',
+    );
+    final body = document.body;
+    assert(body != null, 'the index needs a body');
+    final previousChildren = previous._checkpoints.length;
+    final freshCount = body!.children.length - carriedTopLevelBlocks;
+    final builder = _TextIndexBuilder(styleResolver);
+    final bodyStyle = styleResolver.resolve(
+      body,
+      parent: WeftComputedStyle.initial,
+      ancestors: const [],
+    );
+    assert(bodyStyle.display != WeftDisplay.none);
+    // Mirror visitBodyChildren: entering a non-inline body opens the block
+    // run before the first child, so the head walk's checkpoints record the
+    // same pending state a canonical build would and the next round's
+    // prefix adoption resumes from a faithful state.
+    if (bodyStyle.display != WeftDisplay.inline) {
+      builder.blockBreakPending = true;
+    }
+    void walkChild(WeftNode child) {
+      builder.visitNode(child, bodyStyle, [body]);
+      builder._recordCheckpoint();
+    }
+
+    for (var i = 0; i < freshCount; i++) {
+      walkChild(body.children[i]);
+    }
+    for (var j = 0; j < carriedTopLevelBlocks; j++) {
+      // The seam entering carried child j: the previous build's state after
+      // its child at the paired position, or the builder's own initial
+      // state (with the body's block break applied) when the carried range
+      // covers the previous stream from its very first child.
+      final seamIndex = previousChildren - carriedTopLevelBlocks + j - 1;
+      final seam = seamIndex < 0 ? null : previous._checkpoints[seamIndex];
+      final matches = builder.hardBreaks == (seam?.hardBreaks ?? 0) &&
+          builder.blockBreakPending ==
+              (seam?.blockBreakPending ??
+                  bodyStyle.display != WeftDisplay.inline) &&
+          builder.lastEmittedBreak == (seam?.lastEmittedBreak ?? false) &&
+          builder.atLeadingEdge == (seam?.atLeadingEdge ?? true);
+      if (!matches) {
+        walkChild(body.children[freshCount + j]);
+        continue;
+      }
+      final seamEntryCount = seam?.entryCount ?? 0;
+      final delta = builder.globalStart - (seam?.nextGlobalStart ?? 0);
+      final streamEndEntryCount = previous.entries.length +
+          (previous._trailingRemovedEntry != null ? 1 : 0);
+      // The adopted range always reaches the previous stream's end, so the
+      // trailing-trim restore applies whenever the range is non-empty (the
+      // mirror of buildIncremental's restoresTail, ADR 0048). When the
+      // range is empty the trimmed tail belonged to content before the
+      // seam, which this build re-walked or discarded — restoring it would
+      // duplicate text the canonical build does not have.
+      final freshEntryCount = builder.entries.length;
+      var adoptedCount = 0;
+      for (var i = seamEntryCount; i < streamEndEntryCount; i++) {
+        final entry = i < previous.entries.length
+            ? previous.entries[i]
+            : previous._trailingRemovedEntry!;
+        final newId = shiftedIds[entry.nodeId];
+        assert(
+          newId != null,
+          'adopted entries live in the diff-proven subtrees, whose node '
+          'ids the diff remapped',
+        );
+        final isStreamEnd = i == streamEndEntryCount - 1;
+        final restoredTail = isStreamEnd &&
+            previous._trailingRemovedEntry == null &&
+            previous._trailingTrimmedTail.isNotEmpty;
+        builder.entries.add(
+          WeftTextEntry(
+            nodeId: newId!,
+            text: restoredTail
+                ? entry.text + previous._trailingTrimmedTail
+                : entry.text,
+            globalStart: entry.globalStart + delta,
+          ),
+        );
+        adoptedCount++;
+      }
+      builder.reusedEntryCount = adoptedCount;
+      // The adopted children's checkpoints shift with the entries; carrying
+      // them keeps one checkpoint per body child, which is what lets the
+      // next streaming round reuse again (ADR 0048).
+      for (var c = seamIndex + 1; c < previousChildren; c++) {
+        final old = previous._checkpoints[c];
+        builder.checkpoints.add(
+          _BlockCheckpoint(
+            entryCount: freshEntryCount + (old.entryCount - seamEntryCount),
+            nextGlobalStart: old.nextGlobalStart + delta,
+            hardBreaks: old.hardBreaks,
+            blockBreakPending: old.blockBreakPending,
+            lastEmittedBreak: old.lastEmittedBreak,
+            atLeadingEdge: old.atLeadingEdge,
+          ),
+        );
+      }
+      // Nothing walks after the adoption, but leave the builder's state at
+      // the shifted stream end instead of a stale seam value.
+      final last = previous._checkpoints[previousChildren - 1];
+      builder.globalStart = last.nextGlobalStart + delta;
+      builder.hardBreaks = last.hardBreaks;
+      builder.blockBreakPending = last.blockBreakPending;
+      builder.lastEmittedBreak = last.lastEmittedBreak;
+      builder.atLeadingEdge = last.atLeadingEdge;
+      break;
     }
     return builder.finish();
   }

@@ -7,7 +7,10 @@
 // directions, experiment E4 prices the "style & state cross-snapshot"
 // family (docs/adr/0047): walk style resolution, the lazy admission walk,
 // the estimate/state rebuild, the lazy-round text-index fallback and the
-// k=0 head-insert index rebuild.
+// k=0 head-insert index rebuild. Since ADR 0051 the k=0 head-insert round
+// adopts the previous index's carried suffix entries (the `entries=` field
+// on E1's per-round lines pins participation), leaving the fresh head walk
+// and the seam child as the index cost.
 //
 //   cd packages/weft_engine
 //   flutter test tool/incremental_profile_test.dart --no-pub
@@ -406,7 +409,10 @@ Future<void> _profileFloatCosts(WeftLayoutEngine engine) async {
 ///
 /// E4c (the k=0 head-insert index share) is read off E1's head-insert vs
 /// mid-edit medians and E0's textIndexMs — the head-insert shape now runs
-/// at base 1000 too, so no separate measurement is needed.
+/// at base 1000 too, so no separate measurement is needed. Since ADR 0051
+/// the k=0 index rebuild is replaced by the carried-suffix adoption; E1's
+/// `entries=` field pins it and the remaining index cost is the head walk
+/// plus the seam child, so E4c's T bound describes the pre-0051 rounds.
 Future<void> _profileStyleStateFamily(WeftLayoutEngine engine) async {
   for (final n in const [300, 1000, 2000]) {
     final doc = _normalize(_articleHtml(n), 'profile-e4a-$n');
@@ -656,6 +662,7 @@ void _runStreamingShape({
         'e1 shape=$shape host=$host base=$base round=$round '
         'ms=${_f(watch.elapsedMicroseconds / 1000.0)} children=$children '
         'reused=${next.debugReusedBlockCount} '
+        'entries=${next.textIndex?.debugReusedEntryCount ?? -1} '
         'laidOut=${next.debugLaidOutBlockCount} '
         'estimated=${next.debugEstimatedBlockCount} '
         'eligibility=${next.debugEligibilityVisitCount} '

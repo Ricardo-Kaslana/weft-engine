@@ -212,7 +212,7 @@ void main() {
     expect(seam.globalStart, greaterThan(0));
   });
 
-  test('a head insert reuses the shifted suffix with a full index rebuild', () {
+  test('a head insert reuses the shifted suffix and adopts its entries', () {
     final previous = engine.layout(_normalize(_richArticle(3)), width: 360);
     addTearDown(previous.dispose);
     final (current, canonical) = expectStreamingIndexEquals(
@@ -221,8 +221,12 @@ void main() {
       'verified.</p>${_richArticle(3)}',
     );
     // Blocks shift and reuse (ADR 0046); with an empty forward prefix the
-    // text index cannot reuse entries and rebuilds in full (ADR 0044).
+    // text index adopts the backward diff's entries shifted past the head
+    // walk instead of rebuilding in full (ADR 0051).
     expect(current.debugReusedBlockCount, 4);
+    expect(current.textIndex!.debugReusedEntryCount, greaterThan(0),
+        reason: 'the carried suffix entries shift and remap instead of '
+            'rebuilding (ADR 0051)');
     expect(current.textIndex!.text, canonical.textIndex!.text);
   });
 
@@ -472,8 +476,9 @@ void main() {
       'verified.</p>${_richArticle(30)}',
     );
     expect(current.textIndex!.debugReusedEntryCount, 0,
-        reason: 'no forward prefix exists; entry shifting is direction ③ '
-            'and stays out of scope (ADR 0048)');
+        reason: 'lazy rounds build no backward suffix map (ADR 0046), so '
+            'the plain-only entry shift (ADR 0051) cannot engage and the '
+            'index rebuilds in full');
     expect(current.textIndex!.text, canonical.textIndex!.text);
   });
 

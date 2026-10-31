@@ -30,7 +30,7 @@ build 时在每个 body 直接子元素走查后记录 `(entryCount, nextGlobalS
 
 ### 4. 引擎参与条件与回退（layout_engine `_incrementalTextIndex`）
 
-全部满足才增量，否则全量构建：`!sameSnapshot && previousCache != null && previous.textIndex != null && reusableBlocks 非空 && previousCache.blocks.length == 旧 body.children.length && previous.textIndex.checkpointCount == 同值 && 前缀计数 k ≥ 1`。前缀计数由新 body 子元素顺序查 `reusableBlocks` 得到（O(k)，不依赖 map 插入顺序语义）。**lazy 部分测量前缀（blocks ≪ children）不参与**：其 diff 只验证测量窗口且经元素过滤列表比较，与 checkpoint 有错位风险，保守回退全量——lazy 流式轮行为与本切片前完全一致。（ADR 0048 修订：该回退已解除——条目是内容纯函数、测量窗口性无关，k 循环按 raw 子自对齐，lazy 部分窗口参与增量构建。）head 插入（k=0）、样式表/id/宽度等全局键变化、无缓存文档全部走原全量路径。
+全部满足才增量，否则全量构建：`!sameSnapshot && previousCache != null && previous.textIndex != null && reusableBlocks 非空 && previousCache.blocks.length == 旧 body.children.length && previous.textIndex.checkpointCount == 同值 && 前缀计数 k ≥ 1`。前缀计数由新 body 子元素顺序查 `reusableBlocks` 得到（O(k)，不依赖 map 插入顺序语义）。**lazy 部分测量前缀（blocks ≪ children）不参与**：其 diff 只验证测量窗口且经元素过滤列表比较，与 checkpoint 有错位风险，保守回退全量——lazy 流式轮行为与本切片前完全一致。（ADR 0048 修订：该回退已解除——条目是内容纯函数、测量窗口性无关，k 循环按 raw 子自对齐，lazy 部分窗口参与增量构建。）head 插入（k=0）、样式表/id/宽度等全局键变化、无缓存文档全部走原全量路径。（ADR 0051 修订：k=0 由反向 diff 的后缀映射驱动 `WeftTextIndex.buildFromSuffix` 采用旧条目平移重映射，不再回退全量；全局键变化与无缓存文档仍走原全量路径。）
 
 ### 5. 公开面
 

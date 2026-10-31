@@ -276,6 +276,15 @@ final class WeftLayoutEngine {
           previous: previous,
           reusableBlocks: reusedMaps.prefix,
         ) ??
+        _suffixIncrementalTextIndex(
+          document: document,
+          body: body,
+          styleResolver: context.styleResolver,
+          previousCache: previousCache,
+          previous: previous,
+          suffixBlocks: reusedMaps.suffix,
+          suffixIds: reusedMaps.ids,
+        ) ??
         WeftTextIndex.build(
           document: document,
           styleResolver: context.styleResolver,
@@ -379,7 +388,10 @@ final class WeftLayoutEngine {
 /// previous body child, and the count below walks the new body's raw
 /// children, stopping at the first one the diff did not map — body-level
 /// whitespace only costs reuse (a shorter prefix or the full build), never
-/// correctness. A head insert maps no children and stays a full build.
+/// correctness. A head insert maps no children here and used to stay a full
+/// build (since ADR 0051 the backward diff's suffix map drives
+/// [_suffixIncrementalTextIndex] instead; this function's own semantics are
+/// unchanged).
 WeftTextIndex? _incrementalTextIndex({
   required WeftDocumentSnapshot document,
   required WeftElement body,
@@ -407,6 +419,58 @@ WeftTextIndex? _incrementalTextIndex({
     styleResolver: styleResolver,
     previous: previousIndex,
     reusedTopLevelBlocks: reused,
+  );
+}
+
+/// Builds the streaming snapshot's text index for a round the forward diff
+/// cannot serve — a head insert, head deletion or head rewrite, where the
+/// pre-order node ids shift and the prefix map stays empty — by adopting
+/// the previous index's entries for the backward diff's verified suffix
+/// instead of rebuilding the whole stream (ADR 0051).
+///
+/// [suffixBlocks] holds the trailing body children the backward diff proved
+/// shape-identical (ADR 0046) and [suffixIds] the old->new node id mapping
+/// collected alongside it; both exist only on plain rounds over a plain
+/// previous cache, so lazy rounds keep their full build here. The carried
+/// count is taken over the new body's raw children so it aligns with the
+/// index's per-raw-child checkpoints: body-level text nodes stop the count
+/// (they have no element proof, and only cost reuse — the full build), and
+/// the same alignment argument as [_incrementalTextIndex] applies. The
+/// entry model is a pure function of subtree content plus the stylesheet,
+/// both diff-proven, so the adopted entries equal a canonical build's up to
+/// the logical offset shift and the id remap that [WeftTextIndex
+/// .buildFromSuffix] applies at the first seam whose walk state the two
+/// builds agree on.
+WeftTextIndex? _suffixIncrementalTextIndex({
+  required WeftDocumentSnapshot document,
+  required WeftElement body,
+  required WeftStyleResolver styleResolver,
+  required WeftIncrementalLayoutCache? previousCache,
+  required WeftLayoutResult? previous,
+  required Map<int, WeftCachedLayoutBlock> suffixBlocks,
+  required Map<int, int> suffixIds,
+}) {
+  if (previousCache == null || suffixBlocks.isEmpty) return null;
+  final previousBody = previousCache.document.body;
+  final previousIndex = previous?.textIndex;
+  if (previousBody == null || previousIndex == null) return null;
+  final previousChildren = previousBody.children.length;
+  if (previousIndex.checkpointCount != previousChildren) {
+    return null;
+  }
+  var carried = 0;
+  for (var i = body.children.length - 1; i >= 0; i--) {
+    final child = body.children[i];
+    if (child is! WeftElement || !suffixBlocks.containsKey(child.id)) break;
+    carried++;
+  }
+  if (carried == 0 || carried > previousIndex.checkpointCount) return null;
+  return WeftTextIndex.buildFromSuffix(
+    document: document,
+    styleResolver: styleResolver,
+    previous: previousIndex,
+    carriedTopLevelBlocks: carried,
+    shiftedIds: suffixIds,
   );
 }
 

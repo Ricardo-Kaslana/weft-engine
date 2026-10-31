@@ -25,7 +25,7 @@ ADR 0047 把 lazy 流式轮分解为 U−F = 3.3–42ms（host）的家族工作
 
 ### 1. 参与门放宽（layout_engine.dart `_incrementalTextIndex`）
 
-删除 `previousCache.blocks.length != previousChildren`（plain 缓存该条件由 diff 门隐含；lazy 缓存正是要放开的对象），保留 `previousIndex.checkpointCount != previousChildren` 与 `k >= 1`/`k <= checkpointCount`。头部插入（k=0）仍回退全量——条目平移属方向③另案。doc comment 重写为内容纯函数论证。
+删除 `previousCache.blocks.length != previousChildren`（plain 缓存该条件由 diff 门隐含；lazy 缓存正是要放开的对象），保留 `previousIndex.checkpointCount != previousChildren` 与 `k >= 1`/`k <= checkpointCount`。头部插入（k=0）仍回退全量——条目平移属方向③另案。（ADR 0051 修订：该回退已解除——k=0 由 `_suffixIncrementalTextIndex` 经反向 diff 后缀映射驱动 `buildFromSuffix`；本函数与 k ≥ 1 门不变。）doc comment 重写为内容纯函数论证。
 
 ### 2. 尾 trim/drop 还原扩展到部分前缀（修洞 1）
 
@@ -64,7 +64,7 @@ ADR 0047 把 lazy 流式轮分解为 U−F = 3.3–42ms（host）的家族工作
 
 - **只放宽门、不修两个洞**：洞 1 在部分前缀下腐蚀条目（今日 plain 即可触发）；洞 2 让链式轮隔轮回退，lazy 收益减半——两者都是本切片成立的前提。
 - **filtered→raw 索引映射**（把元素过滤前缀换算回 raw 子位置以提高空白文档复用）：需要过滤/raw 双序列映射与额外守卫，收益仅限块间空白文档——复用损失保守接受，写入已知限制。
-- **k=0 头部插入条目平移**：有界成本（= T），方向③另案。
+- **k=0 头部插入条目平移**：有界成本（= T），方向③另案。（ADR 0051 修订：已交付。）
 - **用 `checkpointCount` 判别参与**：播种后恒等于 children，不可判别——新增 `debugReusedEntryCount`。
 
 ## 后果
