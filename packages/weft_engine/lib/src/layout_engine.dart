@@ -2052,7 +2052,11 @@ final class _LayoutContext {
             nodeId: parentNodeId,
             painter: line.painter,
             offset: Offset(line.x, line.y),
-            runs: inline.runSpecs(line.textStart, line.textEnd),
+            runs: inline.runSpecs(
+              line.textStart,
+              line.textEnd,
+              cursors: lines.cursors,
+            ),
           ),
         );
         _addAtomCommands(line.atomPlacements, Offset(line.x, line.y));

@@ -156,11 +156,18 @@ final class _InlineLines {
     required this.lines,
     required this.links,
     required this.bottom,
+    required this.cursors,
   });
 
   final List<_InlineLine> lines;
   final List<WeftLinkRegion> links;
   final double bottom;
+
+  /// Cursor prefix of [_InlineAccumulator._runs] at flush time
+  /// (`cursors[i]` = plain-text length before run i), shared with the
+  /// per-line [runSpecs] calls so run lookup can binary-search instead of
+  /// rescanning every run for every line (ADR 0045).
+  final List<int> cursors;
 }
 
 final class _BlockLayout {
@@ -627,8 +634,10 @@ final class _InlineAccumulator {
     }
 
     final lines = <_InlineLine>[];
+    final runCursors = _runCursors();
     var offset = 0;
     var y = top;
+    lineLoop:
     for (var guard = 0; guard < 10000 && offset < plainText.length; guard++) {
       if (parentStyle.whiteSpace == WeftWhiteSpace.normal) {
         while (offset < plainText.length &&
@@ -654,35 +663,71 @@ final class _InlineAccumulator {
         continue;
       }
 
-      final probeSpan = _spanForRange(offset, plainText.length, parentStyle);
-      final probe = TextPainter(
-        text: probeSpan.span,
-        textDirection: parentStyle.direction,
-        textScaler: textScaler,
-        locale: _localeFor(parentStyle.lang),
-        maxLines: 1,
-        textWidthBasis: TextWidthBasis.parent,
-      );
-      if (probeSpan.dimensions.isNotEmpty) {
-        probe.setPlaceholderDimensions(probeSpan.dimensions);
-      }
-      probe.layout(maxWidth: lineWidth);
-      final metrics = probe.computeLineMetrics();
-      if (metrics.isEmpty) {
+      // The probe exists only to find where the line ends (ADR 0045): its
+      // sole output is the offset `_lineBreakEnd` reports, while kinsoku,
+      // the `\n` swallow and the paintable-end trim all read the full
+      // plain text. Probing the whole remaining text per line made long
+      // paragraphs quadratic, so the probe covers a window — about two
+      // lines' worth of characters, doubling until the break lands
+      // strictly inside. When the window overflows, its first-line break
+      // equals the full-text break because fitting is prefix-monotone; the
+      // margin keeps the break away from the window edge where shaping
+      // context and hanging whitespace would be truncated, and a window
+      // that reaches the paragraph end is exact.
+      const probeMargin = 16;
+      final perLineUnits =
+          (lineWidth / parentStyle.fontSize).ceil().clamp(1, 4088).toInt();
+      var windowEnd =
+          math.min(plainText.length, offset + perLineUnits * 2 + 16);
+      var consumed = 0;
+      var probeLineHeight = 0.0;
+      while (true) {
+        final probeSpan = _spanForRange(
+          offset,
+          windowEnd,
+          parentStyle,
+          cursors: runCursors,
+        );
+        final probe = TextPainter(
+          text: probeSpan.span,
+          textDirection: parentStyle.direction,
+          textScaler: textScaler,
+          locale: _localeFor(parentStyle.lang),
+          maxLines: 1,
+          textWidthBasis: TextWidthBasis.parent,
+        );
+        if (probeSpan.dimensions.isNotEmpty) {
+          probe.setPlaceholderDimensions(probeSpan.dimensions);
+        }
+        probe.layout(maxWidth: lineWidth);
+        final metrics = probe.computeLineMetrics();
+        if (metrics.isEmpty) {
+          probe.dispose();
+          if (windowEnd >= plainText.length) {
+            break lineLoop;
+          }
+          windowEnd = math.min(plainText.length, windowEnd * 2);
+          continue;
+        }
+        probeLineHeight = metrics.first.height;
+        consumed = _lineBreakEnd(
+          probe,
+          parentStyle.direction,
+          offset,
+          windowEnd,
+          metrics.first,
+        );
         probe.dispose();
-        break;
-      }
-      final lineMetrics = metrics.first;
-      var consumed = _lineBreakEnd(
-        probe,
-        parentStyle.direction,
-        offset,
-        plainText.length,
-        lineMetrics,
-      );
-      probe.dispose();
-      if (consumed <= offset) {
-        consumed = offset + _nextCodeUnitLength(plainText, offset);
+        if (consumed <= offset) {
+          // Degenerate break: advance one code unit like the full probe did.
+          consumed = offset + _nextCodeUnitLength(plainText, offset);
+          break;
+        }
+        if (windowEnd >= plainText.length ||
+            consumed <= windowEnd - probeMargin) {
+          break;
+        }
+        windowEnd = math.min(plainText.length, windowEnd * 2);
       }
       consumed = _adjustForLineBreakRules(
         plainText,
@@ -710,6 +755,7 @@ final class _InlineAccumulator {
           parentStyle,
           lineWidth,
           textScaler,
+          cursors: runCursors,
         );
         lines.add(
           _InlineLine(
@@ -745,7 +791,7 @@ final class _InlineAccumulator {
         y += painter.height;
       } else {
         // A hard line break still occupies one line box.
-        y += lineMetrics.height;
+        y += probeLineHeight;
       }
       offset = consumed;
     }
@@ -765,7 +811,8 @@ final class _InlineAccumulator {
         ),
       );
     }
-    return _InlineLines(lines: lines, links: links, bottom: y);
+    return _InlineLines(
+        lines: lines, links: links, bottom: y, cursors: runCursors);
   }
 
   /// Maps the flushed plain-text range [start, end) onto painter-relative
@@ -773,15 +820,21 @@ final class _InlineAccumulator {
   /// flush, so node offsets stay stable across line-split painters. Atoms
   /// advance the cursor but own no document text, so no run is emitted for
   /// them and selection anchoring cannot resolve onto an image.
-  List<WeftTextPainterRun> runSpecs(int start, int end) {
+  ///
+  /// [cursors] is the run cursor prefix captured when the lines were built
+  /// (see [_runCursors]); without it the prefix is recomputed. Runs are
+  /// cursor-ordered, so the scan starts at the first run that can intersect
+  /// [start] and stops at the first run past [end] (ADR 0045).
+  List<WeftTextPainterRun> runSpecs(int start, int end, {List<int>? cursors}) {
     final specs = <WeftTextPainterRun>[];
-    var cursor = 0;
-    for (final run in _runs) {
-      final runStart = cursor;
-      final runEnd = cursor + run.text.length;
-      cursor = runEnd;
+    final runCursors = cursors ?? _runCursors();
+    var index = _firstRunIndexAtOrAfter(runCursors, start);
+    for (; index < _runs.length; index++) {
+      final runStart = runCursors[index];
+      if (runStart >= end) break;
+      final run = _runs[index];
+      final runEnd = runCursors[index + 1];
       if (run.isAtom) continue;
-      if (runEnd <= start || runStart >= end) continue;
       final sliceStart = math.max(runStart, start);
       final sliceEnd = math.min(runEnd, end);
       if (sliceEnd <= sliceStart) continue;
@@ -857,20 +910,24 @@ final class _InlineAccumulator {
   /// Builds the span tree covering [start, end): text runs become
   /// [TextSpan]s and atoms become placeholder spans. The returned dimensions
   /// pair with the placeholder spans in order and must be set on the painter
-  /// before layout.
+  /// before layout. [cursors] is the shared run cursor prefix (see
+  /// [_runCursors]); the scan binary-searches to the first run that can
+  /// intersect [start] instead of rescanning every run (ADR 0045).
   ({TextSpan span, List<PlaceholderDimensions> dimensions}) _spanForRange(
     int start,
     int end,
-    WeftComputedStyle parentStyle,
-  ) {
+    WeftComputedStyle parentStyle, {
+    List<int>? cursors,
+  }) {
     final children = <InlineSpan>[];
     final dimensions = <PlaceholderDimensions>[];
-    var cursor = 0;
-    for (final run in _runs) {
-      final runStart = cursor;
-      final runEnd = cursor + run.text.length;
-      cursor = runEnd;
-      if (runEnd <= start || runStart >= end) continue;
+    final runCursors = cursors ?? _runCursors();
+    var index = _firstRunIndexAtOrAfter(runCursors, start);
+    for (; index < _runs.length; index++) {
+      final runStart = runCursors[index];
+      if (runStart >= end) break;
+      final run = _runs[index];
+      final runEnd = runCursors[index + 1];
       if (run.isAtom) {
         final alignment = _atomAlignment(run);
         dimensions.add(
@@ -905,14 +962,45 @@ final class _InlineAccumulator {
     );
   }
 
+  /// Cursor prefix of [_runs]: entry i is the plain-text length before run
+  /// i and the last entry the total. Captured once per flush so the
+  /// per-line run lookups can binary-search (ADR 0045).
+  List<int> _runCursors() {
+    final cursors = <int>[0];
+    var cursor = 0;
+    for (final run in _runs) {
+      cursor += run.text.length;
+      cursors.add(cursor);
+    }
+    return cursors;
+  }
+
+  /// Index of the first run that can intersect [start]: the first run whose
+  /// cursor range ends after [start]. Runs are cursor-ordered, so every run
+  /// before it lies entirely before [start]; `_runs.length` when none does.
+  static int _firstRunIndexAtOrAfter(List<int> cursors, int start) {
+    var low = 0;
+    var high = cursors.length - 1;
+    while (low < high) {
+      final mid = (low + high) >> 1;
+      if (cursors[mid + 1] <= start) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+    return low;
+  }
+
   TextPainter _buildLinePainter(
     int start,
     int end,
     WeftComputedStyle parentStyle,
     double width,
-    TextScaler textScaler,
-  ) {
-    final span = _spanForRange(start, end, parentStyle);
+    TextScaler textScaler, {
+    List<int>? cursors,
+  }) {
+    final span = _spanForRange(start, end, parentStyle, cursors: cursors);
     final painter = TextPainter(
       text: span.span,
       textAlign: parentStyle.textAlign,

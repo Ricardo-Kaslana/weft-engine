@@ -114,6 +114,7 @@
 - RTL/语言属性（ADR 0042）：dir/lang 白名单、块级基方向（auto first-strong + CSS direction）、RTL 对齐/断行/列表镜像/caret 边缘、lang→locale；新增 rtl_paragraph Chrome 几何参考与第 22 个规范化向量。
 - 增量布局画像（ADR 0043）：新工具 `tool/incremental_profile_test.dart` 把流式轮分解为 diff/样式/textIndex/复用走查（textIndex 占 56–81%、diff 近乎免费），测得形态阶梯（尾部追加 84–93% saving、中部编辑 44–60%、头部插入 ≈0）与 Float 逐行路径成本（30× 常数 + 段内 O(n²)）；决策下一方向为文本索引增量，引擎零改动、523 项测试不变。
 - 文本索引前缀复用（ADR 0044）：流式新快照按块 diff 前缀复用索引条目、只构建后缀（共享 walker + 每块 checkpoint + 尾 trim 还原；lazy 部分前缀/头部插入/样式表变化回退全量）；新快照轮 U(2000) 19.5–23.1 → 8.8ms（−60%），appendArticle300Incremental 同机对照 7.1 → 5.8–6.0ms；增量 vs 全量逐条目相等测试守护，测试 523 → 537。
+- 逐行 probe 窗口化（ADR 0045）：Float 逐行路径的断行探测从全剩余文本改为「约两行字符量起步、断点距窗口尾留 margin、翻倍直至段尾」的窗口，配 run 前缀表二分定位；8000 字段落 764 → 11.1ms（−98.5%，二次方转线性），floatWrap 6–9 → 4.8ms、float-plain 流式轮 385 → 239ms；断行行为由 8 套既有 Float/禁则/几何/像素测试钉零 diff，测试 537 → 542。
 
 ## 并行规则
 

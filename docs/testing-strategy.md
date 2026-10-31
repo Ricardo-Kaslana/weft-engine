@@ -93,7 +93,7 @@ flutter test test/perf_gate_test.dart --no-pub --timeout 120s     # CI 门禁
 | appendArticle300Incremental | 同一追加场景,旧 300 段布局在计时前准备,计时内复用前缀并释放旧/新结果 | ~6.7 ms;文本索引前缀复用后 ~5.8–6.0 ms(同机对照改前 7.1 ms,ADR 0044) | 500 ms |
 | lazyArticle300FirstViewport | article300 通过 RenderWeftSurface 懒布局首屏,800px 视口 + 250px overscan;结构探针记录实际布局/物化块数 | ~3.2 ms,首屏 6/6 块(全量 ~43.6 ms、330 块) | 500 ms |
 | table48 | 48 行 × 6 列表格,collapse 边框、padding,每 7 行一个 rowspan=2、每 5 行一个 colspan=2 | ~26–28 ms | 500 ms |
-| floatWrap | 10 组左浮动 120×96 假图(`ui.PictureRecorder` 生成)+ 长 CJK 段落逐行环绕 | ~6–9 ms | 500 ms |
+| floatWrap | 10 组左浮动 120×96 假图(`ui.PictureRecorder` 生成)+ 长 CJK 段落逐行环绕 | ~6–9 ms;probe 窗口化后 ~4.8 ms(ADR 0045) | 500 ms |
 | selection300 | 在 article300 布局结果上取跨 10 段(第 100–110 段)的选区,调用 `selectionRects` | ~0.7–0.9 ms(2026-10 末复测 ~1.8–1.9 ms,属环境漂移:改动暂存对照运行同为 ~1.9 ms) | 500 ms |
 | paintArticle300Direct | 直绘 article300 全部命令到新画布(ADR 0017 分块前的全量重绘路径,作为基线保留) | ~1.7–2.1 ms | 500 ms |
 | paintArticle300Full | `RenderWeftSurface` 分块绘制,可见区域 = 整篇文档(全部块命中) | ~0.9–1.1 ms | 500 ms |
