@@ -555,15 +555,24 @@ final class _InlineAccumulator {
         children: children,
       ),
       textAlign: parentStyle.textAlign,
-      textDirection: TextDirection.ltr,
+      // The block's base direction (ADR 0042): `textAlign.start` resolves
+      // against it, so RTL paragraphs right-align without extra machinery.
+      textDirection: parentStyle.direction,
       textScaler: textScaler,
-      locale: const Locale('zh'),
+      locale: _localeFor(parentStyle.lang),
       textWidthBasis: TextWidthBasis.parent,
     );
     if (placeholderDimensions.isNotEmpty) {
       painter.setPlaceholderDimensions(placeholderDimensions);
     }
-    painter.layout(maxWidth: width);
+    if (parentStyle.direction == TextDirection.rtl) {
+      // Expand to the full content width so `textAlign.start` has room to
+      // push the line to the right edge; the shrunk natural-width painter
+      // would leave RTL paragraphs flush at the left (ADR 0042).
+      painter.layout(minWidth: width, maxWidth: width);
+    } else {
+      painter.layout(maxWidth: width);
+    }
 
     final plainText = painter.text?.toPlainText() ?? '';
     final links = <WeftLinkRegion>[];
@@ -648,9 +657,9 @@ final class _InlineAccumulator {
       final probeSpan = _spanForRange(offset, plainText.length, parentStyle);
       final probe = TextPainter(
         text: probeSpan.span,
-        textDirection: TextDirection.ltr,
+        textDirection: parentStyle.direction,
         textScaler: textScaler,
-        locale: const Locale('zh'),
+        locale: _localeFor(parentStyle.lang),
         maxLines: 1,
         textWidthBasis: TextWidthBasis.parent,
       );
@@ -664,8 +673,13 @@ final class _InlineAccumulator {
         break;
       }
       final lineMetrics = metrics.first;
-      var consumed =
-          _lineBreakEnd(probe, offset, plainText.length, lineMetrics);
+      var consumed = _lineBreakEnd(
+        probe,
+        parentStyle.direction,
+        offset,
+        plainText.length,
+        lineMetrics,
+      );
       probe.dispose();
       if (consumed <= offset) {
         consumed = offset + _nextCodeUnitLength(plainText, offset);
@@ -902,9 +916,9 @@ final class _InlineAccumulator {
     final painter = TextPainter(
       text: span.span,
       textAlign: parentStyle.textAlign,
-      textDirection: TextDirection.ltr,
+      textDirection: parentStyle.direction,
       textScaler: textScaler,
-      locale: const Locale('zh'),
+      locale: _localeFor(parentStyle.lang),
       maxLines: 1,
       textWidthBasis: TextWidthBasis.parent,
     );
@@ -917,11 +931,16 @@ final class _InlineAccumulator {
 
   static int _lineBreakEnd(
     TextPainter probe,
+    TextDirection direction,
     int offset,
     int total,
     ui.LineMetrics metrics,
   ) {
-    final caretX = metrics.width <= 0 ? 0.0 : metrics.width;
+    // Probe the line's visual far edge: the right edge for LTR and the left
+    // edge for RTL, where the logically last glyph lands (ADR 0042).
+    final caretX = direction == TextDirection.rtl
+        ? 0.0
+        : (metrics.width <= 0 ? 0.0 : metrics.width);
     final caretY = metrics.baseline - metrics.ascent + metrics.height / 2;
     final position = probe.getPositionForOffset(Offset(caretX, caretY));
     final boundary = probe.getLineBoundary(position);

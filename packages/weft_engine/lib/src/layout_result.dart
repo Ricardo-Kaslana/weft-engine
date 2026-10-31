@@ -1045,8 +1045,9 @@ final class WeftLayoutResult {
   static const double caretWidth = 2;
 
   /// The caret rectangle for a collapsed-selection [anchor] in document
-  /// coordinates: a [caretWidth]-wide bar at the left edge of the anchor
-  /// position's glyph box, spanning the box's full height.
+  /// coordinates: a [caretWidth]-wide bar at the leading edge of the anchor
+  /// position's glyph box — the left edge for LTR runs, the right edge for
+  /// RTL ones (ADR 0042) — spanning the box's full height.
   ///
   /// Returns null when the anchor maps to no painted text — an unknown node
   /// or an offset at the very end of a node's text — mirroring the safe-drop
@@ -1056,12 +1057,32 @@ final class WeftLayoutResult {
         textRectsForNode(anchor.nodeId, anchor.offset, anchor.offset + 1);
     if (rects.isEmpty) return null;
     final first = rects.first;
+    if (_anchorIsRtl(anchor)) {
+      return ui.Rect.fromLTRB(
+        first.right - caretWidth,
+        first.top,
+        first.right,
+        first.bottom,
+      );
+    }
     return ui.Rect.fromLTRB(
       first.left,
       first.top,
       first.left + caretWidth,
       first.bottom,
     );
+  }
+
+  bool _anchorIsRtl(TextAnchor anchor) {
+    for (final command in commands) {
+      if (command is! WeftTextPaintCommand) continue;
+      for (final run in command.runs) {
+        if (run.nodeId == anchor.nodeId) {
+          return command.painter.textDirection == ui.TextDirection.rtl;
+        }
+      }
+    }
+    return false;
   }
 
   /// Visual rectangles for a selection between two anchors, resolved through

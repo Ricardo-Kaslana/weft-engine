@@ -14,6 +14,7 @@ abstract final class WeftCssSpec {
     'box-sizing',
     'clear',
     'color',
+    'direction',
     'display',
     'float',
     'font-family',

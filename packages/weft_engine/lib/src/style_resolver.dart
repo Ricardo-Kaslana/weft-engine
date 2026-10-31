@@ -28,8 +28,9 @@ final class WeftStyleResolver {
     required WeftComputedStyle parent,
     required List<WeftElement> ancestors,
   }) {
-    final builder = _StyleBuilder.fromParent(parent)
-      ..applyTagDefaults(element.tag, parent);
+    final builder = _StyleBuilder.fromParent(parent);
+    _applyDirectionAttributes(builder, element);
+    builder.applyTagDefaults(element.tag, parent);
     if (customTags.contains(element.tag)) {
       builder.display = WeftDisplay.block;
     }
@@ -62,6 +63,66 @@ final class WeftStyleResolver {
     _mergeDeclarations(winning, element.inlineStyle);
     builder.applyCascaded(winning, parent);
     return builder.build();
+  }
+
+  /// Applies the `dir`/`lang` attributes (ADR 0042). `dir` resolves before
+  /// tag defaults so the mirrored list indent can read the direction; a CSS
+  /// `direction` declaration still wins later through the cascade.
+  void _applyDirectionAttributes(_StyleBuilder builder, WeftElement element) {
+    final lang = element.attribute('lang');
+    if (lang != null && lang.isNotEmpty) {
+      builder.lang = lang;
+    }
+    switch (element.attribute('dir')?.toLowerCase()) {
+      case 'rtl':
+        builder.direction = TextDirection.rtl;
+      case 'ltr':
+        builder.direction = TextDirection.ltr;
+      case 'auto':
+        builder.direction = _firstStrongDirection(element) ?? builder.direction;
+    }
+  }
+
+  /// First-strong directional character scan for `dir=auto` (ADR 0042).
+  /// Covers the main RTL scripts (Hebrew, Arabic and their presentation
+  /// forms); every other strong character counts as LTR, neutrals are
+  /// skipped, and text without a strong character inherits the parent
+  /// direction.
+  static TextDirection? _firstStrongDirection(WeftElement element) {
+    TextDirection? scan(WeftNode node) {
+      if (node is WeftText) {
+        for (final rune in node.text.runes) {
+          if ((rune >= 0x0590 && rune <= 0x08FF) ||
+              (rune >= 0xFB1D && rune <= 0xFDFF) ||
+              (rune >= 0xFE70 && rune <= 0xFEFC)) {
+            return TextDirection.rtl;
+          }
+          if (_isStrongLtr(rune)) {
+            return TextDirection.ltr;
+          }
+        }
+        return null;
+      }
+      if (node is! WeftElement) return null;
+      if (node.tag == 'img') return null;
+      for (final child in node.children) {
+        final found = scan(child);
+        if (found != null) return found;
+      }
+      return null;
+    }
+
+    return scan(element);
+  }
+
+  static bool _isStrongLtr(int rune) {
+    return (rune >= 0x0041 && rune <= 0x005A) ||
+        (rune >= 0x0061 && rune <= 0x007A) ||
+        (rune >= 0x0370 && rune <= 0x04FF) ||
+        (rune >= 0x10A0 && rune <= 0x10FF) ||
+        (rune >= 0x2E80 && rune <= 0x9FFF) ||
+        (rune >= 0xAC00 && rune <= 0xD7AF) ||
+        (rune >= 0x20000 && rune <= 0x2FA1F);
   }
 
   void _mergeDeclarations(
@@ -119,6 +180,8 @@ final class _StyleBuilder {
         textDecoration = parent.textDecoration,
         whiteSpace = parent.whiteSpace,
         listStyle = parent.listStyle,
+        direction = parent.direction,
+        lang = parent.lang,
         display = WeftDisplay.inline;
 
   double fontSize;
@@ -131,6 +194,8 @@ final class _StyleBuilder {
   TextDecoration textDecoration;
   WeftWhiteSpace whiteSpace;
   WeftListStyle listStyle;
+  TextDirection direction;
+  String? lang;
   WeftDisplay display;
   Color? backgroundColor;
   double marginTop = 0;
@@ -162,6 +227,17 @@ final class _StyleBuilder {
   WeftBorderSide borderRight = WeftBorderSide.none;
   WeftBorderSide borderBottom = WeftBorderSide.none;
   WeftBorderSide borderLeft = WeftBorderSide.none;
+
+  /// The UA list indent mirrors with the base direction: browsers emit
+  /// `padding-inline-start`, which lands on the right for RTL lists
+  /// (ADR 0042). Author padding declarations still win through the cascade.
+  void _applyListIndent(double indent) {
+    if (direction == TextDirection.rtl) {
+      paddingRight = indent;
+    } else {
+      paddingLeft = indent;
+    }
+  }
 
   void applyTagDefaults(String tag, WeftComputedStyle parent) {
     switch (tag) {
@@ -200,13 +276,13 @@ final class _StyleBuilder {
         display = WeftDisplay.block;
         marginTop = fontSize;
         marginBottom = fontSize;
-        paddingLeft = 40;
+        _applyListIndent(40);
         listStyle = WeftListStyle.disc;
       case 'ol':
         display = WeftDisplay.block;
         marginTop = fontSize;
         marginBottom = fontSize;
-        paddingLeft = 40;
+        _applyListIndent(40);
         listStyle = WeftListStyle.decimal;
       case 'li':
         display = WeftDisplay.listItem;
@@ -391,6 +467,11 @@ final class _StyleBuilder {
     final textAlignValue = declarations['text-align'];
     if (textAlignValue != null) {
       textAlign = _textAlign(textAlignValue) ?? textAlign;
+    }
+
+    final directionValue = declarations['direction'];
+    if (directionValue != null) {
+      direction = _direction(directionValue) ?? direction;
     }
 
     final decorationValue = declarations['text-decoration'];
@@ -590,6 +671,8 @@ final class _StyleBuilder {
       borderRight: borderRight,
       borderBottom: borderBottom,
       borderLeft: borderLeft,
+      direction: direction,
+      lang: lang,
     );
   }
 
@@ -738,6 +821,14 @@ final class _StyleBuilder {
           '',
         );
     return first.isEmpty ? null : first;
+  }
+
+  static TextDirection? _direction(String raw) {
+    return switch (raw.trim().toLowerCase()) {
+      'ltr' => TextDirection.ltr,
+      'rtl' => TextDirection.rtl,
+      _ => null,
+    };
   }
 
   static TextAlign? _textAlign(String raw) {

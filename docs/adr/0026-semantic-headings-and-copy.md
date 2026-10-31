@@ -29,7 +29,7 @@ ADR 0024 建立了单表面的阅读顺序语义，但标题没有 header 标记
 
 - list/table/listItem/row/cell 需要真正嵌套的 SemanticsNode 层级；扁平 fragment 不能只加 role。该改造需要容器 fragment、父子 rect 坐标、局部分组 sortKey，并避开 Flutter debug 的严格父子 role 校验。
 - `SemanticsRole` 在当前 Flutter Android/iOS 桥接中未被消费，原生端收益不明确；先交付 header/copy 等跨平台行为。
-- 语言/RTL、live region 同样留到专门切片。
+- 语言/RTL、live region 同样留到专门切片。（ADR 0039/0040/0042 修订：live region、ARIA 基础与 RTL 方向均已交付。）
 
 ## 理由
 

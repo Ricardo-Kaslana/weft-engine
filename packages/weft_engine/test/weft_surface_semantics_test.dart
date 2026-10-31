@@ -643,6 +643,30 @@ void main() {
     semantics.dispose();
   });
 
+  testWidgets('RTL blocks announce their leaves with rtl direction', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final document = _normalize(
+      '<p>Latin block</p><p dir="rtl">مرحبا بالعالم</p>',
+    );
+    await tester.pumpWidget(_wrap(WeftSurface(document: document)));
+
+    expect(
+      _node(find.semantics.byLabel('Latin block'))
+          .getSemanticsData()
+          .textDirection,
+      TextDirection.ltr,
+    );
+    expect(
+      _node(find.semantics.byLabel('مرحبا بالعالم'))
+          .getSemanticsData()
+          .textDirection,
+      TextDirection.rtl,
+    );
+    semantics.dispose();
+  });
+
   testWidgets('unsupported roles are dropped without breaking semantics', (
     tester,
   ) async {

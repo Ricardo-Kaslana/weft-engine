@@ -218,6 +218,38 @@ void main() {
     expect(paragraph.attributes['aria-label']!.length, 1024);
   });
 
+  test('keeps dir and lang attributes with dir value validation', () {
+    final snapshot = const WeftNormalizer().normalize(
+      '<body dir="RTL" lang=" ar "><p dir="Auto" lang="he-IL">x</p>'
+      '<p dir="up">bad dir</p><p lang="">empty lang</p></body>',
+      id: 'dir-and-lang',
+    );
+
+    expect(snapshot.supportReport.canRender, isTrue);
+    final body = snapshot.body!;
+    expect(body.attribute('dir'), 'rtl');
+    expect(body.attribute('lang'), 'ar');
+    final paragraphs = body.children.whereType<WeftElement>().toList();
+    expect(paragraphs[0].attribute('dir'), 'auto');
+    expect(paragraphs[0].attribute('lang'), 'he-IL');
+    expect(paragraphs[1].attributes.containsKey('dir'), isFalse);
+    expect(paragraphs[2].attributes.containsKey('lang'), isFalse);
+    expect(
+      snapshot.supportReport.issues.map((issue) => issue.code),
+      contains('html.dir.invalid'),
+    );
+  });
+
+  test('caps lang length like title', () {
+    final snapshot = const WeftNormalizer().normalize(
+      '<p lang="${'x-' * 600}">Long</p>',
+      id: 'lang-cap',
+    );
+
+    final paragraph = snapshot.body!.children.whereType<WeftElement>().single;
+    expect(paragraph.attribute('lang')!.length, lessThanOrEqualTo(1024));
+  });
+
   test('node limit fails safely instead of returning partial content', () {
     const normalizer = WeftNormalizer(
       limits: WeftNormalizationLimits(maxNodes: 4),

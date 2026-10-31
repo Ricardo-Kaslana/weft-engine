@@ -75,6 +75,8 @@ final class WeftComputedStyle {
     this.borderRight = WeftBorderSide.none,
     this.borderBottom = WeftBorderSide.none,
     this.borderLeft = WeftBorderSide.none,
+    this.direction = TextDirection.ltr,
+    this.lang,
   });
 
   static const initial = WeftComputedStyle(
@@ -156,6 +158,19 @@ final class WeftComputedStyle {
   final WeftBorderSide borderRight;
   final WeftBorderSide borderBottom;
   final WeftBorderSide borderLeft;
+
+  /// Base text direction for the block's inline content (ADR 0042). Derived
+  /// from the `dir` attribute (`auto` resolves through the first-strong
+  /// scan) or the CSS `direction` property; inline content inherits it.
+  /// Physical start alignment, list marker placement and caret edges follow
+  /// this value; box geometry itself stays direction-neutral.
+  final TextDirection direction;
+
+  /// The `lang` attribute value (BCP-47-ish), forwarded to TextPainter as
+  /// its locale so line breaking and font fallback match the content. Null
+  /// keeps the engine's default `Locale('zh')` — the value every pre-ADR
+  /// 0042 document was laid out with.
+  final String? lang;
 
   double get horizontalPadding => paddingLeft + paddingRight;
 

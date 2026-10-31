@@ -42,4 +42,4 @@ Weft 的文本、链接、图片与选区全部绘制在一个 canvas 上，Flut
 
 - 新增 8 项 engine semantics widget 测试与 2 项 WeftView 测试，覆盖文本不重复、链接 action、图片/alt、选区更新、连续快照 id、pre 换行、ExcludeSemantics 和屏外 showOnScreen。weft_engine 常规测试增至 205 项，weft 增至 18 项。
 - 现有 pointer 链接、caret、选择拖拽、复制按钮和滚动行为不变；像素与几何基线不需要调整。
-- 首版限制：不提供 table/list 角色与导航、逐文本节点 selected state、可编辑 selection/caret action、RTL/语言/朗读属性、live region 或语义虚拟化。标题 header 与选区 copy 由 ADR 0026 增补。已解析图片位于链接内时不额外宣称 tap，与当前 pointer 命中能力一致。
+- 首版限制（ADR 0042 修订：RTL 方向已随块方向透传到叶子 textDirection）：不提供 table/list 角色与导航、逐文本节点 selected state、可编辑 selection/caret action、RTL/语言/朗读属性、live region 或语义虚拟化。标题 header 与选区 copy 由 ADR 0026 增补。已解析图片位于链接内时不额外宣称 tap，与当前 pointer 命中能力一致。

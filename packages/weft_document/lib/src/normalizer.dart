@@ -645,6 +645,22 @@ final class _TreeBuilder {
         // carries semantics and is kept.
         if (normalized != 'true') continue;
         value = normalized;
+      } else if (name == 'dir') {
+        final normalized = value.toLowerCase();
+        if (normalized != 'rtl' &&
+            normalized != 'ltr' &&
+            normalized != 'auto') {
+          _addIssue(
+            const SupportIssue(
+              code: 'html.dir.invalid',
+              message: 'Invalid dir value was removed; use rtl, ltr or auto.',
+            ),
+          );
+          continue;
+        }
+        value = normalized;
+      } else if (name == 'lang' && value.length > 1024) {
+        value = value.substring(0, 1024);
       } else if ((name == 'start' && tag == 'ol') ||
           (name == 'value' && tag == 'li')) {
         final number = int.tryParse(value);

@@ -899,6 +899,7 @@ final class _LayoutContext {
         marker: marker,
         style: style,
         contentX: contentX,
+        contentWidth: contentWidth,
         contentY: contentY,
         nodeId: element.id,
       );
@@ -2082,6 +2083,7 @@ final class _LayoutContext {
     required String marker,
     required WeftComputedStyle style,
     required double contentX,
+    required double contentWidth,
     required double contentY,
     required int nodeId,
   }) {
@@ -2092,9 +2094,11 @@ final class _LayoutContext {
         );
     final painter = TextPainter(
       text: TextSpan(text: marker, style: textStyle),
+      // Marker glyphs are direction-neutral digits/bullets; only placement
+      // mirrors with the block direction (ADR 0042).
       textDirection: TextDirection.ltr,
       textScaler: textScaler,
-      locale: const Locale('zh'),
+      locale: _localeFor(style.lang),
     )..layout();
     if (painter.width <= 0 || painter.height <= 0) {
       painter.dispose();
@@ -2102,13 +2106,48 @@ final class _LayoutContext {
     }
     final lineHeight = style.fontSize * style.lineHeight;
     final y = contentY + math.max(0.0, (lineHeight - painter.height) / 2);
-    final x = math.max(0.0, contentX - painter.width - 8);
+    final double x;
+    if (style.direction == TextDirection.rtl) {
+      // The marker sits outside the content box's start edge: the right
+      // edge for RTL, mirroring the UA `padding-inline-start` indent.
+      x = contentX + contentWidth + 8;
+    } else {
+      x = math.max(0.0, contentX - painter.width - 8);
+    }
     return WeftTextPaintCommand(
       nodeId: nodeId,
       painter: painter,
       offset: Offset(x, y),
     );
   }
+}
+
+/// Resolves the `lang` attribute into a TextPainter locale (ADR 0042).
+/// Documents without a language keep the engine's default `Locale('zh')` —
+/// the value every pre-0042 layout used — so existing line breaking is
+/// untouched.
+Locale _localeFor(String? lang) {
+  final value = lang?.trim() ?? '';
+  if (value.isEmpty) return const Locale('zh');
+  final parts = value.split(RegExp('[-_]'));
+  final languageCode = parts.first.toLowerCase();
+  if (languageCode.isEmpty || languageCode.length > 8) {
+    return const Locale('zh');
+  }
+  String? scriptCode;
+  String? countryCode;
+  for (final part in parts.skip(1)) {
+    if (part.length == 4 && scriptCode == null) {
+      scriptCode = part;
+    } else if (part.isNotEmpty && part.length <= 3 && countryCode == null) {
+      countryCode = part.toUpperCase();
+    }
+  }
+  return Locale.fromSubtags(
+    languageCode: languageCode,
+    scriptCode: scriptCode,
+    countryCode: countryCode,
+  );
 }
 
 final class _ImageBoxMetrics {

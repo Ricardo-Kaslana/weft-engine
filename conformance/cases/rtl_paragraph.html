@@ -1,0 +1,18 @@
+<style>
+  body { font-family: "WeftRoboto"; }
+  .box { width: 280px; margin: 8px 0; }
+</style>
+<p data-geo="ltr-control" data-words="ltr-control">Latin control paragraph for the baseline edge.</p>
+<p dir="rtl" data-geo="rtl-plain" data-words="rtl-plain">مرحبا بالعالم من محرك ويفت للعرض المتحكم به.</p>
+<p dir="rtl" data-geo="rtl-mixed" data-words="rtl-mixed">نص عربي مع mixed English words في المنتصف.</p>
+<div dir="rtl" class="box">
+  <p dir="ltr" data-geo="nested-ltr" data-words="nested-ltr">Latin paragraph inside an RTL container.</p>
+  <p data-geo="nested-inherit" data-words="nested-inherit">فقرة ترث الاتجاه من الحاوية.</p>
+</div>
+<p style="direction: rtl" data-geo="css-rtl" data-words="css-rtl">فقرات تعتمد على اتجاه CSS.</p>
+<p dir="auto" data-geo="auto-rtl" data-words="auto-rtl">مرحبا auto detection.</p>
+<p dir="auto" data-geo="auto-ltr" data-words="auto-ltr">auto detection with Latin first.</p>
+<ol dir="rtl" data-geo="rtl-list">
+  <li data-geo="rtl-li" data-words="rtl-li">عنصر قائمة باتجاه من اليمين إلى اليسار.</li>
+  <li data-geo="rtl-li2" data-words="rtl-li2">second item</li>
+</ol>

@@ -14,7 +14,7 @@
 
 | 类别 | 元素 | 状态 | 当前行为 |
 |---|---|---|---|
-| 文档与分组 | `html/body/div/span` | 已实现 | 受控树、块/行内叠放 |
+| 文档与分组 | `html/body/div/span` | 已实现 | 受控树、块/行内叠放；全局属性含 `dir`（rtl/ltr/auto）与 `lang`（ADR 0042） |
 | 标题与段落 | `h1-h6/p/br/hr` | 已实现 | 默认字号、字重、间距、换行和分隔线 |
 | 基础文本 | `strong/b/em/i/u/s/small` | 已实现 | 粗体、斜体、装饰和相对字号 |
 | 上下标 | `sub/sup` | 部分实现 | 缩小字号，尚未做基线位移 |
@@ -55,6 +55,7 @@
 | 字体 | `font-family/size/style/weight` | 部分实现：family 只识别通用族和首个名称 |
 | 行高 | `line-height` | 已实现：普通数字、百分比和 px；按 CSS 半行距分配 |
 | 文本 | `color/text-align/text-decoration/white-space` | 已实现基础值 |
+| 方向 | `direction: rtl/ltr` | 已实现（ADR 0042）；`dir` 属性映射为 UA 级默认，CSS 层叠可覆盖 |
 | 背景 | `background-color` | 已实现块背景和行内文本背景 |
 | 盒模型 | `margin(-side)`、`padding(-side)` | 已实现非负 padding、可负 margin 和相邻/父子/空块折叠；水平 `margin: auto` 在显式宽度块上分配剩余空间（垂直 auto 按 0，图片 auto margin 按 0，ADR 0021） |
 | 显示 | `display: block/inline/list-item/none` | 已实现 |
@@ -84,7 +85,7 @@
 
 - 合法的拉丁词、数字和连字符边界优化。
 - 字素簇级别的选择安全。
-- 竖排、复杂 BiDi 和完整东亚排版规则（悬挂标点等）。
+- 竖排、中性字符行缘 BiDi 重排和完整东亚排版规则（悬挂标点等）；基础 RTL（`dir`/`lang`/CSS `direction` 的块级方向、起始对齐、列表镜像）已由 ADR 0042 支持，行内双向重排交给 SkParagraph。
 
 ## 选择与交互
 
@@ -112,7 +113,7 @@
 - ARIA 基础（ADR 0040）：`role` 保守映射——`button`/`link` 输出 isButton/isLink 标志（无激活动作），`img`/`heading` 折叠或派生 header/headingLevel，`dialog`/`alertdialog` 成为容器角色，`alert`/`status` 隐式化为 live+atomic 播报，`presentation`/`none` 抑制元素自身派生语义（内容仍朗读），其余角色丢弃并产出 `aria.role.unsupported` 诊断；显式 role 覆盖元素隐式语义（`<a role="button">` 不再是链接）。`aria-hidden="true"` 子树从语义树移除（视觉与复制文本不变）。`aria-label` 作为可访问名称：img 上优先于 alt，其余元素（table 族除外）子树折叠为单个命名叶子，`<a aria-label>` 保留 tap。live region 内 `aria-atomic="true"`（含 alert/status 隐式）将子树折叠为单个 liveRegion 叶子整组播报，替代逐叶子播报。
 - 宿主可用 `ExcludeSemantics` 排除表面；`WeftSurface.onSemanticsLinkTap` 默认回退到 `onLinkTap`，WeftView 自动接入同一宿主回调。
 
-边界与限制：尚无 table/list 角色导航、可编辑 setSelection/caret 动作、逐文本节点 selected state、RTL/语言属性、landmark/tab/menu/radio 族角色、`aria-level`/`aria-labelledby`/`aria-describedby`、`polite`/`assertive` 播报优先级或语义虚拟化；`role=button`/`link` 只播报角色，不产生激活动作（引擎不执行脚本）；折叠类语义（aria-label/role=img/aria-atomic）不播报子树内容且不带列表 marker；presentation 表格后代 th 的 header flag 保留（记录在案的简化）。已解析图片位于链接内时不额外提供 tap，与当前 pointer 命中能力一致。
+边界与限制：尚无 table/list 角色导航、可编辑 setSelection/caret 动作、逐文本节点 selected state、landmark/tab/menu/radio 族角色、`aria-level`/`aria-labelledby`/`aria-describedby`、`polite`/`assertive` 播报优先级或语义虚拟化；`role=button`/`link` 只播报角色，不产生激活动作（引擎不执行脚本）；折叠类语义（aria-label/role=img/aria-atomic）不播报子树内容且不带列表 marker；presentation 表格后代 th 的 header flag 保留（记录在案的简化）。已解析图片位于链接内时不额外提供 tap，与当前 pointer 命中能力一致。
 
 ## 流式增量布局
 

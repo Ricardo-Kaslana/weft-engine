@@ -1,0 +1,95 @@
+{
+  "id": "synthetic_dir_and_lang",
+  "source": "inline",
+  "normalizer": {
+    "customTags": []
+  },
+  "snapshot": {
+    "id": "vector-synthetic_dir_and_lang",
+    "revision": 1
+  },
+  "input": "<body dir=\"rtl\" lang=\"ar\"><p dir=\"auto\">مرحبا world</p><p lang=\"he-IL\" dir=\"LTR\">שלום</p><p dir=\"up\">bad direction</p><p lang=\"\">empty language</p></body>",
+  "expected": {
+    "format": "weft.document",
+    "version": 1,
+    "id": "vector-synthetic_dir_and_lang",
+    "revision": 1,
+    "normalizedHtml": "<p dir=\"auto\">مرحبا world</p><p lang=\"he-IL\" dir=\"ltr\">שלום</p><p>bad direction</p><p>empty language</p>",
+    "supportReport": {
+      "issues": [
+        {
+          "code": "html.parse.warning",
+          "message": "Unexpected start tag (body). Expected DOCTYPE.",
+          "severity": "warning",
+          "requiresWebView": false
+        },
+        {
+          "code": "html.dir.invalid",
+          "message": "Invalid dir value was removed; use rtl, ltr or auto.",
+          "severity": "warning",
+          "requiresWebView": false
+        }
+      ]
+    },
+    "body": {
+      "id": 0,
+      "tag": "body",
+      "attributes": {
+        "dir": "rtl",
+        "lang": "ar"
+      },
+      "children": [
+        {
+          "id": 1,
+          "tag": "p",
+          "attributes": {
+            "dir": "auto"
+          },
+          "children": [
+            {
+              "id": 2,
+              "text": "مرحبا world"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "tag": "p",
+          "attributes": {
+            "lang": "he-IL",
+            "dir": "ltr"
+          },
+          "children": [
+            {
+              "id": 4,
+              "text": "שלום"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "tag": "p",
+          "children": [
+            {
+              "id": 6,
+              "text": "bad direction"
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "tag": "p",
+          "children": [
+            {
+              "id": 8,
+              "text": "empty language"
+            }
+          ]
+        }
+      ]
+    },
+    "styleSheet": {
+      "rules": []
+    }
+  }
+}

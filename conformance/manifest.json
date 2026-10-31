@@ -143,6 +143,17 @@
         "https://example.com/help/conflicts"
       ],
       "pixel": false
+    },
+    {
+      "id": "rtl_paragraph",
+      "file": "cases/rtl_paragraph.html",
+      "width": 360,
+      "height": 1000,
+      "minHeight": 600,
+      "minTextCommands": 8,
+      "minBoxes": 8,
+      "pixel": false,
+      "linkHrefs": []
     }
   ]
 }

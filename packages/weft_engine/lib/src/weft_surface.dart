@@ -1125,7 +1125,7 @@ class RenderWeftSurface extends RenderBox {
         }
       } else {
         childConfig
-          ..textDirection = TextDirection.ltr
+          ..textDirection = fragment.textDirection
           ..label = fragment.label
           ..value = fragment.value
           ..isImage = fragment.isImage
@@ -1873,6 +1873,7 @@ final class _WeftSemanticFragment {
     this.isLiveRegion = false,
     this.isButton = false,
     this.isLinkFlag = false,
+    this.textDirection = TextDirection.ltr,
     this.link,
     this.tag,
     this.globalStart,
@@ -1897,6 +1898,10 @@ final class _WeftSemanticFragment {
   final bool isLiveRegion;
   final bool isButton;
   final bool isLinkFlag;
+
+  /// The base direction of the block the fragment belongs to (ADR 0042),
+  /// taken from its text paint command's painter.
+  final TextDirection textDirection;
   final WeftLinkRegion? link;
   final WeftTagRegion? tag;
   final int? globalStart;
@@ -1917,6 +1922,7 @@ final class _WeftSemanticFragment {
       isLiveRegion: isLiveRegion,
       isButton: isButton,
       isLinkFlag: isLinkFlag,
+      textDirection: textDirection,
       link: link,
       tag: tag,
       globalStart: globalStart,
@@ -2085,6 +2091,13 @@ List<_WeftSemanticFragment> _buildContentSemantics({
   final tags = <int, WeftTagRegion>{
     for (final region in layout.tagRegions) region.nodeId: region,
   };
+  // Base direction per block, read off the block's own text painter
+  // (ADR 0042). Marker commands carry no runs and are excluded.
+  final blockDirections = <int, TextDirection>{
+    for (final command in layout.commands.whereType<WeftTextPaintCommand>())
+      if (command.runs.isNotEmpty)
+        command.nodeId: command.painter.textDirection ?? TextDirection.ltr,
+  };
   final fragments = <_WeftSemanticFragment>[];
   final activeContainers = <_WeftSemanticContainerSpec>[];
 
@@ -2097,6 +2110,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
     bool isLiveRegion,
     bool isButton,
     bool isLinkFlag,
+    TextDirection textDirection,
     List<String?>? prefixBox, {
     int? entryGlobalStart,
   }) {
@@ -2127,6 +2141,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
               previous.isLiveRegion == isLiveRegion &&
               previous.isButton == isButton &&
               previous.isLinkFlag == isLinkFlag &&
+              previous.textDirection == textDirection &&
               previous.globalEnd != null &&
               previous.globalEnd == globalStart;
           if (canMerge) {
@@ -2141,6 +2156,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
               isLiveRegion: previous.isLiveRegion,
               isButton: previous.isButton,
               isLinkFlag: previous.isLinkFlag,
+              textDirection: previous.textDirection,
               globalStart: previous.globalStart,
               globalEnd: globalEnd,
             );
@@ -2161,6 +2177,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
                 isLiveRegion: isLiveRegion,
                 isButton: isButton,
                 isLinkFlag: isLinkFlag,
+                textDirection: textDirection,
                 globalStart: globalStart,
                 globalEnd: globalEnd,
               ),
@@ -2244,6 +2261,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
     bool isHeader = false,
     bool isButton = false,
     bool isLinkFlag = false,
+    TextDirection textDirection = TextDirection.ltr,
   }) {
     ui.Rect? geometry;
     final text = StringBuffer();
@@ -2320,6 +2338,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
         isLiveRegion: isLiveRegion,
         isButton: isButton,
         isLinkFlag: isLinkFlag,
+        textDirection: textDirection,
         link: link,
       ),
     );
@@ -2334,6 +2353,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
     List<String?>? prefixBox, {
     bool isButton = false,
     bool isLinkFlag = false,
+    TextDirection textDirection = TextDirection.ltr,
   }) {
     if (node is WeftText) {
       final entry = textIndex.entryByNode[node.id];
@@ -2347,6 +2367,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
           isLive,
           isButton,
           isLinkFlag,
+          textDirection,
           prefixBox,
           entryGlobalStart: entry.globalStart,
         );
@@ -2388,6 +2409,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
               isLiveRegion: childLive,
               isButton: isButton,
               isLinkFlag: isLinkFlag,
+              textDirection: textDirection,
             ),
           );
         }
@@ -2401,6 +2423,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
           childLive,
           isButton,
           isLinkFlag,
+          textDirection,
           prefixBox,
         );
       }
@@ -2423,6 +2446,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
             isLiveRegion: childLive,
             isButton: isButton,
             isLinkFlag: isLinkFlag,
+            textDirection: textDirection,
             tag: tagRegion,
           ),
         );
@@ -2493,6 +2517,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
         isHeader: childHeader,
         isButton: childButton,
         isLinkFlag: childLinkFlag,
+        textDirection: textDirection,
       );
       if (dialogSpec != null) activeContainers.removeLast();
       return;
@@ -2536,6 +2561,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
             childPrefix,
             isButton: childButton,
             isLinkFlag: childLinkFlag,
+            textDirection: textDirection,
           );
           activeContainers.removeLast();
         } else {
@@ -2548,6 +2574,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
             childPrefix,
             isButton: childButton,
             isLinkFlag: childLinkFlag,
+            textDirection: textDirection,
           );
         }
       }
@@ -2572,6 +2599,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
             null,
             isButton: childButton,
             isLinkFlag: childLinkFlag,
+            textDirection: textDirection,
           );
         }
         if (dialogSpec != null) activeContainers.removeLast();
@@ -2619,6 +2647,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
             null,
             isButton: childButton,
             isLinkFlag: childLinkFlag,
+            textDirection: textDirection,
           );
           activeContainers.removeLast();
         }
@@ -2651,6 +2680,7 @@ List<_WeftSemanticFragment> _buildContentSemantics({
         prefixBox,
         isButton: childButton,
         isLinkFlag: childLinkFlag,
+        textDirection: textDirection,
       );
     }
     if (dialogSpec != null) activeContainers.removeLast();
@@ -2660,7 +2690,17 @@ List<_WeftSemanticFragment> _buildContentSemantics({
   if (!_ariaHidden(body)) {
     if (lazyBlocks == null) {
       for (final child in body.children) {
-        visit(child, null, 0, false, bodyLive, null);
+        visit(
+          child,
+          null,
+          0,
+          false,
+          bodyLive,
+          null,
+          textDirection: child is WeftElement
+              ? (blockDirections[child.id] ?? TextDirection.ltr)
+              : TextDirection.ltr,
+        );
       }
     } else {
       // Lazy semantics cover the measured prefix only (ADR 0041). The
@@ -2678,7 +2718,15 @@ List<_WeftSemanticFragment> _buildContentSemantics({
         final block = lazyBlocks[elementIndex];
         elementIndex += 1;
         if (block.materialized) {
-          visit(child, null, 0, false, bodyLive, null);
+          visit(
+            child,
+            null,
+            0,
+            false,
+            bodyLive,
+            null,
+            textDirection: blockDirections[child.id] ?? TextDirection.ltr,
+          );
         } else if (lazyBandStart != null &&
             lazyBandEnd != null &&
             block.top <= lazyBandEnd &&

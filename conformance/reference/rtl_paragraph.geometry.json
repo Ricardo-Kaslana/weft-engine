@@ -1,0 +1,732 @@
+{
+  "documentHeight": 1000,
+  "elements": {
+    "ltr-control": {
+      "tag": "p",
+      "left": 0,
+      "top": 16,
+      "width": 360,
+      "height": 24
+    },
+    "rtl-plain": {
+      "tag": "p",
+      "left": 0,
+      "top": 56,
+      "width": 360,
+      "height": 24
+    },
+    "rtl-mixed": {
+      "tag": "p",
+      "left": 0,
+      "top": 96,
+      "width": 360,
+      "height": 24
+    },
+    "nested-ltr": {
+      "tag": "p",
+      "left": 0,
+      "top": 136,
+      "width": 280,
+      "height": 48
+    },
+    "nested-inherit": {
+      "tag": "p",
+      "left": 0,
+      "top": 200,
+      "width": 280,
+      "height": 24
+    },
+    "css-rtl": {
+      "tag": "p",
+      "left": 0,
+      "top": 240,
+      "width": 360,
+      "height": 24
+    },
+    "auto-rtl": {
+      "tag": "p",
+      "left": 0,
+      "top": 280,
+      "width": 360,
+      "height": 24
+    },
+    "auto-ltr": {
+      "tag": "p",
+      "left": 0,
+      "top": 320,
+      "width": 360,
+      "height": 24
+    },
+    "rtl-list": {
+      "tag": "ol",
+      "left": 0,
+      "top": 360,
+      "width": 360,
+      "height": 48
+    },
+    "rtl-li": {
+      "tag": "li",
+      "left": 40,
+      "top": 360,
+      "width": 280,
+      "height": 24
+    },
+    "rtl-li2": {
+      "tag": "li",
+      "left": 40,
+      "top": 384,
+      "width": 280,
+      "height": 24
+    }
+  },
+  "words": {
+    "ltr-control": [
+      {
+        "text": "Latin",
+        "rects": [
+          {
+            "left": 0,
+            "top": 18,
+            "right": 35.25,
+            "bottom": 37
+          }
+        ]
+      },
+      {
+        "text": "control",
+        "rects": [
+          {
+            "left": 39.2,
+            "top": 18,
+            "right": 89.03,
+            "bottom": 37
+          }
+        ]
+      },
+      {
+        "text": "paragraph",
+        "rects": [
+          {
+            "left": 92.98,
+            "top": 18,
+            "right": 165.05,
+            "bottom": 37
+          }
+        ]
+      },
+      {
+        "text": "for",
+        "rects": [
+          {
+            "left": 169,
+            "top": 18,
+            "right": 189.11,
+            "bottom": 37
+          }
+        ]
+      },
+      {
+        "text": "the",
+        "rects": [
+          {
+            "left": 193.06,
+            "top": 18,
+            "right": 215.58,
+            "bottom": 37
+          }
+        ]
+      },
+      {
+        "text": "baseline",
+        "rects": [
+          {
+            "left": 219.53,
+            "top": 18,
+            "right": 279.02,
+            "bottom": 37
+          }
+        ]
+      },
+      {
+        "text": "edge.",
+        "rects": [
+          {
+            "left": 282.97,
+            "top": 18,
+            "right": 322.14,
+            "bottom": 37
+          }
+        ]
+      }
+    ],
+    "rtl-plain": [
+      {
+        "text": "مرحبا",
+        "rects": [
+          {
+            "left": 324.27,
+            "top": 58,
+            "right": 360,
+            "bottom": 77
+          }
+        ]
+      },
+      {
+        "text": "بالعالم",
+        "rects": [
+          {
+            "left": 278.66,
+            "top": 58,
+            "right": 320.31,
+            "bottom": 77
+          }
+        ]
+      },
+      {
+        "text": "من",
+        "rects": [
+          {
+            "left": 254.5,
+            "top": 58,
+            "right": 274.7,
+            "bottom": 77
+          }
+        ]
+      },
+      {
+        "text": "محرك",
+        "rects": [
+          {
+            "left": 213.22,
+            "top": 58,
+            "right": 250.55,
+            "bottom": 77
+          }
+        ]
+      },
+      {
+        "text": "ويفت",
+        "rects": [
+          {
+            "left": 175.06,
+            "top": 58,
+            "right": 209.27,
+            "bottom": 77
+          }
+        ]
+      },
+      {
+        "text": "للعرض",
+        "rects": [
+          {
+            "left": 128.11,
+            "top": 58,
+            "right": 171.11,
+            "bottom": 77
+          }
+        ]
+      },
+      {
+        "text": "المتحكم",
+        "rects": [
+          {
+            "left": 70.08,
+            "top": 58,
+            "right": 124.16,
+            "bottom": 77
+          }
+        ]
+      },
+      {
+        "text": "به.",
+        "rects": [
+          {
+            "left": 48.25,
+            "top": 58,
+            "right": 66.13,
+            "bottom": 77
+          }
+        ]
+      }
+    ],
+    "rtl-mixed": [
+      {
+        "text": "نص",
+        "rects": [
+          {
+            "left": 336.89,
+            "top": 98,
+            "right": 360,
+            "bottom": 117
+          }
+        ]
+      },
+      {
+        "text": "عربي",
+        "rects": [
+          {
+            "left": 296.34,
+            "top": 98,
+            "right": 332.94,
+            "bottom": 117
+          }
+        ]
+      },
+      {
+        "text": "مع",
+        "rects": [
+          {
+            "left": 274.84,
+            "top": 98,
+            "right": 292.39,
+            "bottom": 117
+          }
+        ]
+      },
+      {
+        "text": "mixed",
+        "rects": [
+          {
+            "left": 124.38,
+            "top": 98,
+            "right": 167.56,
+            "bottom": 117
+          }
+        ]
+      },
+      {
+        "text": "English",
+        "rects": [
+          {
+            "left": 171.52,
+            "top": 98,
+            "right": 223.25,
+            "bottom": 117
+          }
+        ]
+      },
+      {
+        "text": "words",
+        "rects": [
+          {
+            "left": 227.2,
+            "top": 98,
+            "right": 270.89,
+            "bottom": 117
+          }
+        ]
+      },
+      {
+        "text": "في",
+        "rects": [
+          {
+            "left": 97.89,
+            "top": 98,
+            "right": 120.41,
+            "bottom": 117
+          }
+        ]
+      },
+      {
+        "text": "المنتصف.",
+        "rects": [
+          {
+            "left": 33.66,
+            "top": 98,
+            "right": 93.94,
+            "bottom": 117
+          }
+        ]
+      }
+    ],
+    "nested-ltr": [
+      {
+        "text": "Latin",
+        "rects": [
+          {
+            "left": 0,
+            "top": 138,
+            "right": 35.25,
+            "bottom": 157
+          }
+        ]
+      },
+      {
+        "text": "paragraph",
+        "rects": [
+          {
+            "left": 39.2,
+            "top": 138,
+            "right": 111.27,
+            "bottom": 157
+          }
+        ]
+      },
+      {
+        "text": "inside",
+        "rects": [
+          {
+            "left": 115.22,
+            "top": 138,
+            "right": 157.58,
+            "bottom": 157
+          }
+        ]
+      },
+      {
+        "text": "an",
+        "rects": [
+          {
+            "left": 161.53,
+            "top": 138,
+            "right": 179.06,
+            "bottom": 157
+          }
+        ]
+      },
+      {
+        "text": "RTL",
+        "rects": [
+          {
+            "left": 183.02,
+            "top": 138,
+            "right": 210.41,
+            "bottom": 157
+          }
+        ]
+      },
+      {
+        "text": "container.",
+        "rects": [
+          {
+            "left": 0,
+            "top": 162,
+            "right": 70.11,
+            "bottom": 181
+          }
+        ]
+      }
+    ],
+    "nested-inherit": [
+      {
+        "text": "فقرة",
+        "rects": [
+          {
+            "left": 251.16,
+            "top": 202,
+            "right": 280,
+            "bottom": 221
+          }
+        ]
+      },
+      {
+        "text": "ترث",
+        "rects": [
+          {
+            "left": 223.13,
+            "top": 202,
+            "right": 247.2,
+            "bottom": 221
+          }
+        ]
+      },
+      {
+        "text": "الاتجاه",
+        "rects": [
+          {
+            "left": 177.94,
+            "top": 202,
+            "right": 219.17,
+            "bottom": 221
+          }
+        ]
+      },
+      {
+        "text": "من",
+        "rects": [
+          {
+            "left": 153.77,
+            "top": 202,
+            "right": 173.98,
+            "bottom": 221
+          }
+        ]
+      },
+      {
+        "text": "الحاوية.",
+        "rects": [
+          {
+            "left": 101.3,
+            "top": 202,
+            "right": 149.81,
+            "bottom": 221
+          }
+        ]
+      }
+    ],
+    "css-rtl": [
+      {
+        "text": "فقرات",
+        "rects": [
+          {
+            "left": 321.92,
+            "top": 242,
+            "right": 360,
+            "bottom": 261
+          }
+        ]
+      },
+      {
+        "text": "تعتمد",
+        "rects": [
+          {
+            "left": 281.69,
+            "top": 242,
+            "right": 317.97,
+            "bottom": 261
+          }
+        ]
+      },
+      {
+        "text": "على",
+        "rects": [
+          {
+            "left": 246.67,
+            "top": 242,
+            "right": 277.73,
+            "bottom": 261
+          }
+        ]
+      },
+      {
+        "text": "اتجاه",
+        "rects": [
+          {
+            "left": 211.22,
+            "top": 242,
+            "right": 242.72,
+            "bottom": 261
+          }
+        ]
+      },
+      {
+        "text": "CSS.",
+        "rects": [
+          {
+            "left": 173.64,
+            "top": 242,
+            "right": 177.86,
+            "bottom": 261
+          },
+          {
+            "left": 177.86,
+            "top": 242,
+            "right": 207.27,
+            "bottom": 261
+          }
+        ]
+      }
+    ],
+    "auto-rtl": [
+      {
+        "text": "مرحبا",
+        "rects": [
+          {
+            "left": 324.27,
+            "top": 282,
+            "right": 360,
+            "bottom": 301
+          }
+        ]
+      },
+      {
+        "text": "auto",
+        "rects": [
+          {
+            "left": 217.98,
+            "top": 282,
+            "right": 249.7,
+            "bottom": 301
+          }
+        ]
+      },
+      {
+        "text": "detection.",
+        "rects": [
+          {
+            "left": 213.77,
+            "top": 282,
+            "right": 217.98,
+            "bottom": 301
+          },
+          {
+            "left": 253.66,
+            "top": 282,
+            "right": 320.31,
+            "bottom": 301
+          }
+        ]
+      }
+    ],
+    "auto-ltr": [
+      {
+        "text": "auto",
+        "rects": [
+          {
+            "left": 0,
+            "top": 322,
+            "right": 31.72,
+            "bottom": 341
+          }
+        ]
+      },
+      {
+        "text": "detection",
+        "rects": [
+          {
+            "left": 35.67,
+            "top": 322,
+            "right": 102.33,
+            "bottom": 341
+          }
+        ]
+      },
+      {
+        "text": "with",
+        "rects": [
+          {
+            "left": 106.28,
+            "top": 322,
+            "right": 136.23,
+            "bottom": 341
+          }
+        ]
+      },
+      {
+        "text": "Latin",
+        "rects": [
+          {
+            "left": 140.19,
+            "top": 322,
+            "right": 175.44,
+            "bottom": 341
+          }
+        ]
+      },
+      {
+        "text": "first.",
+        "rects": [
+          {
+            "left": 179.39,
+            "top": 322,
+            "right": 211.36,
+            "bottom": 341
+          }
+        ]
+      }
+    ],
+    "rtl-li": [
+      {
+        "text": "عنصر",
+        "rects": [
+          {
+            "left": 285.95,
+            "top": 362,
+            "right": 320,
+            "bottom": 381
+          }
+        ]
+      },
+      {
+        "text": "قائمة",
+        "rects": [
+          {
+            "left": 247.31,
+            "top": 362,
+            "right": 282,
+            "bottom": 381
+          }
+        ]
+      },
+      {
+        "text": "باتجاه",
+        "rects": [
+          {
+            "left": 206.52,
+            "top": 362,
+            "right": 243.36,
+            "bottom": 381
+          }
+        ]
+      },
+      {
+        "text": "من",
+        "rects": [
+          {
+            "left": 182.34,
+            "top": 362,
+            "right": 202.56,
+            "bottom": 381
+          }
+        ]
+      },
+      {
+        "text": "اليمين",
+        "rects": [
+          {
+            "left": 137.05,
+            "top": 362,
+            "right": 178.39,
+            "bottom": 381
+          }
+        ]
+      },
+      {
+        "text": "إلى",
+        "rects": [
+          {
+            "left": 108.78,
+            "top": 362,
+            "right": 133.09,
+            "bottom": 381
+          }
+        ]
+      },
+      {
+        "text": "اليسار.",
+        "rects": [
+          {
+            "left": 59.14,
+            "top": 362,
+            "right": 104.83,
+            "bottom": 381
+          }
+        ]
+      }
+    ],
+    "rtl-li2": [
+      {
+        "text": "second",
+        "rects": [
+          {
+            "left": 232.34,
+            "top": 386,
+            "right": 284.42,
+            "bottom": 405
+          }
+        ]
+      },
+      {
+        "text": "item",
+        "rects": [
+          {
+            "left": 288.38,
+            "top": 386,
+            "right": 320,
+            "bottom": 405
+          }
+        ]
+      }
+    ]
+  }
+}

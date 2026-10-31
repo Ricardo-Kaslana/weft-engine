@@ -78,6 +78,12 @@ final syntheticCases = <Map<String, Object?>>[
         '</ol><blockquote><p>quote</p></blockquote><pre><code>x = 1;'
         '</code></pre></body>',
   },
+  {
+    'id': 'synthetic_dir_and_lang',
+    'input': '<body dir="rtl" lang="ar"><p dir="auto">مرحبا world</p>'
+        '<p lang="he-IL" dir="LTR">שלום</p>'
+        '<p dir="up">bad direction</p><p lang="">empty language</p></body>',
+  },
 ];
 
 void main() {
