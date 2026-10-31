@@ -12,7 +12,7 @@ AI 流式内容通常由宿主逐 token 重新规范化完整 HTML 快照。此�
 ### 顶层前缀片段
 
 - `WeftLayoutResult` 保存增量缓存：来源快照、全局布局输入，以及每个 body 顶层块的子树、原 left/top、height、commands/boxes/links。表格和块级图片同样以整个顶层块为单位。
-- `WeftLayoutEngine.layout()` 接受可选 previous result。纯尾部追加与“最后一个顶层块持续增长”共用一条路径：递归比较规范化节点 ID、标签、文本、属性、inline style 和子节点顺序，取公共顶层前缀，从第一个变化块起重排。
+- `WeftLayoutEngine.layout()` 接受可选 previous result。纯尾部追加与“最后一个顶层块持续增长”共用一条路径：递归比较规范化节点 ID、标签、文本、属性、inline style 和子节点顺序，取公共顶层前缀，从第一个变化块起重排。（ADR 0046 修订：变化区之后另做反向扫描，形状相同且 id 可重映射的后缀块按共享垂直增量平移复用，中部编辑与头部插入不再整段重测。）
 - 复用嵌入现有 `_layoutChildren()`，不另建后缀布局算法。前缀仍依次参与样式解析、margin collapse、列表计数和 cursor 推进，只跳过递归测量与 TextPainter 创建；实际 left/top 与缓存不一致时立即停止复用。
 - 复用记录重新绑定当前快照节点，因此连续多轮快照不会退化为隔一轮全量。首版只复用原坐标片段，不做后缀平移或行级复用。
 
@@ -45,4 +45,4 @@ AI 流式内容通常由宿主逐 token 重新规范化完整 HTML 快照。此�
   同轮比较中位数约降低 79%（4.7 倍）；不同轮次受 JIT 与机器负载影响，保留全量对照避免只比较历史数字。基准新增 Full/Incremental 两个场景，CI 上限均按规则取 500ms 下限。
 
 - 新增 normalizer 前缀 NodeId 契约、8 项增量布局/像素测试、1 项连续 Surface Picture 复用测试及 2 个性能场景；weft_engine 常规测试增至 197 项。增量与干净全量结果对 size、boxes、命令、runs、links、文本索引、选区、caret、逐点命中和像素等价。
-- 限制：仍有 O(块数) 的快照 diff、样式解析、列表合并和文本索引重建；不支持 Float checkpoint、任意中部编辑的后缀平移、行级复用或布局虚拟化。这些留待后续画像驱动优化。
+- 限制：仍有 O(块数) 的快照 diff、样式解析、列表合并和文本索引重建（textIndex 已由 ADR 0044 按前缀增量重建；后缀平移已由 ADR 0046 交付——plain 路径，Float 文档与 lazy 路径除外）；不支持 Float checkpoint、行级复用或布局虚拟化。这些留待后续画像驱动优化。

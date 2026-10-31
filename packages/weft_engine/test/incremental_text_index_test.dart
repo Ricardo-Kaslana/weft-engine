@@ -112,14 +112,16 @@ void main() {
       'the replacement is much longer than the original paragraph.'
       '</p>${_richArticle(3, start: 3)}',
     );
-    expect(current.debugReusedBlockCount, 3);
+    // 3 prefix blocks + 4 suffix blocks shifted by the taller replacement
+    // (ADR 0046); the text index still rebuilds only the suffix (ADR 0044).
+    expect(current.debugReusedBlockCount, 7);
     expect(current.textIndex!.text, canonical.textIndex!.text);
     final seam = current.textIndex!.entries
         .firstWhere((entry) => entry.text.startsWith('第 2 段被替换'));
     expect(seam.globalStart, greaterThan(0));
   });
 
-  test('head insert cannot reuse and equals the full build', () {
+  test('a head insert reuses the shifted suffix with a full index rebuild', () {
     final previous = engine.layout(_normalize(_richArticle(3)), width: 360);
     addTearDown(previous.dispose);
     final (current, canonical) = expectStreamingIndexEquals(
@@ -127,7 +129,9 @@ void main() {
       '<p>置顶的新首段。Weft prepends content, so no prefix can be '
       'verified.</p>${_richArticle(3)}',
     );
-    expect(current.debugReusedBlockCount, 0);
+    // Blocks shift and reuse (ADR 0046); with an empty forward prefix the
+    // text index cannot reuse entries and rebuilds in full (ADR 0044).
+    expect(current.debugReusedBlockCount, 4);
     expect(current.textIndex!.text, canonical.textIndex!.text);
   });
 

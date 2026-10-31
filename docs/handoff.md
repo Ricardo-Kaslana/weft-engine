@@ -214,7 +214,7 @@ C0 兼容基线（ADR 0038）、C1 语义补全（ADR 0039）与 C2 ARIA 基础�
 
 C3 语义虚拟化（ADR 0041）已交付：Semantics 在 lazy 结果上组装窗口化语义，不再升级 full。D1 RTL（ADR 0042）已交付：块级基方向、lang→locale、语义 textDirection 透传；行内双向重排依赖 SkParagraph，中性字符行缘重排与竖排仍排除。后续候选：landmark/tab/menu/radio 族角色、`aria-level`/`aria-labelledby` 与可编辑 selection/caret 动作。注意：继续使用 describeSemanticsConfiguration/assembleSemanticsNode 的单表面模型；新增语义容器必须满足 Flutter 的严格父子校验（landmark/tab/menu/radio 族因校验不变量暂被拒绝，见 ADR 0040）。不要把静态文档伪装成 text field，也不要让语义节点持有旧 TextPainter。窗口化语义的规则（物化窗口精确、band 粗叶子、未测后缀缺位）见 ADR 0041，不要放宽为伪造未测块的节点。
 
-### D. 增量布局扩展（①② 已完成）
+### D. 增量布局扩展（①②③ 已完成）
 
 目标不变：在保持全量等价的前提下减少剩余 O(块数) 流式轮固定成本，或支持含 Float 文档与更多编辑形态。
 
@@ -224,7 +224,7 @@ ADR 0043 画像结论：快照 diff 近乎免费；textIndex 全量重建是流�
 
 ②逐行 probe 窗口化已交付（ADR 0045）：断行探测窗口约两行字符量起步、断点距窗口尾 margin=16、×2 直至段尾（fit 前缀单调保证窗口断点==全文本断点），run 前缀表二分定位；8000 字段落 764 → 11.1ms（−98.5%，二次方转线性）、floatWrap 6–9 → 4.8ms、float-plain 流式轮 385 → 239ms；「不重叠段落切换整段路径」被否决——两路径断行非等价是 ADR 0016 文档化现状，切换即改变输出。Float 家族剩余成本为逐行模型线性常数，跨快照行级缓存归入 ③ 之后的同族另案。
 
-**下一步 = ③ 后缀平移**（头部插入/中部编辑能力缺口：head-insert saving≈0、mid-edit 44–60%）。Float checkpoint 不再单独立项。方法与数据见 `docs/adr/0043-incremental-layout-profiling.md`、`docs/adr/0044-incremental-text-index.md`、`docs/adr/0045-windowed-line-break-probe.md`。
+**③ 后缀平移已交付（ADR 0046）**：中部编辑 21.6 → 2.3ms、头部插入 40.9 → 2.4ms（weft_live 形态 saving ≈0% → 93%）、mid-edit@1000 66.7 → 9.9ms；plain Float 文档不播种缓存故不参与，body 级 li 截断扫描。**画像三方向全部落地。下一步 = 「样式与状态跨快照」家族按画像另案**（走查样式解析 S=5.3ms@2000、lazy 准入走查、估算后缀重建、lazy 轮 textIndex 回退、k=0 头部插入的索引条目平移、跨快照行级缓存）。方法与数据见 `docs/adr/0043-incremental-layout-profiling.md`、`docs/adr/0044-incremental-text-index.md`、`docs/adr/0045-windowed-line-break-probe.md`、`docs/adr/0046-suffix-translation.md`。
 
 注意：不要把 ADR 0023/0025 的保守回退改成未验证的近似复用；文本索引的增量路径未命中即回退全量构建（ADR 0044 已实现该纪律），逐行路径的任何缓存同样不得近似未验证的断行结果。
 

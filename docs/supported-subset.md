@@ -123,7 +123,7 @@
 - 复用仍经过原块流的 margin collapse、列表计数和 cursor 计算；普通块、表格和块级图片以整个顶层块为单位，连续多轮快照可持续命中。
 - 几何与命令实例完全未变的前缀 chunk 保留 ui.Picture；同 id/src 的已解析图片跨快照保留。文本索引在流式新快照上按块 diff 前缀复用上一索引条目、只构建后缀，前置不满足（含 lazy 部分测量前缀、样式表变化）即回退全量重建（ADR 0044）；同快照的滚动 relayout 直接复用上一结果的索引实例（ADR 0031），命中索引随新快照更新。
 
-边界与限制：样式表、宽度、textScaler、换行规则或图片输入变化会全量回退；旧结果含 Float、body 直属 loose inline/text、空块折叠或未解析图片时不作为复用来源。尚不支持 Float checkpoint、后缀平移或行级复用。
+边界与限制：样式表、宽度、textScaler、换行规则或图片输入变化会全量回退；旧结果含 Float、body 直属 loose inline/text、空块折叠或未解析图片时不作为复用来源。变化区之后的后缀平移复用已交付（plain 路径，body 级 li 截断扫描，ADR 0046）；尚不支持 Float checkpoint、行级复用或布局虚拟化。
 
 ## 渐进式布局虚拟化
 

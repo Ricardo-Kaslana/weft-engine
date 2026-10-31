@@ -154,8 +154,12 @@ final class WeftLayoutEngine {
               styleCache: styleCache,
               onVisit: () => eligibilityVisits++,
             ));
-    final reusableBlocks = reusableState != null
-        ? const <int, WeftCachedLayoutBlock>{}
+    final _ReusableBlockMaps reusedMaps = reusableState != null
+        ? const (
+            prefix: <int, WeftCachedLayoutBlock>{},
+            suffix: <int, WeftCachedLayoutBlock>{},
+            ids: <int, int>{},
+          )
         : _reusableLayoutBlocks(
             document: document,
             previous: previous,
@@ -172,7 +176,9 @@ final class WeftLayoutEngine {
       images: images,
       lineBreakRules: lineBreakRules,
       body: body,
-      reusableBlocks: reusableBlocks,
+      reusableBlocks: reusedMaps.prefix,
+      suffixBlocks: reusedMaps.suffix,
+      suffixIds: reusedMaps.ids,
       viewportStart: lazy ? viewportStart : null,
       viewportEnd: lazy ? viewportEnd : null,
       focusOrdinal: lazy && focusNodeId != null
@@ -191,7 +197,7 @@ final class WeftLayoutEngine {
           styleResolver: context.styleResolver,
           previousCache: previousCache,
           previous: previous,
-          reusableBlocks: reusableBlocks,
+          reusableBlocks: reusedMaps.prefix,
         ) ??
         WeftTextIndex.build(
           document: document,
@@ -342,7 +348,21 @@ bool _sameLayoutInputs(
           lineBreakRules.lineEndProhibited);
 }
 
-Map<int, WeftCachedLayoutBlock> _reusableLayoutBlocks({
+/// The block diff's reusable maps: [prefix] holds the continuous forward
+/// match (`newChild.id -> old block`, positions and node ids expected
+/// unchanged) and [suffix] the backward match past the changed region —
+/// content-identical blocks the walk may reuse shifted by one shared
+/// vertical delta. Node ids are pre-order positions, so any node-count
+/// change in the middle shifts every suffix id: [ids] maps each suffix
+/// node's old id to its new id and the shifted clones re-map their nodeIds
+/// through it (ADR 0046).
+typedef _ReusableBlockMaps = ({
+  Map<int, WeftCachedLayoutBlock> prefix,
+  Map<int, WeftCachedLayoutBlock> suffix,
+  Map<int, int> ids,
+});
+
+_ReusableBlockMaps _reusableLayoutBlocks({
   required WeftDocumentSnapshot document,
   required WeftLayoutResult? previous,
   required double width,
@@ -356,7 +376,7 @@ Map<int, WeftCachedLayoutBlock> _reusableLayoutBlocks({
   if (cache != null && !identical(cache.tagRenderers, tagRenderers)) {
     // A different renderer set may paint custom tags differently; cached
     // blocks cannot be reused across the change.
-    return const <int, WeftCachedLayoutBlock>{};
+    return const (prefix: {}, suffix: {}, ids: {});
   }
   final oldBody = cache?.document.body;
   final newBody = document.body;
@@ -386,10 +406,10 @@ Map<int, WeftCachedLayoutBlock> _reusableLayoutBlocks({
       ) ||
       cache.blocks.length != cache.measuredPrefixLength ||
       (!allowLazy && cache.blocks.length != oldBody.children.length)) {
-    return const <int, WeftCachedLayoutBlock>{};
+    return const (prefix: {}, suffix: {}, ids: {});
   }
 
-  final result = <int, WeftCachedLayoutBlock>{};
+  final prefix = <int, WeftCachedLayoutBlock>{};
   final oldChildren = allowLazy
       ? oldBody.children.whereType<WeftElement>().toList()
       : oldBody.children;
@@ -409,9 +429,82 @@ Map<int, WeftCachedLayoutBlock> _reusableLayoutBlocks({
             !identical(block.element, oldChild))) {
       break;
     }
-    result[newChild.id] = block;
+    prefix[newChild.id] = block;
   }
-  return result;
+
+  // Suffix translation (ADR 0046): a second, backward pass maps unchanged
+  // trailing blocks past the change so the walk can reuse them shifted by
+  // one vertical delta instead of re-measuring them. Plain passes only —
+  // lazy seeding consumes the map as a continuous prefix and must not see
+  // entries after a gap. Every old block is mapped at most once: the scan
+  // stops where the forward match ends (k = prefix.length), so the two maps
+  // never share a new id.
+  final suffix = <int, WeftCachedLayoutBlock>{};
+  final suffixIds = <int, int>{};
+  if (!allowLazy && !sameSnapshot) {
+    var oldIndex = oldChildren.length - 1;
+    var newIndex = newChildren.length - 1;
+    final stop = prefix.length;
+    while (oldIndex >= stop && newIndex >= stop) {
+      final oldChild = oldChildren[oldIndex];
+      final newChild = newChildren[newIndex];
+      if (oldChild is! WeftElement || newChild is! WeftElement) {
+        break;
+      }
+      if (oldChild.tag == 'li' || newChild.tag == 'li') {
+        // Ordered-list markers are the one cross-block counter; their
+        // numbers are baked into the cached commands, so a shifted li
+        // could renumber wrongly.
+        break;
+      }
+      final block = cache.blocks[oldIndex];
+      if (!identical(block.element, oldChild)) {
+        break;
+      }
+      // Node ids shift with the middle's node count, so the pair compares
+      // shape only and collects the old->new id mapping the shifted clones
+      // need (ADR 0046).
+      final pairIds = <int, int>{};
+      if (!_sameNodeShape(oldChild, newChild, pairIds)) {
+        break;
+      }
+      suffix[newChild.id] = block;
+      suffixIds.addAll(pairIds);
+      oldIndex--;
+      newIndex--;
+    }
+  }
+  return (prefix: prefix, suffix: suffix, ids: suffixIds);
+}
+
+/// Shape equality of two subtrees, ignoring node ids (which are pre-order
+/// positions and shift with the changed middle) while collecting the
+/// old->new id pairs into [ids]. Mirrors `_sameNode`'s field comparisons
+/// exactly otherwise.
+bool _sameNodeShape(
+  WeftNode first,
+  WeftNode second,
+  Map<int, int> ids,
+) {
+  if (first is WeftText && second is WeftText) {
+    if (first.text != second.text) return false;
+    ids[first.id] = second.id;
+    return true;
+  }
+  if (first is! WeftElement || second is! WeftElement) return false;
+  if (first.tag != second.tag ||
+      !_sameStrings(first.attributes, second.attributes) ||
+      !_sameStrings(first.inlineStyle, second.inlineStyle) ||
+      first.children.length != second.children.length) {
+    return false;
+  }
+  ids[first.id] = second.id;
+  for (var i = 0; i < first.children.length; i++) {
+    if (!_sameNodeShape(first.children[i], second.children[i], ids)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 bool _sameNode(WeftNode first, WeftNode second) {
@@ -573,6 +666,8 @@ final class _LayoutContext {
     required this.images,
     required this.body,
     required this.reusableBlocks,
+    required this.suffixBlocks,
+    required this.suffixIds,
     this.viewportStart,
     this.viewportEnd,
     this.focusOrdinal,
@@ -601,6 +696,16 @@ final class _LayoutContext {
 
   /// Reusable top-level blocks carried over from the previous result.
   final Map<int, WeftCachedLayoutBlock> reusableBlocks;
+
+  /// Backward-matched blocks past the changed region (ADR 0046): content
+  /// the walk may reuse shifted by one shared vertical delta. Empty on lazy
+  /// passes.
+  final Map<int, WeftCachedLayoutBlock> suffixBlocks;
+
+  /// Old->new node id mapping for [suffixBlocks]; node ids are pre-order
+  /// positions and shift with the changed middle, so the shifted clones
+  /// re-map their nodeIds through it.
+  final Map<int, int> suffixIds;
 
   /// Viewport top in document coordinates; null disables lazy layout.
   final double? viewportStart;
@@ -653,6 +758,10 @@ final class _LayoutContext {
   /// Set when a block's reused position no longer matches, which invalidates
   /// positional reuse for every later top-level block.
   bool reuseStopped = false;
+
+  /// Vertical shift shared by the reused suffix blocks (ADR 0046); null
+  /// until the first shifted block fixes it.
+  double? suffixDelta;
 
   /// Debug counter of blocks copied from the previous result.
   int reusedBlockCount = 0;
@@ -763,25 +872,147 @@ final class _LayoutContext {
   }) {
     if (!identical(parent, body) || reuseStopped) return null;
     final block = reusableBlocks[child.id];
-    if (block == null) return null;
-    if (block.left != left || block.top != top) {
+    if (block != null) {
+      if (block.left != left || block.top != top) {
+        reuseStopped = true;
+        return null;
+      }
+      return _adoptBlock(
+        block: block,
+        child: child,
+        left: left,
+        top: top,
+        ordinal: ordinal,
+        floats: floats,
+        shift: ui.Offset.zero,
+        ids: null,
+      );
+    }
+    final suffixBlock = suffixBlocks[child.id];
+    if (suffixBlock == null) return null;
+    if (suffixBlock.left != left) {
+      // Horizontal positions must match exactly; only the flow's vertical
+      // position may shift.
       reuseStopped = true;
       return null;
     }
+    final delta = top - suffixBlock.top;
+    var sharedDelta = suffixDelta;
+    if (sharedDelta == null) {
+      // The first shifted block fixes the shared delta. No exclusion from
+      // the reused prefix or the fresh middle may reach the shifted region
+      // at either its old or its new start; suffix-internal floats move
+      // with their blocks, so their relative geometry is self-preserving.
+      if (floats.maxBottom > math.min(top, suffixBlock.top)) {
+        reuseStopped = true;
+        return null;
+      }
+      sharedDelta = delta;
+      suffixDelta = delta;
+    } else if (delta != sharedDelta) {
+      // Heights or margins diverged from the previous layout, so the shift
+      // is no longer provably uniform across the suffix.
+      reuseStopped = true;
+      return null;
+    }
+    return _adoptBlock(
+      block: suffixBlock,
+      child: child,
+      left: left,
+      top: top,
+      ordinal: ordinal,
+      floats: floats,
+      shift: ui.Offset(0, sharedDelta),
+      ids: suffixIds,
+    );
+  }
+
+  /// Adopts one reused block into this pass. With a zero [shift] the cached
+  /// command objects are carried over as-is (previous ownership semantics);
+  /// with a vertical shift every positioned output is cloned at its new
+  /// location — nodeIds re-mapped through [ids], because pre-order ids
+  /// shift with the changed middle — while the originals are registered in
+  /// [reusedCommands] so the previous result skips them on dispose and each
+  /// TextPainter is disposed exactly once, by this result's clones
+  /// (ADR 0046).
+  double? _adoptBlock({
+    required WeftCachedLayoutBlock block,
+    required WeftElement child,
+    required double left,
+    required double top,
+    required int? ordinal,
+    required _FloatContext floats,
+    required ui.Offset shift,
+    required Map<int, int>? ids,
+  }) {
+    final shifted = shift != ui.Offset.zero;
+    assert(!shifted || ids != null, 'shifted clones need the id mapping');
     final materialize = _shouldMaterialize(
-      top: block.top,
+      top: top,
       height: block.height,
-      paintBounds: block.paintBounds,
+      paintBounds: block.paintBounds.shift(shift),
       ordinal: ordinal,
     );
     if (isLazy && materialize && !block.materialized) return null;
-    floats.addExclusions(block.floatExclusions);
-    final blockCommands =
-        materialize ? block.commands : const <WeftPaintCommand>[];
-    final blockBoxes = materialize ? block.boxes : const <WeftLayoutBox>[];
-    final blockLinks = materialize ? block.links : const <WeftLinkRegion>[];
-    final blockTagRegions =
-        materialize ? block.tagRegions : const <WeftTagRegion>[];
+    // Build every cloned output before touching the walk state so an
+    // unmappable command could still fall back to a fresh layout.
+    final List<WeftFloatExclusion> shiftedExclusions;
+    final List<WeftPaintCommand> blockCommands;
+    final List<WeftLayoutBox> blockBoxes;
+    final List<WeftLinkRegion> blockLinks;
+    final List<WeftTagRegion> blockTagRegions;
+    if (!materialize) {
+      shiftedExclusions = block.floatExclusions;
+      blockCommands = const [];
+      blockBoxes = const [];
+      blockLinks = const [];
+      blockTagRegions = const [];
+    } else if (!shifted) {
+      shiftedExclusions = block.floatExclusions;
+      blockCommands = block.commands;
+      blockBoxes = block.boxes;
+      blockLinks = block.links;
+      blockTagRegions = block.tagRegions;
+    } else {
+      final map = ids!;
+      shiftedExclusions = <WeftFloatExclusion>[
+        for (final exclusion in block.floatExclusions)
+          WeftFloatExclusion(
+            side: exclusion.side,
+            rect: exclusion.rect.shift(shift),
+          ),
+      ];
+      blockCommands = <WeftPaintCommand>[
+        for (final command in block.commands)
+          _shiftCommand(command, shift, map),
+      ];
+      blockBoxes = <WeftLayoutBox>[
+        for (final box in block.boxes)
+          WeftLayoutBox(
+            nodeId: map[box.nodeId]!,
+            rect: box.rect.shift(shift),
+          ),
+      ];
+      blockLinks = <WeftLinkRegion>[
+        for (final link in block.links)
+          WeftLinkRegion(
+            nodeId: map[link.nodeId]!,
+            href: link.href,
+            text: link.text,
+            rects: [for (final rect in link.rects) rect.shift(shift)],
+          ),
+      ];
+      blockTagRegions = <WeftTagRegion>[
+        for (final region in block.tagRegions)
+          WeftTagRegion(
+            nodeId: map[region.nodeId]!,
+            tag: region.tag,
+            rect: region.rect.shift(shift),
+            label: region.label,
+          ),
+      ];
+    }
+    floats.addExclusions(shiftedExclusions);
     commands.addAll(blockCommands);
     boxes.addAll(blockBoxes);
     links.addAll(blockLinks);
@@ -790,21 +1021,64 @@ final class _LayoutContext {
       WeftCachedLayoutBlock(
         element: child,
         left: block.left,
-        top: block.top,
+        top: top,
         height: block.height,
         materialized: materialize,
-        paintBounds: block.paintBounds,
+        paintBounds: block.paintBounds.shift(shift),
         boxes: blockBoxes,
         commands: blockCommands,
         links: blockLinks,
         tagRegions: blockTagRegions,
-        floatExclusions: block.floatExclusions,
+        floatExclusions: shiftedExclusions,
       ),
     );
-    reusedCommands.addAll(blockCommands);
+    reusedCommands.addAll(block.commands);
     reusedBlockCount += 1;
     if (isLazy && materialize) materializedBlockCount += 1;
     return block.height;
+  }
+
+  /// Clones one command into the shifted suffix: same painter or image
+  /// resource, position moved by [shift], nodeId re-mapped from the old
+  /// pre-order position to the new one.
+  WeftPaintCommand _shiftCommand(
+    WeftPaintCommand command,
+    ui.Offset shift,
+    Map<int, int> ids,
+  ) {
+    final nodeId = ids[command.nodeId]!;
+    if (command is WeftTextPaintCommand) {
+      return WeftTextPaintCommand(
+        nodeId: nodeId,
+        painter: command.painter,
+        offset: command.offset + shift,
+        runs: [
+          for (final run in command.runs)
+            WeftTextPainterRun(
+              nodeId: ids[run.nodeId]!,
+              painterStart: run.painterStart,
+              painterEnd: run.painterEnd,
+              nodeStart: run.nodeStart,
+              nodeEnd: run.nodeEnd,
+            ),
+        ],
+      );
+    }
+    if (command is WeftRectPaintCommand) {
+      return WeftRectPaintCommand(
+        nodeId: nodeId,
+        rect: command.rect.shift(shift),
+        color: command.color,
+      );
+    }
+    if (command is WeftImagePaintCommand) {
+      return WeftImagePaintCommand(
+        nodeId: nodeId,
+        image: command.image,
+        destination: command.destination.shift(shift),
+      );
+    }
+    throw StateError('Unhandled paint command ${command.runtimeType}');
   }
 
   bool _shouldMaterialize({

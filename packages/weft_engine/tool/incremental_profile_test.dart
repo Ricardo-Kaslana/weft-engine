@@ -146,7 +146,9 @@ void _profileStreamingShapes(WeftLayoutEngine engine) {
         base,
         paragraphFor: (i) => i == base ~/ 2 ? _editedParagraph(i, round) : null,
       ),
-      expectedReused: (_, __) => base ~/ 2,
+      // ADR 0046: everything but the edited block comes back — prefix up
+      // to the edit, shifted suffix after it.
+      expectedReused: (_, previousChildren) => previousChildren - 1,
     );
     if (base == 300) {
       _runStreamingShape(
@@ -158,7 +160,9 @@ void _profileStreamingShapes(WeftLayoutEngine engine) {
             '<p>置顶快讯第 $round 轮。Weft streaming prepends a fresh block '
             'above unchanged content, so the first top-level block already '
             'differs.</p>${_plainArticleHtml(base)}',
-        expectedReused: (_, __) => 0,
+        // ADR 0046: every previous block returns as the shifted suffix
+        // except the per-round top paragraph, whose text differs each round.
+        expectedReused: (_, previousChildren) => previousChildren - 1,
       );
     }
     _runStreamingShape(

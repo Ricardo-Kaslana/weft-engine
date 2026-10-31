@@ -271,7 +271,9 @@ void main() {
     addTearDown(rulesChanged.dispose);
     addTearDown(rulesCanonical.dispose);
 
-    expect(insertedLayout.debugReusedBlockCount, 0);
+    // The inserted heading pushes both old blocks into the shifted suffix
+    // (ADR 0046); scaled and rules changes still disable reuse entirely.
+    expect(insertedLayout.debugReusedBlockCount, 2);
     expect(scaled.debugReusedBlockCount, 0);
     expect(rulesChanged.debugReusedBlockCount, 0);
     _expectLayoutEquals(insertedLayout, insertedCanonical);
