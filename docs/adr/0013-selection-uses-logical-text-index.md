@@ -11,7 +11,7 @@
 
 ### 逻辑文本索引（`WeftTextIndex`）
 
-- 每次布局时从文档快照构建，随布局结果分发（`WeftLayoutResult.textIndex`），不跨快照缓存。
+- 每次布局时从文档快照构建，随布局结果分发（`WeftLayoutResult.textIndex`），不跨快照缓存。（ADR 0044 修订：流式新快照按块 diff 前缀复用上一索引条目、只构建后缀，前置不满足即回退全量构建。）
 - 每个文本节点产生一个条目，携带节点 painted 文本（`white-space: normal` 折叠空白，`pre` 保留原样）、节点 ID 和全局偏移。
 - 换行语义与绘制一致：`<br>` 贡献一个换行，块边界贡献一个换行（跨嵌套块幂等），流首/断点后的空白不进入索引，流尾空白在构建后裁剪。
 - 锚点无法定位（节点不存在或无 painted 文本）时，`order/between/textBetween` 返回空，选择被安全清除而不是钳制到错误位置。

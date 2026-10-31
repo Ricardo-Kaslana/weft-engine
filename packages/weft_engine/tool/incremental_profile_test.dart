@@ -70,6 +70,12 @@ void main() {
 /// each measured directly through public (or same-package) entry points. The
 /// residual — the part of the round not covered by the four components — is
 /// printed so the identity can be checked instead of assumed.
+///
+/// Since ADR 0044 the new-snapshot round itself reuses the text index
+/// prefix, so `newSnapshotMs` no longer contains the full-build
+/// `textIndexMs`; the round should instead be close to floorMs +
+/// styleResolveMs (the walk's own resolve-all) + a suffix-only index build.
+/// The identity reading applies to fallback rounds only.
 void _profileDecomposition(WeftLayoutEngine engine) {
   for (final n in const [300, 1000, 2000]) {
     final html = _articleHtml(n);

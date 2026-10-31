@@ -72,7 +72,7 @@ flowchart TB
 - `WeftView` 使用内部 `SingleChildScrollView`；在简单文档中把 250px overscan 视窗传给 RenderWeftSurface，只物化可见顶层块，复杂文档和需要完整几何的 selection 走 canonical full。Semantics 直接在 lazy 结果上组装窗口化语义（ADR 0041），不再触发升级。
 - 文本缩放来自 `MediaQuery`，背景和文本命令在单一表面内按顺序绘制。块级基方向来自 `dir` 属性（`auto` 经 first-strong 检测）或 CSS `direction`，驱动 TextPainter 方向与起始对齐、列表缩进/marker 镜像与 caret 行内首侧；`lang` 转为 TextPainter locale（缺省 `zh`），行内双向重排由 SkParagraph 承担（ADR 0042）。
 
-绘制、命中、选择和 Semantics 已按各自契约实现；WeftView lazy 路径对简单块流按窗口物化，复杂块流回退完整布局。未测滚动高度是渐进估算；深跳与深 seed 由表面逐帧预算推进（每帧至多新测 32 个顶层块，ADR 0031），窗口外的尾部块保持估算。同快照的滚动 relayout 复用上一结果的节点 diff 结论、跨帧样式缓存与文本索引实例，不重建样式或逻辑文本。ADR 0036 进一步持有块流元数据与保守绘制区间索引，直接物化已测窗口、增量维护后缀估算；body 格式化空白保留在快照但不进入块流，Float 从已测排除区恢复。像素深跳测量期间，WeftView 可用宿主的 `lazySettlingBuilder` 覆盖视口，并通过 post-frame 的 `onLazySettlingChanged` / `WeftViewState.isLazySettling` 报告起止（ADR 0037）；引擎不绘制占位、不伪造未测量块。超高顶层块、表内行与图片解码资源仍不细分虚拟化。
+绘制、命中、选择和 Semantics 已按各自契约实现；WeftView lazy 路径对简单块流按窗口物化，复杂块流回退完整布局。未测滚动高度是渐进估算；深跳与深 seed 由表面逐帧预算推进（每帧至多新测 32 个顶层块，ADR 0031），窗口外的尾部块保持估算。同快照的滚动 relayout 复用上一结果的节点 diff 结论、跨帧样式缓存与文本索引实例，不重建样式或逻辑文本；流式新快照的文本索引按块 diff 前缀增量重建，未命中回退全量（ADR 0044）。ADR 0036 进一步持有块流元数据与保守绘制区间索引，直接物化已测窗口、增量维护后缀估算；body 格式化空白保留在快照但不进入块流，Float 从已测排除区恢复。像素深跳测量期间，WeftView 可用宿主的 `lazySettlingBuilder` 覆盖视口，并通过 post-frame 的 `onLazySettlingChanged` / `WeftViewState.isLazySettling` 报告起止（ADR 0037）；引擎不绘制占位、不伪造未测量块。超高顶层块、表内行与图片解码资源仍不细分虚拟化。
 
 ## 5. 选择模型
 
@@ -80,7 +80,7 @@ flowchart TB
 
 块边界与 `<br>` 的换行语义由文档规范统一规定。复制从逻辑模型读取，布局更新后重映射选区；无法映射时安全清除，禁止越界保留。
 
-当前已建立 `TextAnchor`/`TextSelectionRange` 值类型、渲染表面的选择失效入口和绘制层。布局时构建逻辑文本索引（ADR 0013）：每个文本节点一个条目、块边界与 `<br>` 产出换行、锚点无法映射时安全清除。绘制命令携带 painter 文本到节点文本的 run 映射，`WeftLayoutResult.selectionRects/selectionText` 分别给出视觉矩形与复制文本，表面绘制半透明选区高亮。手势定位锚点已交付（ADR 0015/0019）：长按选词、拖拽扩展、点击放置 caret 与选区把手/复制按钮由视图层实现。
+当前已建立 `TextAnchor`/`TextSelectionRange` 值类型、渲染表面的选择失效入口和绘制层。布局时构建逻辑文本索引（ADR 0013）：每个文本节点一个条目、块边界与 `<br>` 产出换行、锚点无法映射时安全清除；流式新快照按块 diff 前缀增量重建、未命中回退全量（ADR 0044）。绘制命令携带 painter 文本到节点文本的 run 映射，`WeftLayoutResult.selectionRects/selectionText` 分别给出视觉矩形与复制文本，表面绘制半透明选区高亮。手势定位锚点已交付（ADR 0015/0019）：长按选词、拖拽扩展、点击放置 caret 与选区把手/复制按钮由视图层实现。
 
 ## 6. JavaScript 安全域（阶段 4 已交付，ADR 0033）
 

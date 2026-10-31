@@ -8,7 +8,7 @@
 ADR 0025 的懒布局只连续推进 `measuredPrefixLength`，冷跳底部会在一帧内同步测量整个前缀；ADR 0029 只给锚点导航加了分帧。本机画像（360px 视口、800px 视口高、250px overscan，1 次预热 + 5 次采样取中位数）量化了两个成本：
 
 - 冷跳估算底部：300 块文章单帧 124.8ms，1000 块 149.6ms——全部前缀块在同一帧内递归排版。
-- 已测满前缀后的滚动重排：每帧 6ms（300 块）～10ms（1000 块），随块数线性增长。成本由三部分构成：`_reusableLayoutBlocks` 对每棵子树的递归 `_sameNode` 比较、`_supportsLazyLayout` 与块走查中逐元素重复的选择器匹配（无缓存）、`WeftTextIndex` 全量重建。
+- 已测满前缀后的滚动重排：每帧 6ms（300 块）～10ms（1000 块），随块数线性增长。成本由三部分构成：`_reusableLayoutBlocks` 对每棵子树的递归 `_sameNode` 比较、`_supportsLazyLayout` 与块走查中逐元素重复的选择器匹配（无缓存）、`WeftTextIndex` 全量重建。（ADR 0044 修订：流式新快照的索引重建已按前缀复用消除，滚动重排路径不变。）
 
 ## 决策
 
@@ -23,7 +23,7 @@ ADR 0025 的懒布局只连续推进 `measuredPrefixLength`，冷跳底部会在
 
 - `identical(cache.document, document)` 时跳过递归节点 diff 与样式表签名比较：同一快照实例的树、属性与样式表就是同一对象，逐节点比较是纯冗余。流式更新（新快照实例）仍走完整 diff。
 - `WeftIncrementalLayoutCache` 新增 `styleCache`（元素身份 → `WeftComputedStyle`）。计算样式只由快照决定（宽度、缩放、图片不参与），因此只要快照实例未变，样式缓存跨帧有效；宽度或 textScaler 变化仍可复用样式，仅重建几何。同一元素在单次布局内也只解析一次（`outerMarginTop/Bottom`、`_isSelfCollapsing`、`_isInlineEmpty` 的重复探测全部命中缓存）。
-- 同快照的 relayout 直接复用 `previous.textIndex` 实例；逻辑文本索引只依赖快照内容，逐帧重建是纯浪费。
+- 同快照的 relayout 直接复用 `previous.textIndex` 实例；逻辑文本索引只依赖快照内容，逐帧重建是纯浪费。（ADR 0044 修订：同内容新快照进一步按块 diff 前缀复用条目。）
 
 ### 等价性论证
 

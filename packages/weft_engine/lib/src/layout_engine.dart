@@ -122,7 +122,9 @@ final class WeftLayoutEngine {
     // (its stylesheet and text are part of it), never on width, text scaling
     // or images. When the snapshot instance is unchanged, the previous
     // result's caches stay valid and the relayout skips their O(document)
-    // rebuilds; a new snapshot invalidates both.
+    // rebuilds; a streaming snapshot rebuilds the text index incrementally
+    // from the block diff's verified prefix (ADR 0044) and falls back to the
+    // full build whenever that prefix cannot be trusted.
     final previousCache = previous?.incrementalCache;
     final sameSnapshot =
         previousCache != null && identical(previousCache.document, document);
@@ -183,6 +185,14 @@ final class WeftLayoutEngine {
     );
     final reusedTextIndex = sameSnapshot ? previous?.textIndex : null;
     final textIndex = reusedTextIndex ??
+        _incrementalTextIndex(
+          document: document,
+          body: body,
+          styleResolver: context.styleResolver,
+          previousCache: previousCache,
+          previous: previous,
+          reusableBlocks: reusableBlocks,
+        ) ??
         WeftTextIndex.build(
           document: document,
           styleResolver: context.styleResolver,
@@ -269,6 +279,49 @@ final class WeftLayoutEngine {
     }
     return result;
   }
+}
+
+/// Builds the streaming snapshot's text index from the previous index's
+/// verified prefix, or returns null when that prefix cannot be trusted and
+/// the caller must fall back to the full build (ADR 0044).
+///
+/// The block diff in [reusableBlocks] verified its prefix by recursive
+/// `_sameNode` comparison, which covers every descendant's id, text and
+/// attributes; the entry model is a pure function of exactly those inputs
+/// plus the stylesheet (already signature-compared before the diff ran).
+/// The prefix only aligns with the index's per-block checkpoints when the
+/// previous cache covered the whole body: a partially measured lazy cache
+/// verified just its measured window through element-filtered lists, so it
+/// falls back to the full build.
+WeftTextIndex? _incrementalTextIndex({
+  required WeftDocumentSnapshot document,
+  required WeftElement body,
+  required WeftStyleResolver styleResolver,
+  required WeftIncrementalLayoutCache? previousCache,
+  required WeftLayoutResult? previous,
+  required Map<int, WeftCachedLayoutBlock> reusableBlocks,
+}) {
+  if (previousCache == null || reusableBlocks.isEmpty) return null;
+  final previousBody = previousCache.document.body;
+  final previousIndex = previous?.textIndex;
+  if (previousBody == null || previousIndex == null) return null;
+  final previousChildren = previousBody.children.length;
+  if (previousCache.blocks.length != previousChildren ||
+      previousIndex.checkpointCount != previousChildren) {
+    return null;
+  }
+  var reused = 0;
+  for (final child in body.children) {
+    if (!reusableBlocks.containsKey(child.id)) break;
+    reused++;
+  }
+  if (reused == 0 || reused > previousIndex.checkpointCount) return null;
+  return WeftTextIndex.buildIncremental(
+    document: document,
+    styleResolver: styleResolver,
+    previous: previousIndex,
+    reusedTopLevelBlocks: reused,
+  );
 }
 
 bool _sameLayoutInputs(

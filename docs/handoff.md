@@ -28,7 +28,7 @@
 - 移动端原生构建（ADR 0035）：`weft_quickjs` 声明为 ffiPlugin；Android 模块用 CMake 就地编出 `libweft_quickjs.so`（16 KB 页对齐、只导出 `weft_*`），iOS pod 把垫片静态编进 app image 并用 ObjC 锚点防止 dead-strip；加载器按平台分派，显式路径可覆盖。
 
 请继续下一个切片，优先级如下：
-1. D1 RTL/语言属性已完成（ADR 0042）：`dir`/`lang` 白名单、块级基方向（含 `dir=auto` first-strong 检测与 CSS `direction`）、RTL 对齐/断行/列表镜像/caret 边缘、lang→locale、语义 textDirection 透传；`rtl_paragraph` Chrome 几何参考钉住方向边缘。C3 语义虚拟化（ADR 0041）、C2 ARIA 基础（ADR 0040）、C1（ADR 0039）、C0（ADR 0038）与 B2（ADR 0037）此前已完成。**增量布局画像已完成（ADR 0043）：diff 近乎免费（≤1.7ms@2200 块），textIndex 重建是流式轮最大纯开销（56–81%），头部插入（weft_live 形态）零复用，Float checkpoint 降级（lazy+图片 Float 已被 ADR 0036 覆盖，plain 成本在逐行路径 30× 常数与段内 O(n²)）。下一步 = 文本索引增量（跨快照前缀复用），其后按数据排序为逐行路径增量化、后缀平移；不要再改 layout/overscan、重复后端 A/B，或把遮罩当成零空白；禁止把桌面 layoutViewport 画像当真机帧耗时。**
+1. D1 RTL/语言属性已完成（ADR 0042）：`dir`/`lang` 白名单、块级基方向（含 `dir=auto` first-strong 检测与 CSS `direction`）、RTL 对齐/断行/列表镜像/caret 边缘、lang→locale、语义 textDirection 透传；`rtl_paragraph` Chrome 几何参考钉住方向边缘。C3 语义虚拟化（ADR 0041）、C2 ARIA 基础（ADR 0040）、C1（ADR 0039）、C0（ADR 0038）与 B2（ADR 0037）此前已完成。**增量布局画像已完成（ADR 0043），①文本索引增量已落地（ADR 0044）：流式新快照轮消除 textIndex 全量重建（U(2000) 19.5–23.1ms → 8.8ms，−60%；appendArticle300Incremental 7.1 → 5.8–6.0ms），lazy 部分前缀/头部插入/样式表变化保守回退全量。下一步 = ② 逐行路径增量化/行级复用（Float 家族：单段 8000 字 764ms、Float 文章流式轮 330ms），其后 ③ 后缀平移；流式轮剩余 O(doc) 主导成分已是走查样式解析（S=5.3ms@2000，与 lazy 准入/估算重建同族）。不要再改 layout/overscan、重复后端 A/B，或把遮罩当成零空白；禁止把桌面 layoutViewport 画像当真机帧耗时。**
 2. 语义真机抽查：C1 只在 `SemanticsOwner` 层验证 headingLevel/liveRegion 标志，尚未在 TalkBack/Web 读屏上验收播报；若产品需要，按 JNY-AL10 手动验证标题导航和 live region 播报并记录到 device-matrix。
 3. 深跳尖峰定性：ADR 0036 复测已把 FrameTiming 拆成 build/raster，~313ms 尖峰未复现且全程无 >50ms 帧；若再现，按 §4.4 的 build/raster 方法继续定位。
 4. iOS 构建与真机验证（**暂缓**：暂无 macOS 环境）：按 docs/device-matrix.md §2.2 清单执行；未验证前 iOS 不得宣称可用，发布说明要写明缺席。
@@ -214,15 +214,17 @@ C0 兼容基线（ADR 0038）、C1 语义补全（ADR 0039）与 C2 ARIA 基础�
 
 C3 语义虚拟化（ADR 0041）已交付：Semantics 在 lazy 结果上组装窗口化语义，不再升级 full。D1 RTL（ADR 0042）已交付：块级基方向、lang→locale、语义 textDirection 透传；行内双向重排依赖 SkParagraph，中性字符行缘重排与竖排仍排除。后续候选：landmark/tab/menu/radio 族角色、`aria-level`/`aria-labelledby` 与可编辑 selection/caret 动作。注意：继续使用 describeSemanticsConfiguration/assembleSemanticsNode 的单表面模型；新增语义容器必须满足 Flutter 的严格父子校验（landmark/tab/menu/radio 族因校验不变量暂被拒绝，见 ADR 0040）。不要把静态文档伪装成 text field，也不要让语义节点持有旧 TextPainter。窗口化语义的规则（物化窗口精确、band 粗叶子、未测后缀缺位）见 ADR 0041，不要放宽为伪造未测块的节点。
 
-### D. 增量布局扩展（画像完成，方向已选）
+### D. 增量布局扩展（① 文本索引已完成）
 
 目标不变：在保持全量等价的前提下减少剩余 O(块数) 流式轮固定成本，或支持含 Float 文档与更多编辑形态。
 
-ADR 0043 画像结论：快照 diff 近乎免费；textIndex 全量重建是所有形态、两种宿主共有的最大单开销（新快照轮 56–81%）；样式解析每轮发生 2–3 遍（textIndex 内部直连 resolver 一遍 + lazy 准入 + 布局走查）；形态阶梯为尾部追加/增长（saving 84–93%）≪ 中部编辑（44–60%）< 头部插入（≈0，weft_live 实际形态）；lazy 宿主流式轮的 O(doc) 三件套 = 准入走查 + 估算后缀重建 + textIndex。方法、数据与决策见 `docs/adr/0043-incremental-layout-profiling.md`。
+ADR 0043 画像结论：快照 diff 近乎免费；textIndex 全量重建是流式轮最大纯开销（56–81%）；形态阶梯为尾部追加/增长 ≪ 中部编辑 < 头部插入（≈0，weft_live 实际形态）；lazy 宿主流式轮的 O(doc) 三件套 = 准入走查 + 估算后缀重建 + textIndex。
 
-实施顺序：① 文本索引增量（跨快照前缀复用：条目是快照纯函数、节点 id 跨同内容快照稳定——`_sameNode` 已依赖该事实；尾部追加逐字复用前缀条目仅构建后缀，守卫为与全量重建逐条目相等的结构测试）→ ② 逐行路径增量化/行级复用（Float 家族，画像中绝对值最大：单段 8000 字 764ms、Float 文章流式轮 340ms）→ ③ 后缀平移（头部插入/中部编辑能力缺口）。Float checkpoint 不再单独立项。
+①文本索引增量已交付（ADR 0044）：流式新快照按块 diff 前缀复用条目、只构建后缀；共享 walker + 每顶层块 checkpoint + 尾 trim 还原；lazy 部分测量前缀、头部插入（k=0）、样式表变化全部保守回退全量；等价由增量 vs canonical 逐条目相等测试与加严的 `_expectLayoutEquals` 守护。U(2000) −60%，appendArticle300Incremental 7.1 → 5.8–6.0ms。流式轮剩余 O(doc) 主导成分 = 走查样式解析（S=5.3ms@2000），与 lazy 准入走查/估算后缀重建同属「样式与状态跨快照」家族。
 
-注意：不要把 ADR 0023/0025 的保守回退改成未验证的近似复用；增量 textIndex 不得近似未测后缀条目，未命中即回退全量构建。
+实施顺序：**下一步 = ② 逐行路径增量化/行级复用**（Float 家族，画像中绝对值最大：单段 8000 字 764ms、Float 文章流式轮 330ms、逐行常数 ~30×/段——probe 每行重塑全部剩余文本是 O(n²) 根源，inline_flow `_InlineAccumulator.buildLines`）→ ③ 后缀平移（头部插入/中部编辑能力缺口）。Float checkpoint 不再单独立项。方法与数据见 `docs/adr/0043-incremental-layout-profiling.md`、`docs/adr/0044-incremental-text-index.md`。
+
+注意：不要把 ADR 0023/0025 的保守回退改成未验证的近似复用；文本索引的增量路径未命中即回退全量构建（ADR 0044 已实现该纪律），逐行路径的任何缓存同样不得近似未验证的断行结果。
 
 ## 常见误区
 

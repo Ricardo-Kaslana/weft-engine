@@ -360,6 +360,39 @@ void _expectLayoutEquals(WeftLayoutResult actual, WeftLayoutResult expected) {
     expect(actual.links[i].rects, expected.links[i].rects);
   }
   expect(actual.textIndex?.text, expected.textIndex?.text);
+  _expectTextIndexEquals(actual.textIndex, expected.textIndex);
+}
+
+/// Entry-for-entry text index equality (ADR 0044): the incremental rebuild
+/// must produce the same nodeIds, painted texts and global offsets as the
+/// canonical full build.
+void _expectTextIndexEquals(
+  WeftTextIndex? actual,
+  WeftTextIndex? expected,
+) {
+  if (actual == null || expected == null) {
+    expect(actual, isNull);
+    expect(expected, isNull);
+    return;
+  }
+  expect(actual.entries, hasLength(expected.entries.length));
+  for (var i = 0; i < actual.entries.length; i++) {
+    expect(actual.entries[i].nodeId, expected.entries[i].nodeId,
+        reason: 'entry $i nodeId');
+    expect(actual.entries[i].text, expected.entries[i].text,
+        reason: 'entry $i text');
+    expect(actual.entries[i].globalStart, expected.entries[i].globalStart,
+        reason: 'entry $i globalStart');
+  }
+  expect(actual.entryByNode, hasLength(expected.entryByNode.length));
+  for (final entry in expected.entries) {
+    final other = actual.entryByNode[entry.nodeId];
+    expect(other, isNotNull, reason: 'entry for node ${entry.nodeId}');
+    expect(other!.globalStart, entry.globalStart);
+    expect(other.text, entry.text);
+  }
+  expect(actual.length, expected.length);
+  expect(actual.text, expected.text);
 }
 
 Map<int, ui.Image> _imagesFor(WeftDocumentSnapshot document, ui.Image image) {

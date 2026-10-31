@@ -113,6 +113,7 @@
 - 语义虚拟化（ADR 0041）：Semantics 不再触发 lazy→full 升级，直接在 lazy 结果上组装窗口化语义；语义开启的冷深跳进入 settling。
 - RTL/语言属性（ADR 0042）：dir/lang 白名单、块级基方向（auto first-strong + CSS direction）、RTL 对齐/断行/列表镜像/caret 边缘、lang→locale；新增 rtl_paragraph Chrome 几何参考与第 22 个规范化向量。
 - 增量布局画像（ADR 0043）：新工具 `tool/incremental_profile_test.dart` 把流式轮分解为 diff/样式/textIndex/复用走查（textIndex 占 56–81%、diff 近乎免费），测得形态阶梯（尾部追加 84–93% saving、中部编辑 44–60%、头部插入 ≈0）与 Float 逐行路径成本（30× 常数 + 段内 O(n²)）；决策下一方向为文本索引增量，引擎零改动、523 项测试不变。
+- 文本索引前缀复用（ADR 0044）：流式新快照按块 diff 前缀复用索引条目、只构建后缀（共享 walker + 每块 checkpoint + 尾 trim 还原；lazy 部分前缀/头部插入/样式表变化回退全量）；新快照轮 U(2000) 19.5–23.1 → 8.8ms（−60%），appendArticle300Incremental 同机对照 7.1 → 5.8–6.0ms；增量 vs 全量逐条目相等测试守护，测试 523 → 537。
 
 ## 并行规则
 
