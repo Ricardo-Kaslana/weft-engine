@@ -358,7 +358,7 @@ void main() {
     controller.dispose();
   }, semanticsEnabled: false);
 
-  testWidgets('Semantics upgrade forces full layout and hides the overlay',
+  testWidgets('Semantics keeps lazy deep jumps settling with the overlay',
       (tester) async {
     final semantics = tester.ensureSemantics();
     final controller = _controller(120);
@@ -376,13 +376,24 @@ void main() {
     final render = tester.renderObject<RenderWeftSurface>(
       find.byType(WeftSurface),
     );
+    final state = viewKey.currentState!;
+    // ADR 0041: semantics no longer upgrades to a full layout, so a deep
+    // jump with a screen reader active settles through the host overlay.
     scroll.jumpTo(15000);
     await tester.pump();
+    expect(render.debugFullLayoutRequired, isFalse);
+    expect(render.debugLayout!.debugIsLazy, isTrue);
+    expect(render.isLazySettling, isTrue);
+    expect(state.isLazySettling, isTrue);
+    expect(values, [true]);
     await tester.pump();
-    expect(render.debugFullLayoutRequired, isTrue);
-    expect(viewKey.currentState!.isLazySettling, isFalse);
-    expect(values, isEmpty);
+    expect(find.byKey(_overlayKey), findsOneWidget);
+
+    await _settle(tester);
+    expect(render.isLazySettling, isFalse);
+    expect(state.isLazySettling, isFalse);
     expect(find.byKey(_overlayKey), findsNothing);
+    expect(values, [true, false]);
 
     scroll.dispose();
     controller.dispose();

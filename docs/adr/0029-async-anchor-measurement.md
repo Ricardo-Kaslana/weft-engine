@@ -19,7 +19,7 @@ ADR 0027 的 focus 锚点能在一次同步布局中精确测到目标块，但�
 
 - `RenderWeftSurface.measureAnchorAsync` 先做与同步查询相同的完整 textIndex 校验和已物化快查。
 - 需要分帧时，每个 post-frame 执行一次带 focus + budget 的 `layoutViewport`，替换并 dispose previous、markNeedsLayout，然后等待 `endOfFrame` 进入下一 pass。当前滚动 offset 和窗口命令保持不变，因此测量期间用户仍看到原内容，没有空白目标页。
-- 达到目标 prefixed ordinal 且矩形可解析时完成；无进展、文档 id/revision 变化、selection/Semantics 强制 full、下一次请求或 dispose 都会使旧请求返回 null。
+- 达到目标 prefixed ordinal 且矩形可解析时完成；无进展、文档 id/revision 变化、selection 强制 full、下一次请求或 dispose 都会使旧请求返回 null。（ADR 0041 修订：Semantics 不再强制 full，语义开启会话中异步测量照常分帧。）
 - 引擎 full fallback 仍设置粘滞 full；普通复杂文档不分帧。
 
 ### ViewState API

@@ -138,7 +138,7 @@ void main() {
     semantics.dispose();
   });
 
-  testWidgets('offscreen content remains semantic and scrolls into view', (
+  testWidgets('windowed semantics keep offscreen content and scroll to it', (
     tester,
   ) async {
     final semantics = tester.ensureSemantics();
@@ -168,18 +168,26 @@ void main() {
       ),
     );
 
-    final target = find.semantics.byLabel(
-      'Paragraph 39 accessibility scroll body text.',
-    );
-    expect(target, findsOneWidget);
+    // ADR 0041: the unmeasured suffix has no semantics node yet, while the
+    // measured window keeps offscreen content semantic.
+    const farLabel = 'Paragraph 39 accessibility scroll body text.';
+    const headLabel = 'Paragraph 0 accessibility scroll body text.';
+    expect(find.semantics.byLabel(farLabel), findsNothing);
+    expect(find.semantics.byLabel(headLabel), findsOneWidget);
     expect(scroll.offset, 0);
+
+    scroll.jumpTo(600);
+    await tester.pumpAndSettle();
+    // Paragraph 0 is measured but dematerialized; inside the coarse band it
+    // stays reachable as a per-block leaf and showOnScreen scrolls to it.
+    final target = find.semantics.byLabel(headLabel);
+    expect(target, findsOneWidget);
     tester.semantics.showOnScreen(target);
     await tester.pumpAndSettle();
 
-    expect(scroll.offset, greaterThan(0));
-    expect(tester.getTopLeft(find.byType(WeftSurface)).dy, lessThan(0));
+    expect(scroll.offset, lessThan(100));
     expect(
-      target.evaluate().single,
+      find.semantics.byLabel(headLabel).evaluate().single,
       containsSemantics(isHidden: false),
     );
 

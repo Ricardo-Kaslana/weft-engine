@@ -14,7 +14,7 @@
 1. **宿主拥有遮罩，引擎不画占位。** `WeftView` 新增 `lazySettlingBuilder`，在视口上方渲染宿主提供的静态占位（骨架、品牌加载态等），用 `IgnorePointer` 包住，不影响滚动与点击。未配置 builder 时保持原有“渐进填充/空白”行为，树结构与黄金基线不变。
 2. **引擎提供可靠的 settling 信号。** `RenderWeftSurface` 新增只读 `isLazySettling` 与 `onLazySettlingChanged`；`WeftView` 转发为 `onLazySettlingChanged` 并提供 `WeftViewState.isLazySettling`。回调只在 post-frame 触发，相同值去重；不额外调度帧。
 3. **判定只覆盖真正的分帧测量。** 在 `performLayout` 末尾，满足 `useLazy && current.debugIsLazy && measureBudget != null && _needsLazyRelayout()` 时置 true。近 frontier 的同步滚动、已测量窗口、异步锚点测量不会触发；底部跟随在窗口物化前保持 true。
-4. **生命周期收敛。** `_exitLazyMode()` 统一复位（选择/Semantics full 升级、禁用 lazy、视口高度失效、文档 id 变化、锚点测量等）；`dispose()` 先清回调再复位；`detach()` 静默复位；晚期安装回调且当前 settling 时补报一次 true。`WeftView` 在文档替换/控制器切换时以 post-frame false 收尾，新的 settling 会取消过期的 false。
+4. **生命周期收敛。** `_exitLazyMode()` 统一复位（选择 full 升级、禁用 lazy、视口高度失效、文档 id 变化、锚点测量等；ADR 0041 修订：Semantics 不再触发 full 升级，语义开启的深跳会正常进入 settling）；`dispose()` 先清回调再复位；`detach()` 静默复位；晚期安装回调且当前 settling 时补报一次 true。`WeftView` 在文档替换/控制器切换时以 post-frame false 收尾，新的 settling 会取消过期的 false。
 5. **不改布局。** `_lazyMeasureBudget`、overscan、`layoutViewport`、`_layoutLazyChildren`、continuation 时序与后端选择全部保持原样；遮罩不伪造任何未测量块的绘制命令或位置。
 6. **示例接入。** `example/weft_live` 传入静态主题色骨架，并新增“跳到文末”直接跳转入口。该示例的正文包在单个 `.content` 顶层块中，懒布局无法在块内切窗，因此示例测试注入 300 个顶层段落来验证 wiring；异步章节导航仍走 `scrollToNodeAsync`，全程不显示骨架。
 

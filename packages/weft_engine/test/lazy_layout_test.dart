@@ -354,7 +354,7 @@ void main() {
     expect(render.debugLayout!.debugIsLazy, isTrue);
   });
 
-  test('semantics assembly upgrades a lazy layout to canonical full', () {
+  test('semantics assembly stays on the lazy layout', () {
     final document = _article(80);
     final render = RenderWeftSurface(
       document: document,
@@ -373,9 +373,10 @@ void main() {
       const <SemanticsNode>[],
     );
 
-    expect(render.debugFullLayoutRequired, isTrue);
-    expect(render.debugFullLayoutReason, 'semantics');
-    expect(render.debugLayout!.debugIsLazy, isFalse);
+    // ADR 0041: semantics no longer upgrades the layout; the fragments
+    // cover the measured window on the live lazy result.
+    expect(render.debugFullLayoutRequired, isFalse);
+    expect(render.debugLayout!.debugIsLazy, isTrue);
   });
 
   test('height-only blocks stay materialized without relayout', () {

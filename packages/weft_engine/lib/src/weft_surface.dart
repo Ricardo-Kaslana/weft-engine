@@ -1053,16 +1053,35 @@ class RenderWeftSurface extends RenderBox {
     SemanticsConfiguration config,
     Iterable<SemanticsNode> children,
   ) {
-    _ensureFullLayoutForQuery('semantics');
     final layout = _layout;
     final fragments = <_WeftSemanticFragment>[];
     if (layout != null) {
       if (!identical(_semanticsFragmentsLayout, layout)) {
         _semanticsFragmentsLayout = layout;
+        // On a lazy layout the semantics cover the measured window only:
+        // materialized blocks assemble exactly, measured-but-dematerialized
+        // blocks near the viewport become coarse per-block leaves, and the
+        // unmeasured suffix is absent until a scroll measures it (ADR 0041).
+        // Full layouts keep whole-document semantics.
+        List<WeftCachedLayoutBlock>? lazyBlocks;
+        double? bandStart;
+        double? bandEnd;
+        if (layout.debugIsLazy) {
+          final blocks = layout.incrementalCache?.blocks;
+          final viewportHeight = _viewportHeight;
+          if (blocks != null && viewportHeight != null) {
+            lazyBlocks = blocks;
+            bandStart = math.max(0.0, _viewportPixels - 2 * viewportHeight);
+            bandEnd = _viewportPixels + 3 * viewportHeight;
+          }
+        }
         _semanticsFragments = _buildContentSemantics(
           document: _document,
           layout: layout,
           bounds: Offset.zero & layout.size,
+          lazyBlocks: lazyBlocks,
+          lazyBandStart: bandStart,
+          lazyBandEnd: bandEnd,
         );
       }
       fragments.addAll(_semanticsFragments);
@@ -2049,6 +2068,9 @@ List<_WeftSemanticFragment> _buildContentSemantics({
   required WeftDocumentSnapshot document,
   required WeftLayoutResult layout,
   required ui.Rect bounds,
+  List<WeftCachedLayoutBlock>? lazyBlocks,
+  double? lazyBandStart,
+  double? lazyBandEnd,
 }) {
   final textIndex = layout.textIndex;
   final body = document.body;
@@ -2148,6 +2170,62 @@ List<_WeftSemanticFragment> _buildContentSemantics({
       }
       start = i + 1;
     }
+  }
+
+  /// Emits one coarse leaf for a measured-but-dematerialized lazy block
+  /// (ADR 0041). The label is the block's flattened text taken from the
+  /// full-document text index — exact runs are unavailable because paint
+  /// commands were released — and the rect is the block's retained geometry
+  /// band. Nothing is emitted for aria-hidden blocks or empty labels.
+  void addCoarseBlock(
+    WeftCachedLayoutBlock block, {
+    required bool isLiveRegion,
+  }) {
+    final element = block.element;
+    if (_ariaHidden(element)) return;
+    final text = StringBuffer();
+    void collectText(WeftNode node) {
+      if (node is WeftText) {
+        final entry = textIndex.entryByNode[node.id];
+        if (entry == null || entry.text.isEmpty) return;
+        if (text.isNotEmpty) text.write(' ');
+        text.write(entry.text.replaceAll('\n', ' '));
+        return;
+      }
+      if (node is! WeftElement) return;
+      if (node.tag == 'img') {
+        final alt = node.attribute('aria-label')?.trim() ??
+            node.attribute('alt')?.trim() ??
+            '';
+        if (alt.isNotEmpty) {
+          if (text.isNotEmpty) text.write(' ');
+          text.write(alt);
+        }
+        return;
+      }
+      for (final child in node.children) {
+        collectText(child);
+      }
+    }
+
+    collectText(element);
+    final label = text.toString().trim();
+    if (label.isEmpty) return;
+    var rect = block.paintBounds;
+    if (!rect.isFinite || rect.isEmpty) {
+      rect =
+          ui.Rect.fromLTWH(block.left, block.top, bounds.width, block.height);
+    }
+    final clipped = _clippedSemanticsRect(rect, bounds);
+    if (clipped == null) return;
+    fragments.add(
+      _WeftSemanticFragment(
+        key: ValueKey<String>('block:${element.id}'),
+        rect: clipped,
+        label: label,
+        isLiveRegion: isLiveRegion,
+      ),
+    );
   }
 
   /// Emits one leaf fragment representing [node]'s whole subtree — used for
@@ -2580,8 +2658,34 @@ List<_WeftSemanticFragment> _buildContentSemantics({
 
   final bodyLive = _liveRegionSetting(body) ?? false;
   if (!_ariaHidden(body)) {
-    for (final child in body.children) {
-      visit(child, null, 0, false, bodyLive, null);
+    if (lazyBlocks == null) {
+      for (final child in body.children) {
+        visit(child, null, 0, false, bodyLive, null);
+      }
+    } else {
+      // Lazy semantics cover the measured prefix only (ADR 0041). The
+      // cached blocks pair positionally with the body's element children:
+      // materialized blocks assemble exactly, blocks that released their
+      // commands become coarse leaves inside the viewport band, and the
+      // unmeasured suffix is absent until a scroll measures it.
+      var elementIndex = 0;
+      for (final child in body.children) {
+        if (elementIndex >= lazyBlocks.length) break;
+        if (child is! WeftElement) {
+          visit(child, null, 0, false, bodyLive, null);
+          continue;
+        }
+        final block = lazyBlocks[elementIndex];
+        elementIndex += 1;
+        if (block.materialized) {
+          visit(child, null, 0, false, bodyLive, null);
+        } else if (lazyBandStart != null &&
+            lazyBandEnd != null &&
+            block.top <= lazyBandEnd &&
+            block.top + block.height >= lazyBandStart) {
+          addCoarseBlock(block, isLiveRegion: bodyLive);
+        }
+      }
     }
   }
   return _buildSemanticForest(fragments);

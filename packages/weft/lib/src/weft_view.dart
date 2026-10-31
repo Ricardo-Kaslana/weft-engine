@@ -109,7 +109,9 @@ class WeftView extends StatefulWidget {
   final WeftImageResolver? imageResolver;
 
   /// Whether simple documents lazily materialize only the visible block
-  /// window. Selection and Semantics still upgrade to a complete layout.
+  /// window. A non-null selection still upgrades to a complete layout;
+  /// Semantics assembles windowed semantics on the lazy result instead
+  /// (ADR 0041).
   final bool enableLazyLayout;
 
   /// Extra document pixels materialized above and below the viewport.

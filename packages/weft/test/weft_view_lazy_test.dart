@@ -763,7 +763,7 @@ void main() {
     controller.dispose();
   }, semanticsEnabled: false);
 
-  testWidgets('Semantics at the estimated bottom cancels lazy correction', (
+  testWidgets('Semantics at the estimated bottom keeps the lazy correction', (
     tester,
   ) async {
     final controller = _controllerWithTallTail();
@@ -778,11 +778,12 @@ void main() {
     expect(render.debugLayout!.debugIsLazy, isTrue);
     expect(render.debugFollowLazyBottom, isTrue);
 
+    // ADR 0041: enabling semantics no longer cancels the pending lazy
+    // correction; the layout stays lazy and keeps following the tail.
     final semantics = tester.ensureSemantics();
     await tester.pump();
-    expect(render.debugLayout!.debugIsLazy, isFalse);
-    expect(render.debugFollowLazyBottom, isFalse);
-    expect(render.debugPendingLazyCorrection, 0);
+    expect(render.debugLayout!.debugIsLazy, isTrue);
+    expect(render.debugFullLayoutRequired, isFalse);
     expect(scroll.offset, closeTo(scroll.position.maxScrollExtent, 1));
 
     semantics.dispose();
@@ -902,22 +903,82 @@ void main() {
     controller.dispose();
   }, semanticsEnabled: false);
 
-  testWidgets('enabling Semantics upgrades lazy layout to the full document', (
+  testWidgets('Semantics keeps the lazy layout and exposes windowed content', (
     tester,
   ) async {
     final semantics = tester.ensureSemantics();
     final controller = _controller(80);
-    await _pump(tester, controller, null);
+    final scroll = ScrollController();
+    await _pump(tester, controller, scroll);
     final render = tester.renderObject<RenderWeftSurface>(
       find.byType(WeftSurface),
     );
+    expect(render.debugLayout!.debugIsLazy, isTrue);
+    expect(render.debugFullLayoutRequired, isFalse);
+    // The materialized window announces exactly; the unmeasured suffix is
+    // absent until a scroll measures it (ADR 0041).
+    expect(find.semantics.byLabel(_paragraphLabel(0)), findsOneWidget);
+    expect(find.semantics.byLabel(_paragraphLabel(79)), findsNothing);
+
+    scroll.jumpTo(scroll.position.maxScrollExtent);
+    for (var i = 0; i < 6; i++) {
+      await tester.pump();
+    }
+    expect(render.debugLayout!.debugIsLazy, isTrue);
     expect(find.semantics.byLabel(_paragraphLabel(79)), findsOneWidget);
-    expect(render.debugLayout!.debugIsLazy, isFalse);
-    expect(render.debugLayout!.debugLaidOutBlockCount, 80);
 
     controller.dispose();
+    scroll.dispose();
     semantics.dispose();
   });
+
+  testWidgets('measured blocks near the viewport announce as coarse leaves', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final html = StringBuffer();
+    for (var i = 0; i < 40; i++) {
+      html.write('<p style="height: 200px">${_paragraphLabel(i)}</p>');
+    }
+    final controller = WeftController()
+      ..loadDocument(
+        const WeftNormalizer().normalize(html.toString(), id: 'lazy-coarse'),
+      );
+    final scroll = ScrollController();
+    await _pump(tester, controller, scroll);
+    final render = tester.renderObject<RenderWeftSurface>(
+      find.byType(WeftSurface),
+    );
+    expect(render.debugLayout!.debugIsLazy, isTrue);
+
+    // Jump three viewports down: blocks 0-2 are measured but outside the
+    // coarse band, block 6 sits inside it, and the suffix is unmeasured.
+    scroll.jumpTo(1200);
+    for (var i = 0; i < 3; i++) {
+      await tester.pump();
+    }
+    expect(render.debugLayout!.debugIsLazy, isTrue);
+    // Band = offset ±(2-3) viewports: the materialized window is exact and
+    // dematerialized blocks inside the band collapse to one leaf per block
+    // carrying the flattened text.
+    expect(find.semantics.byLabel(_paragraphLabel(6)), findsOneWidget);
+    expect(find.semantics.byLabel(_paragraphLabel(8)), findsOneWidget);
+    expect(find.semantics.byLabel(_paragraphLabel(0)), findsNothing);
+    expect(find.semantics.byLabel(_paragraphLabel(39)), findsNothing);
+
+    // showOnScreen on a windowed node scrolls without leaving lazy mode.
+    final target = find.semantics.byLabel(_paragraphLabel(6));
+    tester.semantics.showOnScreen(target);
+    for (var i = 0; i < 3; i++) {
+      await tester.pump();
+    }
+    expect(render.debugLayout!.debugIsLazy, isTrue);
+    expect(find.semantics.byLabel(_paragraphLabel(6)), findsOneWidget);
+
+    controller.dispose();
+    scroll.dispose();
+    semantics.dispose();
+  }, semanticsEnabled: true);
 }
 
 Future<void> _pump(

@@ -40,7 +40,7 @@ ADR 0017/0020 已按可见窗口裁剪绘制和命中，但每次文档更新仍
 ### 交互回退
 
 - 任意非空 selection（含 caret）需要完整几何时，Surface 立即升级 canonical full。`selectionText` 仍只依赖完整逻辑文本。
-- Semantics assemble 遇到 lazy result 时先同步升级 full，再生成全部屏外节点；不暴露“仅可见块”语义，ADR0024 的 showOnScreen 契约保持不变。
+- Semantics assemble 遇到 lazy result 时先同步升级 full，再生成全部屏外节点；不暴露“仅可见块”语义，ADR0024 的 showOnScreen 契约保持不变。（ADR 0041 修订：Semantics 不再升级，直接在 lazy 结果上组装窗口化语义——物化窗口精确、band 内未物化块折叠为粗叶子、未测后缀滚动物化后出现。）
 - full 升级按 document.id 粘滞，selection 清除或 Semantics 关闭后不来回切换；新文档才重新评估。图片晚解码或身份变化同样升级 full。
 
 ### 健壮性不变量

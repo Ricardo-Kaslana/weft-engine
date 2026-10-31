@@ -57,7 +57,7 @@ typedef WeftImageResolver =
 
 解析器返回 `null` 时布局显示 `alt`；返回的 `ImageProvider` 由渲染表面监听解码并触发失效。宿主必须在解析器中执行自己的 URL 白名单、认证、缓存和大小策略，引擎不自动请求网络。
 
-`WeftView` 使用内部 `SingleChildScrollView`，`scrollController` 可注入读取/驱动偏移；`primary:false` 保持不变。`enableLazyLayout` 默认 true：简单文档只物化可见块并允许估算滚动高度，复杂文档及 selection/Semantics 会升级为完整布局。standalone `WeftSurface` 默认完整布局。
+`WeftView` 使用内部 `SingleChildScrollView`，`scrollController` 可注入读取/驱动偏移；`primary:false` 保持不变。`enableLazyLayout` 默认 true：简单文档只物化可见块并允许估算滚动高度，复杂文档及 selection 会升级为完整布局；Semantics 不再升级，直接在 lazy 结果上组装窗口化语义（ADR 0041）。standalone `WeftSurface` 默认完整布局。
 
 ## 已建立：规范化与样式
 

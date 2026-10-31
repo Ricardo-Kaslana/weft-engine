@@ -118,9 +118,9 @@ flutter test test/perf_gate_test.dart --no-pub --timeout 120s     # CI 门禁
 
 锚点导航(ADR 0027/0029)测试覆盖：有效 anchor 使用 lazy focus 测量并物化目标块、无效/末尾 anchor 不布局、alignment 公式与滚动范围 clamp、注入/内部 controller、连续请求以及卸载后丢弃 post-frame 回调。异步模式额外验证单 pass 布局块数不超过预算、measuredPrefix 单调推进，以及逐帧测量期间当前内容与 offset 保持不变。
 
-布局虚拟化(ADR 0025)的验收分两层:计时对比 lazy 首屏与 full article300,结构计数则断言首屏只布局/物化连续可见前缀,且必须远小于全文块数。`test/lazy_layout_test.dart` 覆盖精确前缀、冷跳收敛、结构化内容、multi-screen 正反向、首帧 selection、空命令块,以及嵌套图片 Float checkpoint 的多代往返、extent 和准入矩阵;`weft_view_lazy_test.dart` 覆盖滚动、初始 offset、约束变化、默认/强制 eager、底部校正、流式、Float 回退、selection 与 Semantics 升级,并验证 full 升级会清除 stale follow/pending 校正。
+布局虚拟化(ADR 0025)的验收分两层:计时对比 lazy 首屏与 full article300,结构计数则断言首屏只布局/物化连续可见前缀,且必须远小于全文块数。`test/lazy_layout_test.dart` 覆盖精确前缀、冷跳收敛、结构化内容、multi-screen 正反向、首帧 selection、空命令块,以及嵌套图片 Float checkpoint 的多代往返、extent 和准入矩阵;`weft_view_lazy_test.dart` 覆盖滚动、初始 offset、约束变化、默认/强制 eager、底部校正、流式、Float 回退与 selection 升级,并验证 full 升级会清除 stale follow/pending 校正。语义虚拟化(ADR 0041)由 lazy 套件断言 Semantics 保持 lazy、窗口化标签随滚动物化出现、band 内未物化块折叠为粗叶子且 showOnScreen 可达;`weft_view_semantics_test.dart` 覆盖未测后缀暂无节点与 band 内离屏内容滚动到位。
 
-冷深跳 settling(ADR 0037)由 `weft_view_settling_test.dart` 覆盖遮罩出现/消失、回调 true→false 序列、无 builder 时信号仍工作、近 frontier 与异步锚点不触发、底部跟随、文档替换/selection/Semantics 复位,以及 settled 后无额外帧调度;`lazy_layout_test.dart` 额外覆盖 surface 级回调序列、lazy 退出与文档替换复位、同 id 流式更新。
+冷深跳 settling(ADR 0037)由 `weft_view_settling_test.dart` 覆盖遮罩出现/消失、回调 true→false 序列、无 builder 时信号仍工作、近 frontier 与异步锚点不触发、底部跟随、文档替换/selection 复位与语义开启的深跳 settling(ADR 0041),以及 settled 后无额外帧调度;`lazy_layout_test.dart` 额外覆盖 surface 级回调序列、lazy 退出与文档替换复位、同 id 流式更新。
 
 ## Runtime 安全测试
 

@@ -28,7 +28,7 @@
 - 移动端原生构建（ADR 0035）：`weft_quickjs` 声明为 ffiPlugin；Android 模块用 CMake 就地编出 `libweft_quickjs.so`（16 KB 页对齐、只导出 `weft_*`），iOS pod 把垫片静态编进 app image 并用 ObjC 锚点防止 dead-strip；加载器按平台分派，显式路径可覆盖。
 
 请继续下一个切片，优先级如下：
-1. C2 ARIA 基础已完成（ADR 0040）：`role` 保守映射（button/link/img/heading/dialog/alertdialog/alert/status/presentation/none）、`aria-hidden`、`aria-label`（修复了规范化器丢弃而引擎在读的接缝错位）、`aria-atomic` 整组 live region 播报。C1（ADR 0039）、C0（ADR 0038）与 B2（ADR 0037）此前已完成；Android 验收见 device-matrix §4.8。**下一步优先语义虚拟化、RTL/语言属性，或增量布局扩展；不要再改 layout/overscan、重复后端 A/B，或把遮罩当成零空白；禁止把桌面 layoutViewport 画像当真机帧耗时。**
+1. C3 语义虚拟化已完成（ADR 0041）：Semantics 不再触发 lazy→full 升级，直接在 lazy 结果上组装窗口化语义（物化窗口精确、band 内未物化块粗叶子、未测后缀滚动物化后出现）；语义开启的深跳会真正进入 settling。C2 ARIA 基础（ADR 0040）、C1（ADR 0039）、C0（ADR 0038）与 B2（ADR 0037）此前已完成。**下一步优先 RTL/语言属性或增量布局扩展（先画像）；不要再改 layout/overscan、重复后端 A/B，或把遮罩当成零空白；禁止把桌面 layoutViewport 画像当真机帧耗时。**
 2. 语义真机抽查：C1 只在 `SemanticsOwner` 层验证 headingLevel/liveRegion 标志，尚未在 TalkBack/Web 读屏上验收播报；若产品需要，按 JNY-AL10 手动验证标题导航和 live region 播报并记录到 device-matrix。
 3. 深跳尖峰定性：ADR 0036 复测已把 FrameTiming 拆成 build/raster，~313ms 尖峰未复现且全程无 >50ms 帧；若再现，按 §4.4 的 build/raster 方法继续定位。
 4. iOS 构建与真机验证（**暂缓**：暂无 macOS 环境）：按 docs/device-matrix.md §2.2 清单执行；未验证前 iOS 不得宣称可用，发布说明要写明缺席。
@@ -41,7 +41,7 @@
 - 每次修改必须运行 `dart format --output=none --set-exit-if-changed .`、`dart analyze`、`dart run tool/verify.dart` 和 `packages/weft_engine/tool/golden_pixel_test.dart`。
 - 新增能力必须附带单元测试；影响布局时必须评估黄金基线与 conformance/reference/ 下的浏览器几何基线。
 - 改动 `packages/weft_quickjs/native/`、`android/` 或 `ios/` 后必须跑 `packages/weft_quickjs/tool/build_native.sh` 重编桌面库并执行 `dart test`（weft_quickjs）；平台工程的编译参数必须与桌面脚本保持一致（ADR 0035）。
-- 重要技术取舍写入 docs/adr/（下一个编号为 0041）。
+- 重要技术取舍写入 docs/adr/（下一个编号为 0042）。
 
 接手前先知道的坑（本轮实测踩出来的，能省你几个小时）：
 - 历史上美化排版会关掉懒布局，首帧退化成 1801 节点全量排版（198–280ms）。ADR 0036 已在窗口化之后接入 ASCII 格式化空白，但保留了正文/NBSP/pre 的 full 边界；旧真机数字不能用于宣称改后通过，详见 device-matrix §4.3/§4.4。
@@ -59,8 +59,8 @@
 
 - 分支：`main`
 - 最新提交：见 `git log`（本节只保证指南有效，不追踪哈希）
-- Flutter：3.35.5 stable（引擎/示例编译下限，ADR 0038）；Dart：3.9.2；ADR 40 份（0001–0040）；包版本 0.7.0-dev.1
-- 常规测试 508 项（weft_engine 269、weft_document 80、weft 77、weft_quickjs 28、weft_capabilities 15、weft_runtime_fake 12、weft_runtime_contract 9、weft_runtime_api 2、weft_lab 1、weft_live 8、weft_fallback 7；C2 新增 13 项）、像素黄金 3 项 + 选区高亮 1 项、性能门禁 14 场景（7 布局 + 3 绘制 + 4 命中）；`dart analyze` 无问题，公开 API 文档覆盖零缺口。开发计划阶段 0–5 已完成（阶段 5 见 ADR 0034），阶段 5 之后补了移动端原生构建（ADR 0035）、懒布局窗口直物化（ADR 0036）、冷深跳 settling 遮罩（ADR 0037）、Flutter 3.35.5 兼容基线（ADR 0038）、语义补全（ADR 0039）与 ARIA 基础（ADR 0040）。
+- Flutter：3.35.5 stable（引擎/示例编译下限，ADR 0038）；Dart：3.9.2；ADR 41 份（0001–0041）；包版本 0.7.0-dev.1
+- 常规测试 509 项（weft_engine 269、weft_document 80、weft 78、weft_quickjs 28、weft_capabilities 15、weft_runtime_fake 12、weft_runtime_contract 9、weft_runtime_api 2、weft_lab 1、weft_live 8、weft_fallback 7；C3 重写 5 项契约测试并新增 1 项）、像素黄金 3 项 + 选区高亮 1 项、性能门禁 14 场景（7 布局 + 3 绘制 + 4 命中）；`dart analyze` 无问题，公开 API 文档覆盖零缺口。开发计划阶段 0–5 已完成（阶段 5 见 ADR 0034），阶段 5 之后补了移动端原生构建（ADR 0035）、懒布局窗口直物化（ADR 0036）、冷深跳 settling 遮罩（ADR 0037）、Flutter 3.35.5 兼容基线（ADR 0038）、语义补全（ADR 0039）、ARIA 基础（ADR 0040）与语义虚拟化（ADR 0041）。
 - GitHub Actions 使用 Windows 执行像素黄金门禁（仓库尚无远端，CI 尚未真正跑过）。
 - 2026-10-28 增量：Android 真机构建与执行验证、插件单 ABI 裁剪、回环直连修复与首轮矩阵；之后交付 ADR 0036 窗口直物化及桌面结构/耗时证据（docs/device-matrix.md §4.4）。真实 Flutter Web＋Edge 的滚动、锚点与选择复制已验证；JNY-AL10 profile 复测四项标准通过（中位冷启 635ms、滚动 p95 ≈26ms、深跳最大 37ms、内存 +10MB），strict 60fps 受 raster 限制。证据位于本地 build/adr0036-evidence。iOS 验证仍暂缓。
 - 2026-10-31 增量：B1 后端 A/B 完成（12 Impeller + 12 Skia，ABBA，JNY-AL10 profile，24 轮全部有效）。PAINT_ONLY 与 SCROLL 的 raster/total 均无显著差异（SCROLL total p95 中位 25.70 vs 24.49ms，p=0.33；PAINT_ONLY stable raster p95 8.77 vs 9.75ms，p=0.42），唯一显著项是 SCROLL build p95 差 0.38ms，无实际意义。结论：不建议旧 Mali 关闭 Impeller；strict 60fps 仍未达成。证据在本地 `build/adr0036-evidence/b1/`，详见 device-matrix §4.7。
@@ -68,8 +68,9 @@
 - 2026-10-31 增量（C0）：Flutter 3.35.5 兼容基线（ADR 0038）。所有 Flutter 依赖包与示例声明 `flutter: ">=3.35.5"`，纯 Dart 包保持 Dart 3.5；包版本统一升到 0.7.0-dev.1。此前的 3.22 下限与实际 `SemanticsRole` 依赖不符，3.22–3.34 宿主无法编译。无运行时行为、快照/bridge 契约或黄金变化，测试仍为 491 项。
 - 2026-10-31 增量（C1）：语义补全（ADR 0039）。`h1..h6` 输出 `headingLevel`；显式 `aria-live` 子树按三态继承标记叶子 `liveRegion`（`polite/assertive` 统一为布尔，`off` 关闭）；`ol start`/`li value` 同时控制视觉 marker 与语义 marker。规范化器保留三个新属性、非法值丢弃并诊断；`synthetic_lists_and_quotes` 向量随 `<ol start>` 保留重新生成，其余 20 个向量未变。无新语义容器，像素黄金不变。
 - 2026-10-31 增量（C2）：ARIA 基础（ADR 0040）。规范化器全局保留 `role`/`aria-hidden`/`aria-atomic`/`aria-label`（修复了自定义标签引擎在读而标准标签被丢弃的错位）；语义层保守映射 `role`——button/link 走 isButton/isLink flag（无激活动作）、img/heading 折叠或派生 header/headingLevel、dialog/alertdialog 成容器角色、alert/status 隐式化为 live+atomic、presentation/none 抑制自身派生语义（内容仍朗读）、其余丢弃并产出 `aria.role.unsupported`（info）；显式 role 覆盖隐式语义。`aria-hidden=true` 子树移出语义树（视觉与复制文本不变）。`aria-label` 在 img 上优先于 alt，其他元素折叠为单个命名叶子（table 族排除，`<a aria-label>` 保留 tap）。live region 内 `aria-atomic=true` 整组播报，替代 C1 的逐叶子播报。21 个规范化向量不含新属性，逐字节不变；布局/绘制/像素黄金不变。测试 495 → 508。
+- 2026-10-31 增量（C3）：语义虚拟化（ADR 0041）。`assembleSemanticsNode` 删除 `'semantics'` full 升级，直接在 lazy 结果上组装：物化窗口块精确（现状逻辑不变）、已测未物化且在视口 ±2–3 屏 band 内的块折叠为逐块粗叶子（key `block:<id>`、label 为 textIndex 扁平文本、rect 为保留几何带）、未测后缀滚动物化后出现；band 外不产出。selection/anchor/image/engine-fallback 的 full 升级与粘滞全部不变。语义开启的冷深跳现在真正触发 settling 遮罩与 `onLazySettlingChanged`；`scrollToAnchorAsync` 在语义开启时照常分帧。粗→精升级节点 key 变化（辅助技术重新聚焦）。布局/绘制/像素黄金不变；21 个向量不变。测试 508 → 509（重写 5 项契约测试、新增 1 项）。真机语义滚动帧耗时未验证（无设备在线）。
 
-已实现至 ADR 0040（Android 四项设备标准已通过，strict 60fps raster 待优化；B2 冷跳 settling 遮罩已交付；C0 兼容基线已交付；C1 语义补全已交付；C2 ARIA 基础已交付）。ADR 0040：ARIA 基础——role 保守映射、aria-hidden/label 与 aria-atomic 整组播报；修复 aria-label 接缝错位；21 个规范化向量不变。ADR 0039：语义补全——headingLevel、`aria-live` live region 与有序列表 `start`/`value`；规范化向量同步更新。ADR 0038：Flutter 3.35.5 兼容基线——Flutter 依赖包/示例统一下限，版本 0.7.0-dev.1，运行时不变。ADR 0037：冷深跳 settling——WeftView 宿主视口遮罩与 post-frame 信号，未配置 builder 时行为不变。ADR 0036：已测区间索引直接物化、单所有者块元数据、增量后缀估算、格式化空白准入与 correctBy 后视口同步。ADR 0017–0033：分块渲染与命中裁剪（ADR 0017/0020）、行内图片（ADR 0018）、选择 chrome（ADR 0019）、块级盒模型（ADR 0021）、表格列轨道（ADR 0022）、流式顶层前缀复用（ADR 0023）、单表面 Semantics（ADR 0024/0026/0028/0030）、渐进式布局虚拟化（ADR 0025）、同步/异步锚点导航（ADR 0027/0029）、懒布局异步分帧与同快照复用（ADR 0031）、阶段 0–3 验收证据与重定界（ADR 0032）和受限 JS 运行时（QuickJS FFI + 能力网关 + 恢复去重 + 自定义标签，ADR 0033）。ADR 0034（阶段 5）：快照 JSON 线格式（format+version 门禁）与 21 个规范化一致性向量、种子化模糊测试（CI 快跑 + tool/fuzz.dart 长跑，修复诊断上限绕过与 toString 崩溃两个真实问题）、能力策略 8 子集矩阵、example/weft_fallback WebView 回退示例、发布手册与回滚演练测试、API 文档门禁、真机矩阵计划。ADR 0035：QuickJS 移动平台构建——ffiPlugin 声明、Android CMake 就地编译（16 KB 对齐）、iOS 静态链接与 dead-strip 锚点、按平台分派的加载器。
+已实现至 ADR 0041（Android 四项设备标准已通过，strict 60fps raster 待优化；B2 冷跳 settling 遮罩已交付；C0 兼容基线已交付；C1 语义补全已交付；C2 ARIA 基础已交付；C3 语义虚拟化已交付）。ADR 0041：语义虚拟化——Semantics 不再升级 full，lazy 结果上组装窗口化语义（物化窗口精确、band 内未物化块粗叶子、未测后缀滚动物化后出现）；语义开启深跳进入 settling。ADR 0040：ARIA 基础——role 保守映射、aria-hidden/label 与 aria-atomic 整组播报；修复 aria-label 接缝错位；21 个规范化向量不变。ADR 0039：语义补全——headingLevel、`aria-live` live region 与有序列表 `start`/`value`；规范化向量同步更新。ADR 0038：Flutter 3.35.5 兼容基线——Flutter 依赖包/示例统一下限，版本 0.7.0-dev.1，运行时不变。ADR 0037：冷深跳 settling——WeftView 宿主视口遮罩与 post-frame 信号，未配置 builder 时行为不变。ADR 0036：已测区间索引直接物化、单所有者块元数据、增量后缀估算、格式化空白准入与 correctBy 后视口同步。ADR 0017–0033：分块渲染与命中裁剪（ADR 0017/0020）、行内图片（ADR 0018）、选择 chrome（ADR 0019）、块级盒模型（ADR 0021）、表格列轨道（ADR 0022）、流式顶层前缀复用（ADR 0023）、单表面 Semantics（ADR 0024/0026/0028/0030）、渐进式布局虚拟化（ADR 0025）、同步/异步锚点导航（ADR 0027/0029）、懒布局异步分帧与同快照复用（ADR 0031）、阶段 0–3 验收证据与重定界（ADR 0032）和受限 JS 运行时（QuickJS FFI + 能力网关 + 恢复去重 + 自定义标签，ADR 0033）。ADR 0034（阶段 5）：快照 JSON 线格式（format+version 门禁）与 21 个规范化一致性向量、种子化模糊测试（CI 快跑 + tool/fuzz.dart 长跑，修复诊断上限绕过与 toString 崩溃两个真实问题）、能力策略 8 子集矩阵、example/weft_fallback WebView 回退示例、发布手册与回滚演练测试、API 文档门禁、真机矩阵计划。ADR 0035：QuickJS 移动平台构建——ffiPlugin 声明、Android CMake 就地编译（16 KB 对齐）、iOS 静态链接与 dead-strip 锚点、按平台分派的加载器。
 
 ## 包结构
 
@@ -207,11 +208,11 @@ B1 后端 A/B 已完成（device-matrix §4.7）：12 Impeller + 12 Skia ABBA �
 
 引擎侧没有免费的 60fps 优化空间：继续压榨需要后端层手段（图片光栅缓存、减少每帧新内容面积），或接受 A 档 ≤33ms 标准（当前已满足）。B2 已完成（ADR 0037）：冷跳空白可由宿主遮罩覆盖，但测量速度与 60fps 缺口不变。下一步转 C 语义增强或 D 增量布局；不要再改 layout/overscan、重复后端 A/B，或把遮罩当成零空白。
 
-### C. 语义增强（C0/C1/C2 已完成）
+### C. 语义增强（C0/C1/C2/C3 已完成）
 
 C0 兼容基线（ADR 0038）、C1 语义补全（ADR 0039）与 C2 ARIA 基础（ADR 0040）已完成：Flutter 依赖包/示例要求 `>=3.35.5`，包版本 `0.7.0-dev.1`，纯 Dart 包保持 Dart 3.5。C1 交付 headingLevel、显式 `aria-live` live region 与有序列表 `start/value` 标记。C2 交付 `role` 保守映射、`aria-hidden`、`aria-label`（修复接缝错位）与 `aria-atomic` 整组播报。table/list 嵌套角色已在 ADR 0030 交付，不要重复实现或扁平化。
 
-后续候选：语义虚拟化（当前 Semantics 仍升级 full）、RTL/语言属性、landmark/tab/menu/radio 族角色、`aria-level`/`aria-labelledby` 与可编辑 selection/caret 动作。注意：继续使用 describeSemanticsConfiguration/assembleSemanticsNode 的单表面模型；新增语义容器必须满足 Flutter 的严格父子校验（landmark/tab/menu/radio 族因校验不变量暂被拒绝，见 ADR 0040）。不要把静态文档伪装成 text field，也不要让语义节点持有旧 TextPainter。lazy 路径在 assemble 前必须升级 full（`'semantics'` reason 已有测试覆盖）。
+C3 语义虚拟化（ADR 0041）已交付：Semantics 在 lazy 结果上组装窗口化语义，不再升级 full。后续候选：RTL/语言属性、landmark/tab/menu/radio 族角色、`aria-level`/`aria-labelledby` 与可编辑 selection/caret 动作。注意：继续使用 describeSemanticsConfiguration/assembleSemanticsNode 的单表面模型；新增语义容器必须满足 Flutter 的严格父子校验（landmark/tab/menu/radio 族因校验不变量暂被拒绝，见 ADR 0040）。不要把静态文档伪装成 text field，也不要让语义节点持有旧 TextPainter。窗口化语义的规则（物化窗口精确、band 粗叶子、未测后缀缺位）见 ADR 0041，不要放宽为伪造未测块的节点。
 
 ### D. 增量布局扩展
 
