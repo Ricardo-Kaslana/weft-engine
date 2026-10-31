@@ -109,6 +109,9 @@
 - 冷深跳 settling 遮罩（ADR 0037）：WeftView 宿主视口遮罩 + post-frame settling 信号；未配置 builder 时保持原空白渐进填充。
 - Flutter 3.35.5 兼容基线（ADR 0038）：Flutter 依赖包与示例统一收紧下限，纯 Dart 包保持 Dart 3.5；包版本对齐到 0.7.0-dev.1，运行时行为不变。
 - 语义补全（ADR 0039）：标题 headingLevel、`aria-live` live region 与有序列表 `start`/`value`；规范化保留新属性，列表一致性向量重新生成并审查。
+- ARIA 基础（ADR 0040）：role 保守映射、aria-hidden/label 与 aria-atomic 整组播报；修复 aria-label 接缝错位；21 个一致性向量不变。
+- 语义虚拟化（ADR 0041）：Semantics 不再触发 lazy→full 升级，直接在 lazy 结果上组装窗口化语义；语义开启的冷深跳进入 settling。
+- RTL/语言属性（ADR 0042）：dir/lang 白名单、块级基方向（auto first-strong + CSS direction）、RTL 对齐/断行/列表镜像/caret 边缘、lang→locale；新增 rtl_paragraph Chrome 几何参考与第 22 个规范化向量。
 
 ## 并行规则
 

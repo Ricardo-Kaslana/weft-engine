@@ -70,7 +70,7 @@ flowchart TB
 - Float 环绕走逐行分行路径，每行单独生成 `TextPainter` 和链接矩形；无浮动内容仍使用整段文本布局，避免改变已验收的静态路径。
 - 表格用槽位网格实现（ADR 0012）：`colspan/rowspan` 占位、两遍 min/max-content 列宽、行槽拉伸与中心线折叠边框；单元格通过强制宽度的 `layoutBlock` 复用全部块级行为。
 - `WeftView` 使用内部 `SingleChildScrollView`；在简单文档中把 250px overscan 视窗传给 RenderWeftSurface，只物化可见顶层块，复杂文档和需要完整几何的 selection 走 canonical full。Semantics 直接在 lazy 结果上组装窗口化语义（ADR 0041），不再触发升级。
-- 文本缩放来自 `MediaQuery`，背景和文本命令在单一表面内按顺序绘制。
+- 文本缩放来自 `MediaQuery`，背景和文本命令在单一表面内按顺序绘制。块级基方向来自 `dir` 属性（`auto` 经 first-strong 检测）或 CSS `direction`，驱动 TextPainter 方向与起始对齐、列表缩进/marker 镜像与 caret 行内首侧；`lang` 转为 TextPainter locale（缺省 `zh`），行内双向重排由 SkParagraph 承担（ADR 0042）。
 
 绘制、命中、选择和 Semantics 已按各自契约实现；WeftView lazy 路径对简单块流按窗口物化，复杂块流回退完整布局。未测滚动高度是渐进估算；深跳与深 seed 由表面逐帧预算推进（每帧至多新测 32 个顶层块，ADR 0031），窗口外的尾部块保持估算。同快照的滚动 relayout 复用上一结果的节点 diff 结论、跨帧样式缓存与文本索引实例，不重建样式或逻辑文本。ADR 0036 进一步持有块流元数据与保守绘制区间索引，直接物化已测窗口、增量维护后缀估算；body 格式化空白保留在快照但不进入块流，Float 从已测排除区恢复。像素深跳测量期间，WeftView 可用宿主的 `lazySettlingBuilder` 覆盖视口，并通过 post-frame 的 `onLazySettlingChanged` / `WeftViewState.isLazySettling` 报告起止（ADR 0037）；引擎不绘制占位、不伪造未测量块。超高顶层块、表内行与图片解码资源仍不细分虚拟化。
 
@@ -136,3 +136,6 @@ JS 不获得节点、盒树或渲染对象。它只能通过 `__weftBridge`（�
 - `0037`：冷深跳 settling——宿主视口遮罩与 post-frame 状态信号，引擎不画占位、不改布局预算；未配置 builder 时保持空白渐进填充。
 - `0038`：Flutter 3.35.5 兼容基线——Flutter 依赖包与示例统一收紧下限，纯 Dart 包保持 Dart 3.5；版本对齐到 0.7.0-dev.1，运行时行为不变。
 - `0039`：语义补全——headingLevel、`aria-live` live region 与有序列表 `start`/`value` marker；规范化保留新属性并重新生成列表向量。
+- `0040`：ARIA 基础——role 保守映射（button/link/img/heading/dialog/alert/status/presentation）、aria-hidden/label 与 aria-atomic 整组播报；修复 aria-label 接缝错位。
+- `0041`：语义虚拟化——Semantics 不再触发 lazy→full 升级，在 lazy 结果上组装窗口化语义（物化窗口精确、band 内未物化块粗叶子、未测后缀滚动物化后出现）。
+- `0042`：RTL 基础方向与语言属性——dir/lang 白名单、块级基方向（auto first-strong + CSS direction）、RTL 对齐/断行/列表镜像/caret 边缘、lang→locale（缺省 zh 零回归）。

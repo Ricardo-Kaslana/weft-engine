@@ -286,3 +286,11 @@ iOS 继续暂缓；Web debug 与桌面画像只作结构性证据，不替代设
 - 遮罩不改变 lazy 收敛路径（仍 29 帧、prefix 901/901、`fullReason=null`），本次未出现 >50ms 帧；A 档 ≤33ms 的标准不因遮罩改变（p95 29.26ms）。
 - 未在设备上单独跑“深初始 seed”场景；该路径由 widget 测试覆盖。遮罩不加速测量，首帧仍可能可见空白，不宣称零空白；strict 60fps 与后端选择不在本次范围。
 - 证据：`build/adr0037-evidence/direct-1.png`（MEASURING）、`direct-3/6.png` 与 `settled.png`（物化后内容）、`probe.raw.log`、`live.log`、`adr0037.mp4`。
+
+## 5. 待办（设备相关，2026-10-31）
+
+以下项目需要设备在场时执行，完成前不得对外宣称已验收：
+
+- **语义开启滚动的帧耗时**（ADR 0041）：语义虚拟化后读屏开启的滚动/深跳帧耗时未在真机测量；按 §4.4 的 build/raster 拆分方法对 JNY-AL10 复测，关注 lazy 滚动 + TalkBack 会话的 assemble 频率。
+- **TalkBack 读屏播报抽查**（ADR 0039/0040/0041/0042）：标题导航（headingLevel）、live region 播报粒度（含 aria-atomic 整组）、窗口化语义在滚动物化时的节点出现/消失体验、RTL 内容的播报方向。
+- **iOS 构建与验证**：维持暂缓（无 macOS 环境），见 §2.2。

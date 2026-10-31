@@ -27,11 +27,13 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - CJK 禁则（ADR 0016）：可配置行首/行尾禁则表（默认覆盖常用中日标点），逐行分行路径显式执行禁则；整段路径经 ICU 对照零违规。
 - 分块渲染（ADR 0017）：绘制命令按 body 顶层子节点分块缓存为 `ui.Picture`，绘制时按可见窗口裁剪、只重绘相交块；选区矩形独立缓存，选区变化不重建 Picture。
 - 流式增量布局（ADR 0023）：同 id 追加复用未变顶层前缀与 TextPainter；未变前缀 Picture 也跨快照保留。
-- 可访问性语义（ADR 0024/0026/0028/0030/0039）：单表面文本、链接、图片与选区 Semantics，支持标题 headingLevel 与表头 header、有序列表 start/value 标记、`aria-live` live region、list/table 嵌套角色与 indexInParent、链接语义 tap、选区 copy 和屏外 showOnScreen。
-- 渐进式布局虚拟化（ADR 0025）：WeftView 简单长文只物化可见块，首屏不创建全文 TextPainter；`lazyOverscan` 可调预取窗口，顶层块内及 body 直属图片 Float 通过排除区 checkpoint 参与 lazy，selection/Semantics/复杂文档回退 full。
+- 可访问性语义（ADR 0024/0026/0028/0030/0039/0040/0042）：单表面文本、链接、图片与选区 Semantics，支持标题 headingLevel 与表头 header、有序列表 start/value 标记、`aria-live` live region、list/table 嵌套角色与 indexInParent、链接语义 tap、选区 copy 和屏外 showOnScreen；ARIA `role` 保守映射、`aria-hidden`/`aria-label`/`aria-atomic` 整组播报，叶子 textDirection 随块方向。
+- ARIA 基础（ADR 0040）：规范化器保留 `role`/`aria-hidden`/`aria-atomic`/`aria-label`（修复自定义标签在读而标准标签被丢弃的错位）；`alert`/`status` 隐式化为 live+atomic 播报，`presentation` 抑制自身派生语义。
+- RTL 与语言（ADR 0042）：`dir`（含 `auto` first-strong 检测）与 CSS `direction` 驱动块级基方向——RTL 起始对齐、Float 逐行断行、列表缩进/marker 镜像、caret 行内首侧；`lang` 转为 TextPainter locale（缺省 `zh` 不变）；`rtl_paragraph` Chrome 几何参考钉住方向边缘。
+- 渐进式布局虚拟化（ADR 0025/0041）：WeftView 简单长文只物化可见块，首屏不创建全文 TextPainter；`lazyOverscan` 可调预取窗口，顶层块内及 body 直属图片 Float 通过排除区 checkpoint 参与 lazy，selection/复杂文档回退 full；Semantics 直接在 lazy 结果上组装窗口化语义（物化窗口精确、视口附近未物化块折叠为粗叶子、未测后缀滚动物化后出现），读屏开启不再丢失虚拟化收益。
 - 懒布局异步分帧与同快照复用（ADR 0031）：深跳/深 seed 每帧至多新测 32 个顶层块并逐帧收敛，消除冷跳底部的单帧全量测量停顿；同快照滚动 relayout 跳过节点 diff、复用跨帧样式缓存与文本索引。
 - 已测窗口直物化（ADR 0036）：按保守绘制区间索引定位窗口，缓存准入、块流元数据与后缀估算；支持 body 格式化空白，热态不再重扫全文，extent 校正后同步实际视口。JNY-AL10 profile 已验收（冷启动中位 635ms、滚动 p95 ≈26ms 且无 >50ms 帧、深跳最大 37ms、内存 +10MB）。
-- 冷深跳 settling 遮罩（ADR 0037）：`WeftView.lazySettlingBuilder` 在分帧测量期间覆盖宿主视口，`onLazySettlingChanged` / `WeftViewState.isLazySettling` post-frame 报告起止；未配置时不改变原有渐进填充，引擎不绘制占位。`example/weft_live` 接入静态骨架，Android 验收见 `docs/device-matrix.md` §4.8。
+- 冷深跳 settling 遮罩（ADR 0037）：`WeftView.lazySettlingBuilder` 在分帧测量期间覆盖宿主视口，`onLazySettlingChanged` / `WeftViewState.isLazySettling` post-frame 报告起止；未配置时不改变原有渐进填充，引擎不绘制占位。`example/weft_live` 接入静态骨架，语义开启的冷深跳同样进入 settling（ADR 0041）。Android 验收见 `docs/device-matrix.md` §4.8。
 - 阶段 0–3 验收证据（ADR 0032）：商品/帮助文档语料的无丢失/无重叠/无越界结构断言、敌意输入诊断扫描、10 万字符随机跨段选区与复制（代理对安全）、流式选区重映射/安全清除、滚动缓存预算稳定、晚解码 Float 等价，以及"标签→Widget"基线与滚动帧耗时两个基准工具。
 - 锚点导航（ADR 0027/0029）：`scrollToAnchor` / `scrollToNode` 精确定位，异步版本逐帧测量深链前缀并保持当前内容；无效或取消请求安全返回 false。
 - 性能门禁：布局/绘制/命中 14 场景基准工具与 10 倍宽上限的 CI 稳定门禁（见 docs/testing-strategy.md）；命中解析经分块索引裁剪（ADR 0020），`WeftView.scrollController` 可注入。
@@ -42,7 +44,7 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - 自定义标签：`WeftNormalizer.customTags` 白名单 + 受信任 Dart `WeftTagRenderer`（rect/text ops、语义标签、`onTagTap`），由引擎钳制并转为常规绘制命令。
 - 后端契约：`weft_runtime_contract` 契约套件同时覆盖 QuickJS FFI 与脚本化 FakeRuntime（`weft_runtime_fake`），替换后端不修改引擎核心。
 - `float_image` 一致性案例：Chrome 生成的浏览器几何基线（块、图片、逐行词盒误差 ≤ 0.5px）与 Flutter 像素黄金双重门禁；图片按 1:1 对齐整像素绘制。
-- 快照 JSON 线格式（ADR 0034）：`WeftDocumentJson` 确定性编码 + format/version 门禁，服务端可规范化一次、客户端直接解码消费；`conformance/normalization/` 下 21 个一致性向量逐字节约束服务端/客户端规范化一致性。
+- 快照 JSON 线格式（ADR 0034）：`WeftDocumentJson` 确定性编码 + format/version 门禁，服务端可规范化一次、客户端直接解码消费；`conformance/normalization/` 下 22 个一致性向量逐字节约束服务端/客户端规范化一致性。
 - 硬化与模糊测试（ADR 0034）：种子化 fuzz 覆盖规范化管线（CI 快跑 + `tool/fuzz.dart` 发布前长跑）；能力策略 8 子集矩阵；公开 API 文档门禁（`tool/doc_coverage.dart`）。
 - WebView 回退示例（ADR 0034）：`example/weft_fallback` 演示 requiresWebView → 宿主 WebView 的决策与接入；发布手册 `docs/release-runbook.md` 固化版本锚点、发布清单与回滚演练；真机矩阵计划见 `docs/device-matrix.md`。
 - `table_basic`/`table_cols` 一致性案例：表格浏览器几何基线（单元格 ≤ 1.5px、行/列结构精确断言），覆盖 collapse/separate、跨列跨行、caption 与 colgroup/col 列宽。
@@ -56,7 +58,7 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 
 - CJK 像素基线（无可分发 CJK 像素字体，跨引擎像素验收已按 ADR 0032 重定界为结构几何门禁）。
 - 表格的嵌套表格（触发回退）与浏览器级 auto 列宽分配精度。
-- 选择工具条（完整菜单）、chrome 动画打磨，以及完整 ARIA 角色/atomic、RTL/语言属性和语义虚拟化等增强。
+- 选择工具条（完整菜单）与 chrome 动画打磨；ARIA 增强（landmark/tab/menu 族角色、`aria-level`/`aria-labelledby`）；行内双向重排的中性字符行缘解析与竖排（基础 RTL 块方向已由 ADR 0042 支持，行内 BiDi 委托 SkParagraph）。
 - 未测区域的精确 O(1)/O(log N) 随机跳转，以及超高顶层块/表内行/图片解码资源虚拟化；冷跳仍分帧测量前缀，配置 `lazySettlingBuilder` 时由宿主遮罩覆盖，但仍不承诺零空白（ADR 0037）。
 - 严格 60fps 的滚动预算：JNY-AL10 上 combined p95 ≈26ms，瓶颈在 raster；12+12 轮 Impeller/Skia A/B（device-matrix §4.7）未发现可复现的后端优势（SCROLL total p95 25.70 vs 24.49ms，p≈0.33），不建议旧 Mali 关闭 Impeller；冷跳分帧期间仍会有短暂空白，见 `docs/device-matrix.md` §4.4/§4.7。
 - 真机证据：Android 已完成构建、打包与真机执行验证（Huawei JNY-AL10 / Android 10）；iOS 的构建与真机验证**暂缓**（暂无 macOS 环境，2026-10-28 决定），未验证前不宣称 iOS 可用，见 `docs/device-matrix.md`。

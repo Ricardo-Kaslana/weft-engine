@@ -10,6 +10,10 @@
 
 阶段 5 之后（ADR 0039）规范化器保留 `aria-live`（`off/polite/assertive`）以及 `ol[start]`、`li[value]`；非法值丢弃并分别产出 `aria.live.invalid`、`list.start.invalid`、`list.value.invalid` 诊断。
 
+ADR 0040 把 `role`（白名单映射集 `WeftHtmlSpec.supportedRoles`，不支持者丢弃并产出 `aria.role.unsupported` info）、`aria-hidden`、`aria-atomic`（枚举 true/false/undefined，非法产出 `aria.hidden.invalid`/`aria.atomic.invalid`）与 `aria-label`（1024 截断）加入全局属性。
+
+ADR 0042 加入 `dir`（`rtl/ltr/auto`，非法产出 `html.dir.invalid`）与 `lang`（1024 截断保留）。一致性向量现有 22 个（含 `synthetic_dir_and_lang`）。
+
 ## 输入与输出
 
 输入至少包含原始 HTML、可选可信样式、策略版本和内容 ID。输出契约为：

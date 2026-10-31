@@ -61,7 +61,7 @@ typedef WeftImageResolver =
 
 ## 已建立：规范化与样式
 
-`WeftNormalizer.normalize(html, id, revision)` 输出 `WeftDocumentSnapshot`，并接受可配置的输入、样式、节点、深度和诊断数量限制。
+`WeftNormalizer.normalize(html, id, revision)` 输出 `WeftDocumentSnapshot`，并接受可配置的输入、样式、节点、深度和诊断数量限制。全局属性白名单含 `class/id/style/title`、`aria-live/role/aria-hidden/aria-atomic/aria-label`（ADR 0039/0040）与 `dir/lang`（ADR 0042），非法枚举值丢弃并产出稳定诊断码。
 
 - 允许标签、类、ID、后代、子代和逗号选择器。
 - 支持的属性、简写和层叠规则见 `supported-subset.md`。
