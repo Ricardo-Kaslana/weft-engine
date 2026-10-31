@@ -26,7 +26,7 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - 选择 chrome（ADR 0019）：折叠选区绘制 caret；选择把手可拖拽移动选区端点；复制按钮写入剪贴板并保留选区（`copyButtonLabel` 可配）；`WeftView.onSelectionChanged` 向宿主上报选区文本；把手/复制按钮可用 `showSelectionHandles`/`showCopyButton` 关闭。
 - CJK 禁则（ADR 0016）：可配置行首/行尾禁则表（默认覆盖常用中日标点），逐行分行路径显式执行禁则；整段路径经 ICU 对照零违规。
 - 分块渲染（ADR 0017）：绘制命令按 body 顶层子节点分块缓存为 `ui.Picture`，绘制时按可见窗口裁剪、只重绘相交块；选区矩形独立缓存，选区变化不重建 Picture。
-- 流式增量布局（ADR 0023/0044/0046）：同 id 追加复用未变顶层前缀与 TextPainter，未变前缀 Picture 跨快照保留；流式快照的文本索引按前缀复用条目（ADR 0044），变化区之后的形状相同块平移复用——中部编辑与头部插入与尾部追加同为 91–95% saving 档（ADR 0046）。
+- 流式增量布局（ADR 0023/0044/0046）：同 id 追加复用未变顶层前缀与 TextPainter，未变前缀 Picture 跨快照保留；流式快照的文本索引按前缀复用条目（ADR 0044，lazy 部分窗口亦参与，ADR 0048），变化区之后的形状相同块平移复用——中部编辑与头部插入与尾部追加同为 91–95% saving 档（ADR 0046）；lazy 滚动会话的流式轮沿用已证前缀的准入结论与逐子估算（ADR 0049），plain 复用块样式成对沿用（ADR 0050），复用轮与样式表规模脱钩。
 - 可访问性语义（ADR 0024/0026/0028/0030/0039/0040/0042）：单表面文本、链接、图片与选区 Semantics，支持标题 headingLevel 与表头 header、有序列表 start/value 标记、`aria-live` live region、list/table 嵌套角色与 indexInParent、链接语义 tap、选区 copy 和屏外 showOnScreen；ARIA `role` 保守映射、`aria-hidden`/`aria-label`/`aria-atomic` 整组播报，叶子 textDirection 随块方向。
 - ARIA 基础（ADR 0040）：规范化器保留 `role`/`aria-hidden`/`aria-atomic`/`aria-label`（修复自定义标签在读而标准标签被丢弃的错位）；`alert`/`status` 隐式化为 live+atomic 播报，`presentation` 抑制自身派生语义。
 - RTL 与语言（ADR 0042）：`dir`（含 `auto` first-strong 检测）与 CSS `direction` 驱动块级基方向——RTL 起始对齐、Float 逐行断行、列表缩进/marker 镜像、caret 行内首侧；`lang` 转为 TextPainter locale（缺省 `zh` 不变）；`rtl_paragraph` Chrome 几何参考钉住方向边缘。

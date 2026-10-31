@@ -17,7 +17,7 @@
 - 行内图片基线混排（ADR 0018）：img 默认 inline 原子参与断行，CSS 宽高（含百分比宽）。
 - 块级盒模型（ADR 0021）：显式 height（不裁剪溢出）、百分比宽度、水平 auto margin。
 - 表格列轨道（ADR 0022）：colgroup/col 声明 px 固定列、百分比列与 span 轨道。
-- 流式增量布局（ADR 0023）：复用无 Float 的顶层前缀块/TextPainter，尾部重排；未变 Picture 跨快照复用。
+- 流式增量布局（ADR 0023/0044/0046）：复用无 Float 的顶层前缀块/TextPainter，尾部重排；未变 Picture 跨快照复用；文本索引按块 diff 前缀复用条目（plain 与 lazy 部分窗口，ADR 0044/0048），变化区之后的形状相同块平移复用（plain，ADR 0046）；lazy 轮的准入结论与逐子估算按已证前缀沿用（ADR 0049），plain 复用块样式成对沿用（ADR 0050）——四种流式形态 plain 91–95% saving，lazy 滚动会话轮 0047 基线 −77–84%。
 - 可访问性语义（ADR 0024/0026/0028/0030）：单表面文本/链接/图片/选区、标题与表头 header、列表标记、list/table 嵌套角色、链接 tap、选区 copy、稳定节点 id 与屏外 showOnScreen。
 - 渐进式布局虚拟化（ADR 0025/0041）：WeftView 只物化可见顶层块，估算后缀 extent，复杂文档/选区回退 full；Semantics 直接在 lazy 结果上组装窗口化语义（物化窗口精确、视口附近未物化块粗叶子、未测后缀滚动物化后出现）。
 - 锚点导航（ADR 0027/0029）：`scrollToAnchor` 同步 focus 定位，`scrollToAnchorAsync` 逐帧测量深链前缀并保持当前内容；无效/取消安全返回 false。
@@ -118,7 +118,7 @@ docs/adr/               架构决策记录
 - 块级盒模型（ADR 0021）：显式 `height`（box-sizing 换算，溢出不裁剪照绘，阻止自垮塌）；百分比 `width` 相对包含块 content 宽；水平 `margin: auto` 分配剩余空间（双边居中/单边全吃/负按 0）。
 - 命中裁剪（ADR 0020）：`WeftLayoutResult.attachDocument` 后命中查询经分块索引（段 bounds 条带）裁剪，语义与全量倒扫逐点等价；`WeftView.scrollController` 可注入。
 - 列轨道（ADR 0022）：`colgroup/col` 的 px 固定列（min=max=声明值）、百分比列（基数 = 表内容宽）、span 轨道与 colspan 平摊绕过固定列；带轨道 collapse 表采用 Chrome 盒语义。
-- 流式增量（ADR 0023）：公共顶层前缀按规范化子树与全局输入键复用，在原块流中跳过递归排版并保留 TextPainter；连续快照重新绑定缓存节点。旧结果含 Float、全局输入变化等情况全量回退；文本索引仍全量重建，未变前缀 Picture 跨布局保留。
+- 流式增量（ADR 0023/0044/0046/0048–0050）：公共顶层前缀按规范化子树与全局输入键复用，在原块流中跳过递归排版并保留 TextPainter；连续快照重新绑定缓存节点。流式新快照的文本索引按块 diff 前缀复用条目、只构建后缀（plain 与 lazy 部分测量窗口均参与，ADR 0044/0048；增量构建携带前缀 checkpoint，链式轮每轮参与）；变化区之后的形状相同块平移复用（plain，先序 id 经形状比较 + 映射重写，ADR 0046）；lazy 轮的准入结论与逐子估算（style/gap/marker/minimumPaintOffset）按已证前缀沿用、只验证/重建后缀（ADR 0049）；plain 复用块顶层样式成对沿用上一轮缓存（ADR 0050）。旧结果含 Float、全局输入/样式表变化、头部插入（k=0）等情况按门回退全量；未变前缀 Picture 跨布局保留。
 - Semantics（ADR 0024/0026/0028/0030/0039/0040）：RenderWeftSurface 手动组装阅读顺序文本、链接、图片和选区节点；标题子树带 header flag 与 `headingLevel`，显式 `aria-live` 子树的叶子带 `liveRegion`，有序列表 marker 使用 `ol start`/`li value`。ARIA 基础：`role` 保守映射（button/link 输出 isButton/isLink flag 但无激活动作，img/heading 折叠或派生，dialog/alertdialog 容器，alert/status 隐式 live+atomic，presentation/none 抑制自身派生语义，其余丢弃并诊断）；显式 role 覆盖隐式语义；`aria-hidden=true` 子树移出语义树；`aria-label` 在 img 上优先于 alt、其他元素折叠为单个命名叶子；live region 内 `aria-atomic=true` 整组播报。链接语义 tap 与选区 copy 走独立回调入口，WeftView pointer/剪贴板职责不变。节点 key 对齐 NodeId，流式更新保留身份；屏外节点可 showOnScreen，选区仅暴露 value/selected/rect/copy，不伪装 text field。live region 不创建额外容器，`polite/assertive` 统一为布尔。
 - 布局虚拟化（ADR 0025）：`layoutViewport` 在原块流中连续测量精确前缀，只物化 viewport+250px 窗口；未测后缀按同类块中位数估算 extent。隐藏块释放 commands/painter，previous/current 继续单 owner 转移；跳到估算底部用 correctBy 跟随。顶层块内及 body 直属的已解析图片 Float 都以块级排除区 checkpoint 跨离屏复用；非图片/inline 祖先 Float、非空 selection（含首帧）、Semantics、未解析图片/loose inline 回退或粘滞 full。full 退出会递增 generation 并清除陈旧校正，初始 ScrollController offset 会 seed 首帧物化窗口。
 - 懒布局异步分帧与同快照复用（ADR 0031）：视口末端距已测前缀超过一屏或首帧 seed 深于 overscan 时，每帧至多新测 32 个顶层块，post-frame 续帧按 `_needsLazyRelayout` 收敛，`_lazyGeneration` 取消；同快照 relayout 跳过节点 diff 与样式表比对，元素级样式缓存随增量缓存跨帧存活（宽度/缩放/图片不参与计算样式），文本索引实例直接复用。300 块冷跳底部从 124.8ms 单帧降为 10 帧 × 中位 5.8ms。
@@ -130,7 +130,7 @@ docs/adr/               架构决策记录
 
 - **严格 60fps 未达成**：ADR 0036 在 JNY-AL10 上四项标准通过（冷启动中位 635ms、滚动 p95 ≈26ms 无 >50ms、深跳最大 37ms、内存 +10MB），但 combined p95 仍高于 16.7ms，瓶颈是 raster；冷跳分帧期间可能有短暂空白。B1（12+12 轮后端 A/B，device-matrix §4.7）未发现可复现后端优势，切换 Skia 不解决该缺口。
 - 未测区域的精确 O(1)/O(log N) 随机跳转，以及超高顶层块/表内行/图片解码资源虚拟化；冷跳与首次深锚点仍需逐帧测量目标前缀，病态区间重叠或大量 Float 可能退化。配置 `lazySettlingBuilder` 时可由宿主遮罩空白，但首帧仍可能可见、遮罩不加速测量，不承诺零空白（ADR 0037）。
-- 非图片 Float 与表格局部 Float 的 checkpoint；增量布局的行级复用与跨快照行级缓存（后缀平移已由 ADR 0046 交付——plain 路径）；行内原子的 margin 参与行框与 top/bottom 对齐。
+- 非图片 Float 与表格局部 Float 的 checkpoint；增量布局的行级复用与跨快照行级缓存（后缀平移已由 ADR 0046 交付——plain 路径）；lazy 种子消费/状态整体采用（①(c)）按 0049 数据降级留案——滚动轮剩余 = O(前缀) 种子 append + diff + 后缀物化；行内原子的 margin 参与行框与 top/bottom 对齐。
 - CJK 像素基线（跨引擎像素验收已按 ADR 0032 重定界为结构几何门禁；真机帧计时仍以 weft_lab 为准）。
 - 表格：嵌套表格（触发回退）、浏览器级 auto 列宽分配精度、`col` 的 min/max 语义。
 - Semantics 的跨行跨列语义索引、table/list 角色导航、可编辑 selection/caret 动作、landmark/tab/menu/radio 族角色、`aria-level`/`aria-labelledby`/`aria-describedby`、`polite`/`assertive` 播报优先级与语义虚拟化。`role=button`/`link` 只播报角色，无激活动作；aria-label/role=img/aria-atomic 折叠不播报子树内容，presentation 表格后代 th 的 header flag 保留（ADR 0040 记录在案的简化）。
@@ -253,6 +253,8 @@ ADR 0043 画像结论：快照 diff 近乎免费；textIndex 全量重建是流�
 - 移动端编译参数要三处一致：`tool/build_native.sh`、`android/src/main/cpp/CMakeLists.txt`、`ios/weft_quickjs.podspec` 必须反映同一组宏（`CONFIG_VERSION`、`CONFIG_BIGNUM`、`-fno-strict-aliasing`）；只改一处会让同一脚本在不同平台行为分叉。
 - 不要用「放宽懒布局准入条件」解决首帧慢：ADR 0036 之前的实测里滚动 p95 从 9–30ms 恶化到 140ms（docs/device-matrix.md §4.3）。首帧成本只能靠窗口化摊薄，不能靠打开每帧重排；窗口化已在 ADR 0036 交付。
 - 桌面测试的 lazy pass 耗时（3–6ms）不能直接当设备预算：A 档真机放大约 3–4 倍（18–27ms），定目标时按 4× 估。
+- 跨快照采用的等价性前提不许削弱：样式/索引条目/准入结论都是「内容 + 样式表签名」的纯函数，任何采用必须经 diff 门（`_sameNode`/`_sameNodeShape` + 签名 + body 壳 + tagRenderers 身份）；不要给 styleCache 或索引改 id 键控——后缀先序 id 随中部变化平移，会错误命中旧条目（ADR 0046 的核心发现）。
+- `_minimumPaintOffset` 的 `styleCache[element]!` 硬断言靠「采用路径不接触前缀子 + 后缀子树刚被准入解析」保温：新增 lazy 消费方要么走 `styleFor` 按需解析，要么保证预热，不要直接读缓存。plain 轮不得消费 lazy 缓存的 diff 映射（未物化块零命令）——provisional allowLazy 的重跑规则不能省。`debugEligibilityVisitCount` 自 ADR 0049 起只计后缀访问，同快照轮恒 0。
 - 不要用 `tool/check.sh | tail` 判断成败：管道会吞掉退出码，重定向到文件再看 `$?`。
 - Flutter 下限已在 0.7.0-dev.1 统一为 `>=3.35.5`（ADR 0038），不要再写回 3.22：`weft_engine` 自 ADR 0030 起使用 Flutter 3.35.5 的 `SemanticsRole`，3.22–3.34 宿主会在编译期失败；包含 ADR 0030 的 0.5/0.6 版本在实际编译时同样要求 3.35.5。
 - live region 不是语义容器：`aria-live` 只给叶子片段打 `liveRegion`，多个叶子可能被辅助技术分别播报；不要把整页包进 aria-live，也不要指望引擎合并临时消息或保留 polite/assertive 优先级。
