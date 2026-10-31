@@ -144,17 +144,15 @@ final class WeftLayoutEngine {
         ? previousCache.viewportState as _LazyLayoutState
         : null;
     var eligibilityVisits = 0;
-    final lazy = viewportStart != null &&
-        viewportEnd != null &&
-        (reusableState != null ||
-            _supportsLazyLayout(
-              document: document,
-              styleResolver: styleResolver,
-              images: images,
-              styleCache: styleCache,
-              onVisit: () => eligibilityVisits++,
-            ));
-    final _ReusableBlockMaps reusedMaps = reusableState != null
+    final wantsLazy = viewportStart != null && viewportEnd != null;
+    // The diff runs before the lazy verdict: incremental admission (ADR
+    // 0049) adopts the previous pass's verdict for the diff-proven prefix,
+    // so it needs the reusable map first. allowLazy is provisional — a
+    // negative verdict with a non-empty prefix rebuilds the maps in plain
+    // mode below, because lazy-mode maps would lose the suffix translation
+    // and, for a lazy previous cache, feed unmaterialized blocks into a
+    // plain walk.
+    var reusedMaps = reusableState != null
         ? const (
             prefix: <int, WeftCachedLayoutBlock>{},
             suffix: <int, WeftCachedLayoutBlock>{},
@@ -167,9 +165,48 @@ final class WeftLayoutEngine {
             textScaler: textScaler,
             images: images,
             lineBreakRules: lineBreakRules,
-            allowLazy: lazy,
+            allowLazy: wantsLazy,
             tagRenderers: tagRenderers,
           );
+    var lazy = false;
+    _LazyPrefixAdoption? lazyAdoption;
+    if (wantsLazy && reusableState != null) {
+      lazy = true;
+    } else if (wantsLazy) {
+      lazy = _admitLazyLayout(
+        document: document,
+        styleResolver: styleResolver,
+        images: images,
+        styleCache: styleCache,
+        previousCache: previousCache,
+        reusableBlocks: reusedMaps.prefix,
+        onVisit: () => eligibilityVisits++,
+      );
+      if (!lazy && reusedMaps.prefix.isNotEmpty) {
+        reusedMaps = _reusableLayoutBlocks(
+          document: document,
+          previous: previous,
+          width: width,
+          textScaler: textScaler,
+          images: images,
+          lineBreakRules: lineBreakRules,
+          allowLazy: false,
+          tagRenderers: tagRenderers,
+        );
+      }
+    }
+    if (lazy &&
+        !sameSnapshot &&
+        previousCache != null &&
+        previousCache.isLazy &&
+        previousCache.viewportState is _LazyLayoutState &&
+        reusedMaps.prefix.isNotEmpty) {
+      lazyAdoption = _lazyPrefixAdoption(
+        body: body,
+        previousState: previousCache.viewportState as _LazyLayoutState,
+        reusableBlocks: reusedMaps.prefix,
+      );
+    }
     final context = _LayoutContext(
       styleResolver: styleResolver,
       textScaler: textScaler,
@@ -188,6 +225,7 @@ final class WeftLayoutEngine {
       styleCache: styleCache,
       tagRenderers: tagRenderers,
       lazyState: reusableState,
+      lazyAdoption: lazyAdoption,
     );
     final reusedTextIndex = sameSnapshot ? previous?.textIndex : null;
     final textIndex = reusedTextIndex ??
@@ -363,6 +401,47 @@ typedef _ReusableBlockMaps = ({
   Map<int, WeftCachedLayoutBlock> suffix,
   Map<int, int> ids,
 });
+
+/// The diff-proven prefix's persisted per-child lazy state (ADR 0049):
+/// [children] are the previous pass's `_LazyChild` values re-bound to this
+/// snapshot's elements, and [nextOrdinal] is the raw body-child index the
+/// fresh estimate loop resumes at.
+typedef _LazyPrefixAdoption = ({List<_LazyChild> children, int nextOrdinal});
+
+/// Collects the previous pass's `_LazyChild` values for the diff-proven raw
+/// prefix: each adopted child is re-bound to this snapshot's element — the
+/// pre-order id is unchanged wherever the diff scan matched, and any
+/// raw-structure drift breaks the scan and shrinks the adoption — while
+/// style, gap, marker and minimum paint offset carry over verbatim, so the
+/// estimate walk never re-enters the resolver for them.
+_LazyPrefixAdoption? _lazyPrefixAdoption({
+  required WeftElement body,
+  required _LazyLayoutState previousState,
+  required Map<int, WeftCachedLayoutBlock> reusableBlocks,
+}) {
+  var count = 0;
+  for (final child in body.children) {
+    if (!reusableBlocks.containsKey(child.id)) break;
+    count++;
+  }
+  if (count == 0) return null;
+  final adopted = <_LazyChild>[];
+  for (final child in previousState.children) {
+    if (child.ordinal >= count) break;
+    final node = body.children[child.ordinal];
+    if (node is! WeftElement || node.id != child.element.id) break;
+    adopted.add(_LazyChild(
+      element: node,
+      style: child.style,
+      ordinal: child.ordinal,
+      gap: child.gap,
+      marker: child.marker,
+      minimumPaintOffset: child.minimumPaintOffset,
+    ));
+  }
+  if (adopted.isEmpty) return null;
+  return (children: adopted, nextOrdinal: adopted.last.ordinal + 1);
+}
 
 _ReusableBlockMaps _reusableLayoutBlocks({
   required WeftDocumentSnapshot document,
@@ -583,6 +662,98 @@ String _styleSheetSignature(WeftStyleSheet sheet) {
   return result.toString();
 }
 
+WeftComputedStyle _resolveLazyStyle(
+  WeftElement element, {
+  required WeftComputedStyle parent,
+  required List<WeftElement> ancestors,
+  required WeftStyleResolver styleResolver,
+  required Map<WeftElement, WeftComputedStyle> styleCache,
+}) {
+  final cached = styleCache[element];
+  if (cached != null) return cached;
+  final style = styleResolver.resolve(
+    element,
+    parent: parent,
+    ancestors: ancestors,
+  );
+  styleCache[element] = style;
+  return style;
+}
+
+/// One admission visit: resolves [element] into [styleCache] and applies the
+/// lazy-eligibility conditions (ADR 0036) to it and, recursively, its
+/// subtree. Shared by the full admission walk and the incremental suffix
+/// verification (ADR 0049).
+bool _visitLazyElement(
+  WeftElement element, {
+  required WeftElement body,
+  required WeftComputedStyle parent,
+  required List<WeftElement> ancestors,
+  required bool underInlineAncestor,
+  required WeftStyleResolver styleResolver,
+  required Map<WeftElement, WeftComputedStyle> styleCache,
+  required Map<int, ui.Image> images,
+  required void Function() onVisit,
+}) {
+  onVisit();
+  final style = _resolveLazyStyle(
+    element,
+    parent: parent,
+    ancestors: ancestors,
+    styleResolver: styleResolver,
+    styleCache: styleCache,
+  );
+  if (style.display == WeftDisplay.none) return false;
+  if (style.float != WeftFloat.none) {
+    if (element.tag != 'img' ||
+        images[element.id] == null ||
+        underInlineAncestor) {
+      return false;
+    }
+  }
+  if (element.tag == 'img' && images[element.id] == null) return false;
+  final childAncestors = <WeftElement>[...ancestors, element];
+  final childrenUnderInline =
+      underInlineAncestor || style.display == WeftDisplay.inline;
+  for (final child in element.children) {
+    if (child is WeftText && identical(element, body)) {
+      if (style.whiteSpace != WeftWhiteSpace.normal ||
+          !RegExp(r'^[ \t\r\n\f]*$').hasMatch(child.text)) {
+        return false;
+      }
+      continue;
+    }
+    if (child is! WeftElement) continue;
+    if (identical(element, body)) {
+      final childStyle = _resolveLazyStyle(
+        child,
+        parent: style,
+        ancestors: childAncestors,
+        styleResolver: styleResolver,
+        styleCache: styleCache,
+      );
+      if (childStyle.display == WeftDisplay.inline &&
+          childStyle.float == WeftFloat.none) {
+        return false;
+      }
+    }
+    if (!_visitLazyElement(
+      child,
+      body: body,
+      parent: style,
+      ancestors: childAncestors,
+      underInlineAncestor: childrenUnderInline,
+      styleResolver: styleResolver,
+      styleCache: styleCache,
+      images: images,
+      onVisit: onVisit,
+    )) {
+      return false;
+    }
+  }
+  return true;
+}
+
 bool _supportsLazyLayout({
   required WeftDocumentSnapshot document,
   required WeftStyleResolver styleResolver,
@@ -592,73 +763,103 @@ bool _supportsLazyLayout({
 }) {
   final body = document.body;
   if (body == null) return false;
+  return _visitLazyElement(
+    body,
+    body: body,
+    parent: WeftComputedStyle.initial,
+    ancestors: const [],
+    underInlineAncestor: false,
+    styleResolver: styleResolver,
+    styleCache: styleCache,
+    images: images,
+    onVisit: onVisit,
+  );
+}
 
-  WeftComputedStyle resolve(
-    WeftElement element, {
-    required WeftComputedStyle parent,
-    required List<WeftElement> ancestors,
-  }) {
-    final cached = styleCache[element];
-    if (cached != null) return cached;
-    final style = styleResolver.resolve(
-      element,
-      parent: parent,
-      ancestors: ancestors,
-    );
-    styleCache[element] = style;
-    return style;
+/// Incremental lazy admission (ADR 0049): when the previous pass was lazy
+/// and the diff proved the first [adoptedCount] raw body children unchanged,
+/// their verdict is adopted — subtrees are `_sameNode`-identical and the
+/// reuse key (stylesheet signature, images, line-break rules, tag
+/// renderers, width, textScaler) is equal — so only raw children from
+/// [adoptedCount] on are verified, plus the body-level checks for that
+/// range. A count of zero, a non-lazy previous cache, or any doubt falls
+/// back to the full walk, which also warms the whole style cache.
+bool _admitLazyLayout({
+  required WeftDocumentSnapshot document,
+  required WeftStyleResolver styleResolver,
+  required Map<int, ui.Image> images,
+  required Map<WeftElement, WeftComputedStyle> styleCache,
+  required WeftIncrementalLayoutCache? previousCache,
+  required Map<int, WeftCachedLayoutBlock> reusableBlocks,
+  required void Function() onVisit,
+}) {
+  final body = document.body;
+  if (body == null) return false;
+  var adoptedCount = 0;
+  final previousWasLazy = previousCache?.isLazy ?? false;
+  if (previousWasLazy) {
+    for (final child in body.children) {
+      if (!reusableBlocks.containsKey(child.id)) break;
+      adoptedCount++;
+    }
   }
-
-  bool visit(
-    WeftElement element,
-    WeftComputedStyle parent,
-    List<WeftElement> ancestors,
-    bool underInlineAncestor,
-  ) {
-    onVisit();
-    final style = resolve(
-      element,
-      parent: parent,
-      ancestors: ancestors,
+  if (adoptedCount == 0) {
+    return _supportsLazyLayout(
+      document: document,
+      styleResolver: styleResolver,
+      images: images,
+      styleCache: styleCache,
+      onVisit: onVisit,
     );
-    if (style.display == WeftDisplay.none) return false;
-    if (style.float != WeftFloat.none) {
-      if (element.tag != 'img' ||
-          images[element.id] == null ||
-          underInlineAncestor) {
+  }
+  final bodyStyle = _resolveLazyStyle(
+    body,
+    parent: WeftComputedStyle.initial,
+    ancestors: const [],
+    styleResolver: styleResolver,
+    styleCache: styleCache,
+  );
+  // The body's own shell is proven unchanged by the diff, so its self
+  // checks carry over; its white-space still governs the body-level text
+  // check below.
+  if (bodyStyle.display == WeftDisplay.none) return false;
+  final childrenUnderInline = bodyStyle.display == WeftDisplay.inline;
+  for (var i = adoptedCount; i < body.children.length; i++) {
+    final child = body.children[i];
+    if (child is WeftText) {
+      if (bodyStyle.whiteSpace != WeftWhiteSpace.normal ||
+          !RegExp(r'^[ \t\r\n\f]*$').hasMatch(child.text)) {
         return false;
       }
+      continue;
     }
-    if (element.tag == 'img' && images[element.id] == null) return false;
-    final childAncestors = <WeftElement>[...ancestors, element];
-    final childrenUnderInline =
-        underInlineAncestor || style.display == WeftDisplay.inline;
-    for (final child in element.children) {
-      if (child is WeftText && identical(element, body)) {
-        if (style.whiteSpace != WeftWhiteSpace.normal ||
-            !RegExp(r'^[ \t\r\n\f]*$').hasMatch(child.text)) return false;
-        continue;
-      }
-      if (child is! WeftElement) continue;
-      if (identical(element, body)) {
-        final childStyle = resolve(
-          child,
-          parent: style,
-          ancestors: childAncestors,
-        );
-        if (childStyle.display == WeftDisplay.inline &&
-            childStyle.float == WeftFloat.none) {
-          return false;
-        }
-      }
-      if (!visit(child, style, childAncestors, childrenUnderInline)) {
-        return false;
-      }
+    if (child is! WeftElement) continue;
+    final childStyle = _resolveLazyStyle(
+      child,
+      parent: bodyStyle,
+      ancestors: [body],
+      styleResolver: styleResolver,
+      styleCache: styleCache,
+    );
+    if (childStyle.display == WeftDisplay.inline &&
+        childStyle.float == WeftFloat.none) {
+      return false;
     }
-    return true;
+    if (!_visitLazyElement(
+      child,
+      body: body,
+      parent: bodyStyle,
+      ancestors: [body],
+      underInlineAncestor: childrenUnderInline,
+      styleResolver: styleResolver,
+      styleCache: styleCache,
+      images: images,
+      onVisit: onVisit,
+    )) {
+      return false;
+    }
   }
-
-  return visit(body, WeftComputedStyle.initial, const [], false);
+  return true;
 }
 
 final class _LayoutContext {
@@ -678,9 +879,14 @@ final class _LayoutContext {
     required this.styleCache,
     this.tagRenderers = const <String, WeftTagRenderer>{},
     this.lazyState,
+    this.lazyAdoption,
   });
 
   _LazyLayoutState? lazyState;
+
+  /// The diff-proven prefix's adopted per-child lazy state (ADR 0049); null
+  /// when this pass prepares the estimate state from scratch.
+  final _LazyPrefixAdoption? lazyAdoption;
   int visitedBlockCount = 0;
   int estimatedBlockCount = 0;
 

@@ -96,7 +96,7 @@ round = 259–468ms（两轮），S = 0.5ms、T = 1.5–2.0ms → **走查残差
 **下一方向 = lazy 流式轮 O(change) 化（分三步走，可按数据中途收束）**：
 
 1. **(a) lazy 轮文本索引增量参与**——放宽 `_incrementalTextIndex` 的 `blocks.length == previousChildren` 门：索引条目是（内容 + 样式表签名）的纯函数，与几何测量无关；diff 前缀已证 `_sameNode` + 样式表签名相等 + body 壳相等时，前缀 checkpoint 对齐即可复用条目（`checkpointCount == previousChildren` 保留）。单一机制、消最大单项（38–63%）。
-2. **(b) 准入与估算跨快照持久化**——diff 已证不变的块区间沿用上一轮的准入结论与逐子估算（gap/minimumPaintOffset/marker 挂到缓存块或持久状态），只重建变化区后缀；消灭 S 与残差主体。
+2. **(b) 准入与估算跨快照持久化**——diff 已证不变的块区间沿用上一轮的准入结论与逐子估算（gap/minimumPaintOffset/marker 挂到缓存块或持久状态），只重建变化区后缀；消灭 S 与残差主体。（ADR 0049 修订：已交付——机制为 `_LazyChild` 前缀采用 + 后缀准入验证，边界三值 pendingMargin/leading/orderedItem 零歧义恢复。）
 3. **(c) lazy 走查后缀采用**（视 (a)(b) 后数据）——0046 平移复用在 lazy 路径的对应物，先论证估算/段树失效面。
 
 第二方向 = **plain 走查样式跨快照采用**（diff 已证子树相等 + 样式表签名相等 + body 相等守卫 → 从上一轮 styleCache 按旧→新元素映射采用顶层样式；收益随样式表规模放大，E4d）。第三方向 = **k=0 头部插入的索引条目平移**（有界 T，0046 备选清单原样）。行级缓存继续留案，E4e 记为收益上界。

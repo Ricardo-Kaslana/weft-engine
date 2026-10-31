@@ -211,13 +211,46 @@ extension _LazyLayout on _LayoutContext {
   _LazyLayoutState? _prepareLazyState(
     WeftComputedStyle style,
     double contentY,
-    List<WeftElement> ancestors,
-  ) {
+    List<WeftElement> ancestors, {
+    _LazyPrefixAdoption? adoption,
+  }) {
     final children = <_LazyChild>[];
     var leading = style.borderTop.width == 0 && style.paddingTop == 0;
     double? pendingMargin;
     var orderedItem = 0;
-    for (var ordinal = 0; ordinal < body.children.length; ordinal++) {
+    var firstFreshOrdinal = 0;
+    final adopted = adoption;
+    if (adopted != null) {
+      // ADR 0049: the diff proved these raw children unchanged, so the
+      // previous pass's per-child state (style, gap, marker, minimum paint
+      // offset) is adopted verbatim — the resolver and the minimum paint
+      // offset descent never see them. The boundary's margin-collapse state
+      // is recovered from the adopted styles without re-resolving.
+      for (final child in adopted.children) {
+        visitedBlockCount++;
+        children.add(child);
+      }
+      firstFreshOrdinal = adopted.nextOrdinal;
+      _LazyChild? lastNonFloat;
+      for (final child in adopted.children) {
+        if (child.element.tag == 'li' &&
+            child.style.listStyle == WeftListStyle.decimal) {
+          orderedItem++;
+        }
+        if (!child.isFloat) lastNonFloat = child;
+      }
+      leading = leading && lastNonFloat == null;
+      if (lastNonFloat != null) {
+        pendingMargin = lastNonFloat.element.tag == 'table' ||
+                lastNonFloat.element.tag == 'img'
+            ? lastNonFloat.style.marginBottom
+            : outerMarginBottom(
+                lastNonFloat.element, lastNonFloat.style, ancestors);
+      }
+    }
+    for (var ordinal = firstFreshOrdinal;
+        ordinal < body.children.length;
+        ordinal++) {
       visitedBlockCount++;
       final node = body.children[ordinal];
       if (node is! WeftElement) continue;
@@ -275,7 +308,12 @@ extension _LazyLayout on _LayoutContext {
   }) {
     var state = lazyState;
     if (state == null) {
-      state = _prepareLazyState(style, contentY, childAncestors);
+      state = _prepareLazyState(
+        style,
+        contentY,
+        childAncestors,
+        adoption: lazyAdoption,
+      );
       if (state == null) {
         topLevelCacheEligible = false;
         return 0;

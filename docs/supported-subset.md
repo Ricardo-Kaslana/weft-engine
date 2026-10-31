@@ -132,7 +132,7 @@
 
 - `WeftView.enableLazyLayout` 默认开启：简单文档只精确测量并物化可见顶层块，未测后缀以同类块高度估算滚动 extent；`lazyOverscan` 可调整窗口外预取（默认 250px）。
 - 已测前缀坐标与 canonical 一致；滚出窗口的 TextPainter/commands 会释放，重新进入时按保守绘制区间索引直接定位，并恢复 Float 上下文重建（ADR 0036）。表格整块处理，不做表内虚拟化。
-- body 在 `white-space: normal` 下的 ASCII 格式化空白不进入块流；原快照、逻辑文本及分块序号不变。准入与后缀估算按有效输入缓存，热态换窗不重新采样高度；NBSP、正文与预格式化空白仍保守 full。
+- body 在 `white-space: normal` 下的 ASCII 格式化空白不进入块流；原快照、逻辑文本及分块序号不变。准入与后缀估算按有效输入缓存，热态换窗不重新采样高度；流式新快照按块 diff 已证前缀沿用上一轮准入结论与逐子估算、只验证/重建变化后缀（ADR 0049）；NBSP、正文与预格式化空白仍保守 full。
 - 跳到估算底部后随 extent 校正使用 ScrollPosition.correctBy 跟随；同 id 流式尾部追加继续保留未变可见资源。
 - 顶层块内部及 body 直属、已解析 `img` 的左右 Float 可进入 lazy；排除区按顶层块保存并在离屏复用/重新物化时恢复，后续文字行宽与 clear 保持 canonical。
 - 非空 selection、非图片/inline 祖先 Float、未解析图片、body loose inline 或复杂结构会升级/回退完整布局；升级按 document.id 粘滞。Semantics 不再触发升级（ADR 0041）：读屏直接在 lazy 结果上组装——物化窗口精确、band 内未物化块折叠为逐块粗叶子、未测后缀滚动物化后出现。
