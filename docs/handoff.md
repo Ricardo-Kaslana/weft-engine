@@ -31,7 +31,7 @@
 1. D1 RTL/语言属性已完成（ADR 0042）：`dir`/`lang` 白名单、块级基方向（含 `dir=auto` first-strong 检测与 CSS `direction`）、RTL 对齐/断行/列表镜像/caret 边缘、lang→locale、语义 textDirection 透传；`rtl_paragraph` Chrome 几何参考钉住方向边缘。C3 语义虚拟化（ADR 0041）、C2 ARIA 基础（ADR 0040）、C1（ADR 0039）、C0（ADR 0038）与 B2（ADR 0037）此前已完成。**增量布局画像（ADR 0043）与三方向全部落地：①文本索引增量（ADR 0044，U(2000) −60%、appendIncremental 7.1 → 5.8–6.0ms）；②逐行 probe 窗口化（ADR 0045，8000 字段落 764 → 11.1ms −98.5% 二次方转线性、floatWrap 6–9 → 4.8ms）；③后缀平移（ADR 0046，中部编辑 21.6 → 2.3ms、头部插入 40.9 → 2.4ms——weft_live 形态 saving ≈0% → 93%；plain 路径，先序 id 经形状比较 + 映射重写）。plain 宿主流式四形态全部进入 91–95% saving 档。「样式与状态跨快照」家族画像已交付（ADR 0047）：lazy 流式轮 97–99% 是每快照重付的家族工作（全量索引 T 38–63%、准入样式 S 12–18%、估算走查残差），真机 4× 后所有规模超帧预算。方向①(a) 文本索引增量参与已交付（ADR 0048）：参与门按内容纯函数论证放宽，lazy 部分测量窗口复用索引条目；配套修复 0044 两个潜伏缺陷（部分前缀尾 trim/drop 还原、前缀 checkpoint 播种——链式轮不再隔轮回退）；滚动会话尾追加轮 −52–68%（e4bs 形态）。①(b) 准入与估算前缀采用已交付（ADR 0049）：diff 已证前缀沿用上一轮准入结论与逐子估算（`_LazyChild` 克隆重绑 element），只验证/重建后缀；同机对比滚动轮再降 −22/−36/−46%，准入访问后缀化（931→111@300）。①(c) 种子消费/走查后缀采用已按数据降级缓办（剩余池 ~1–1.7ms@2000、机制最重，留案）；方向② plain 走查样式跨快照采用已交付（ADR 0050）：diff 已证顶层子成对种子化上一轮样式，E4f 同机 A/B 8 条规则 −27%、256 条 −60%——复用轮与样式表规模脱钩。方向③ k=0 头部插入的索引条目平移已交付（ADR 0051）：`buildFromSuffix` 接缝标志比对 + 逐子走查或采用（流首剥离分歧 fresh 回退），E1 head-insert 同机 A/B @300 2.11→1.16–1.38ms、@1000 7.82→3.02–3.09ms。0047 家族清单全部销账；下一步 = 按「先画像再选择」重新画像剩余轮成本（或先测 mid-edit 后缀采用推广的后缀走查份额）；行级缓存继续留案（E4e 记收益上界）。不要再改 layout/overscan、重复后端 A/B，或把遮罩当成零空白；禁止把桌面 layoutViewport 画像当真机帧耗时。**
 2. 语义真机抽查：C1 只在 `SemanticsOwner` 层验证 headingLevel/liveRegion 标志，尚未在 TalkBack/Web 读屏上验收播报；若产品需要，按 JNY-AL10 手动验证标题导航和 live region 播报并记录到 device-matrix。
 3. 深跳尖峰定性：ADR 0036 复测已把 FrameTiming 拆成 build/raster，~313ms 尖峰未复现且全程无 >50ms 帧；若再现，按 §4.4 的 build/raster 方法继续定位。
-4. iOS 构建与真机验证（**暂缓**：暂无 macOS 环境）：按 docs/device-matrix.md §2.2 清单执行；未验证前 iOS 不得宣称可用，发布说明要写明缺席。
+4. iOS 验证：macOS CI 已覆盖 `pod install`、无签名构建和 10 个 `weft_*` 符号检查；模拟器/真机 runtime 示例仍待执行。未完成 runtime 验证前不得宣称 iOS 可用，发布说明要写明缺口。
 5. 语义/增量布局后续：按产品需要，见下文「建议的下一步」。
 
 硬性约束：
@@ -136,7 +136,7 @@ docs/adr/               架构决策记录
 - 表格：嵌套表格（触发回退）、浏览器级 auto 列宽分配精度、`col` 的 min/max 语义。
 - Semantics 的跨行跨列语义索引、table/list 角色导航、可编辑 selection/caret 动作、landmark/tab/menu/radio 族角色、`aria-level`/`aria-labelledby`/`aria-describedby`、`polite`/`assertive` 播报优先级。语义虚拟化已由 ADR 0041 提供（物化窗口精确、band 内粗叶子、未测后缀随滚动物化），但尚无 TalkBack/Web 读屏真机验收。`role=button`/`link` 只播报角色，无激活动作；aria-label/role=img/aria-atomic 折叠不播报子树内容，presentation 表格后代 th 的 header flag 保留（ADR 0040 记录在案的简化）。
 - 受限 JS 的既有边界：bridge 风暴上限按单轮计数、`weft.net` 仅 GET、自定义标签不支持行内混排与 Float 环绕、JSON 编组把 undefined 折叠为 null（ADR 0033 后续小节）。
-- 移动端验收证据：Android 已完成构建、打包与真机执行（Huawei JNY-AL10 / Android 10，加载/求值/内存与墙钟预算共 6 项冒烟全过）；iOS 构建与运行（需 macOS + Xcode + CocoaPods）**暂缓**——podspec 与锚点只经过代码审查，未执行过 `pod install`（ADR 0035）。
+- 移动端验收证据：Android 已完成构建、打包与真机执行（Huawei JNY-AL10 / Android 10，加载/求值/内存与墙钟预算共 6 项冒烟全过）；iOS 由 macOS CI 执行 `pod install`、无签名 release 构建和 10 个 `weft_*` 符号检查，模拟器/真机 runtime 示例仍未执行（ADR 0035）。
 
 ## 关键约束
 
@@ -175,6 +175,7 @@ dart format --output=none --set-exit-if-changed .
 dart analyze
 dart run tool/verify.dart
 dart run tool/consumer_smoke.dart
+dart run tool/ios_smoke.dart  # 仅 macOS
 cd packages/weft_engine && flutter test tool/golden_pixel_test.dart --timeout 60s
 
 # 浏览器诊断参考（本机 Chrome/Edge + Node 22）
@@ -198,11 +199,11 @@ python tool/generate_assets.py
 
 开发计划阶段 0–5 已完成。以下为既有技术路线的延续候选（阶段 5 的验收边界外）。
 
-### A. iOS 构建验证（暂缓，等待 macOS 环境）
+### A. iOS runtime 验证（构建/符号已完成）
 
 目标：在 macOS + Xcode 上完成首次 `pod install` 与构建，确认 `weft_*` 符号未被剥离，并在 iOS 真机/模拟器跑通 runtime 示例；结果写入 `docs/device-matrix.md`。
 
-状态：2026-10-28 决定暂缓——手头没有 macOS 设备。Android 已真机验证，桌面与 CI 路径不受影响；恢复时按 device-matrix §2.2 的清单逐条执行。未验证前不得对外宣称 iOS 可用，发布说明中要写明缺席。
+状态：GitHub Actions 新增 `iOS build (macOS)`，首次 PR 运行将验证临时宿主的 `pod install`、无签名 release 构建和 10 个 `weft_*` 符号；剩余工作是用 `tool/ios_smoke.dart --keep` 或独立宿主在模拟器/真机执行 `QuickJsNativeLibrary.load()` 与脚本求值。未完成 runtime 验证前不得对外宣称 iOS 可用，发布说明中要写明缺口。
 
 注意：若符号缺失，先查 `-ObjC` 是否被宿主 Podfile 覆盖，再考虑把 vendor 源码移进 `ios/`（CocoaPods 文件模式不支持 `..`，当前用绝对路径绕过）。
 
