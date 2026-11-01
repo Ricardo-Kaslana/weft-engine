@@ -6,7 +6,7 @@ topics:
   - flutter
   - javascript
   - quickjs
-version: 0.7.0-dev.2
+version: 0.7.0-dev.3
 resolution: workspace
 
 environment:
@@ -15,11 +15,11 @@ environment:
 
 dependencies:
   ffi: ^2.2.0
-  weft_runtime_api: ^0.7.0-dev.2
+  weft_runtime_api: ^0.7.0-dev.3
 
 dev_dependencies:
   test: ^1.25.0
-  weft_runtime_contract: ^0.7.0-dev.2
+  weft_runtime_contract: ^0.7.0-dev.3
 
 flutter:
   plugin:
@@ -29,4 +29,4 @@ flutter:
       ios:
         ffiPlugin: true
 
-dev_dependencies:/n  weft_runtime_contract: ^0.7.0-dev.2
+dev_dependencies:/n  weft_runtime_contract: ^0.7.0-dev.3

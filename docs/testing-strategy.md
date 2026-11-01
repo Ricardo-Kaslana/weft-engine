@@ -28,7 +28,7 @@ CI 在 `verify_native.dart` 失败时直接阻断，避免 QuickJS 测试因缺�
 
 ```bash
 dart run tool/consumer_smoke.dart
-dart run tool/consumer_smoke.dart --ref v0.7.0-dev.2
+dart run tool/consumer_smoke.dart --ref v0.7.0-dev.3
 ```
 
 它验证 workspace 之外的依赖解析，不依赖本地 path 覆盖；CI 在 Linux `verify` 任务中执行。
