@@ -54,27 +54,42 @@ Future<void> main(List<String> arguments) async {
 
   stdout.writeln('iOS smoke: $gitUrl at $ref');
   try {
-    await _run(project, 'flutter', [
-      'create',
-      '--platforms=ios',
-      '--org',
-      'dev.weft',
-      '--project-name',
-      'weft_ios_smoke',
-      '.',
-    ]);
+    await _run(
+      project,
+      'flutter',
+      [
+        'create',
+        '--platforms=ios',
+        '--org',
+        'dev.weft',
+        '--project-name',
+        'weft_ios_smoke',
+        '.',
+      ],
+      timeout: const Duration(minutes: 5),
+    );
     _writeProject(project, gitUrl: gitUrl, ref: ref, runtime: runtime);
-    await _run(project, 'flutter', const ['pub', 'get']);
-    await _run(project, 'pod', const ['install', '--project-directory=ios']);
-    await _run(project, 'flutter', const [
-      'build',
-      'ios',
-      '--no-codesign',
-      '--release',
-    ]);
+    await _run(
+      project,
+      'flutter',
+      const ['pub', 'get'],
+      timeout: const Duration(minutes: 5),
+    );
+    await _run(
+      project,
+      'pod',
+      const ['install', '--project-directory=ios'],
+      timeout: const Duration(minutes: 8),
+    );
+    await _run(
+      project,
+      'flutter',
+      const ['build', 'ios', '--no-codesign', '--release'],
+      timeout: const Duration(minutes: 20),
+    );
     _verifySymbols(project);
     if (runtime) {
-      final simulator = _bootSimulator();
+      final simulator = await _bootSimulator();
       await _runSimulatorSmoke(project, simulator);
       stdout.writeln('iOS runtime smoke passed on $simulator.');
     }
@@ -157,21 +172,13 @@ $extraDependency$devDependencies''';
 /// Boots an available iPhone simulator and returns its UDID.
 ///
 /// CI runners ship simulators shut down; `flutter test -d` needs a booted one.
-String _bootSimulator() {
-  final list = Process.runSync('xcrun', [
-    'simctl',
-    'list',
-    'devices',
-    'available',
-  ]);
-  if (list.exitCode != 0) {
-    throw StateError('xcrun simctl list failed: ${list.stderr}');
-  }
+Future<String> _bootSimulator() async {
+  final list = await _xcrun(['simctl', 'list', 'devices', 'available']);
   final pattern = RegExp(
     r'^\s+(iPhone[^(]*?)\s+\(([0-9A-Fa-f-]{36})\)\s+\((Shutdown|Booted)\)',
     multiLine: true,
   );
-  final matches = pattern.allMatches(list.stdout as String).toList();
+  final matches = pattern.allMatches(list).toList();
   if (matches.isEmpty) {
     throw StateError('No available iPhone simulator found.');
   }
@@ -182,21 +189,38 @@ String _bootSimulator() {
     'iOS runtime smoke: ${chosen.group(1)!.trim()} ($udid, ${chosen.group(3)})',
   );
   if (chosen.group(3) == 'Shutdown') {
-    final boot = Process.runSync('xcrun', ['simctl', 'boot', udid]);
-    if (boot.exitCode != 0) {
-      throw StateError('simctl boot failed: ${boot.stderr}');
-    }
+    await _xcrun(['simctl', 'boot', udid]);
   }
-  final status = Process.runSync('xcrun', [
+  await _waitForBoot(udid);
+  return udid;
+}
+
+/// Waits for the simulator to finish booting, failing instead of hanging.
+Future<void> _waitForBoot(String udid) async {
+  final result = await Process.run('xcrun', [
     'simctl',
     'bootstatus',
     udid,
     '-b',
-  ]);
-  if (status.exitCode != 0) {
-    throw StateError('simctl bootstatus failed: ${status.stderr}');
+  ]).timeout(
+    const Duration(minutes: 4),
+    onTimeout: () => throw StateError('simctl bootstatus timed out for $udid'),
+  );
+  if (result.exitCode != 0) {
+    throw StateError('simctl bootstatus failed: ${result.stderr}');
   }
-  return udid;
+}
+
+/// Runs `xcrun` and returns stdout, failing on a non-zero exit.
+Future<String> _xcrun(List<String> arguments) async {
+  final result = await Process.run('xcrun', arguments).timeout(
+    const Duration(minutes: 4),
+    onTimeout: () => throw StateError('xcrun ${arguments.join(' ')} timed out'),
+  );
+  if (result.exitCode != 0) {
+    throw StateError('xcrun ${arguments.join(' ')} failed: ${result.stderr}');
+  }
+  return result.stdout as String;
 }
 
 /// Runs the runtime integration test on [simulator], retrying once on a fresh
@@ -211,15 +235,24 @@ String _bootSimulator() {
 Future<void> _runSimulatorSmoke(Directory project, String simulator) async {
   for (var attempt = 1;; attempt++) {
     try {
-      await _run(project, 'flutter', [
-        'test',
-        'integration_test/runtime_smoke_test.dart',
-        '-d',
-        simulator,
-        '--timeout',
-        '180s',
-        '--no-pub',
-      ]);
+      await _run(
+        project,
+        'flutter',
+        [
+          'test',
+          'integration_test/runtime_smoke_test.dart',
+          '-d',
+          simulator,
+          '--timeout',
+          '180s',
+          '--no-pub',
+        ],
+        // The simulator debug build alone takes 2-4 minutes on a hosted
+        // runner and the passing run took 7m12s end to end, so the outer
+        // ceiling only has to catch a genuine hang (the 180s per-test timeout
+        // fires first); anything tighter risks killing a healthy run.
+        timeout: const Duration(minutes: 12),
+      );
       return;
     } on StateError {
       if (attempt >= 2) rethrow;
@@ -227,21 +260,18 @@ Future<void> _runSimulatorSmoke(Directory project, String simulator) async {
         'iOS runtime smoke attempt $attempt failed; rebooting the simulator '
         'and retrying once.',
       );
-      _restartSimulator(simulator);
+      await _restartSimulator(simulator);
     }
   }
 }
 
-void _restartSimulator(String udid) {
-  Process.runSync('xcrun', ['simctl', 'shutdown', udid]);
-  final boot = Process.runSync('xcrun', ['simctl', 'boot', udid]);
-  if (boot.exitCode != 0) {
-    throw StateError('simctl boot failed: ${boot.stderr}');
-  }
-  final status = Process.runSync('xcrun', ['simctl', 'bootstatus', udid, '-b']);
-  if (status.exitCode != 0) {
-    throw StateError('simctl bootstatus failed: ${status.stderr}');
-  }
+Future<void> _restartSimulator(String udid) async {
+  await Process.run('xcrun', ['simctl', 'shutdown', udid]).timeout(
+    const Duration(minutes: 2),
+    onTimeout: () => ProcessResult(0, 0, '', ''),
+  );
+  await _xcrun(['simctl', 'boot', udid]);
+  await _waitForBoot(udid);
 }
 
 /// Integration test copied into the disposable host for `--runtime`.
@@ -387,8 +417,9 @@ void _verifySymbols(Directory project) {
 Future<void> _run(
   Directory project,
   String executable,
-  List<String> arguments,
-) async {
+  List<String> arguments, {
+  Duration? timeout,
+}) async {
   stdout.writeln('> $executable ${arguments.join(' ')}');
   final process = await Process.start(
     executable,
@@ -398,9 +429,22 @@ Future<void> _run(
     mode: ProcessStartMode.inheritStdio,
     runInShell: Platform.isWindows,
   );
-  final status = await process.exitCode;
+  // Every external command gets a hard ceiling: `flutter test` can hang forever
+  // waiting for a device connection that never arrives, and a hung job burns
+  // the whole workflow budget without producing a useful failure.
+  final status = await process.exitCode.timeout(
+    timeout ?? const Duration(minutes: 30),
+    onTimeout: () {
+      stdout.writeln('! $executable exceeded $timeout; killing it.');
+      process.kill(ProcessSignal.sigkill);
+      return -1;
+    },
+  );
   if (status != 0) {
-    throw StateError('$executable ${arguments.join(' ')} failed ($status)');
+    throw StateError(
+      '$executable ${arguments.join(' ')} failed ($status)'
+      '${status == -1 ? ' after exceeding $timeout' : ''}',
+    );
   }
 }
 
