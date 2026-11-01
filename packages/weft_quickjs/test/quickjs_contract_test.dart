@@ -1,7 +1,7 @@
 import 'package:test/test.dart';
 import 'package:weft_quickjs/weft_quickjs.dart';
 import 'package:weft_runtime_api/weft_runtime_api.dart';
-import 'package:weft_runtime_contract/runtime_contract.dart';
+import 'package:weft_runtime_contract/weft_runtime_contract.dart';
 
 void main() {
   final nativeReady = QuickJsNativeLibrary.isLoadable;

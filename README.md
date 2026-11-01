@@ -68,6 +68,42 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 
 `example/weft_lab` 展示真实可滚动的静态文章；`example/weft_live` 把实时图表、自动快照、投票、主题切换和深链接聚合到一张专题页里，并接入冷跳 settling 骨架与跳底控件。两者均不用于验收完整 HTML/CSS 兼容性。当前限制与后续顺序见 `docs/supported-subset.md` 和 `docs/development-plan.md`。
 
+## 安装
+
+8 个包已具备发布条件（每包 README/CHANGELOG/LICENSE、`repository`/`issue_tracker`/`topics`，包间依赖为版本约束），但**尚未发布到 pub.dev**。这带来一个过渡期约束：**包间依赖是版本约束，pub 只会去 pub.dev 找它们**，因此单独引用 `packages/weft` 会解析失败。
+
+发布前的外部接入方式是把同级包也指向同一 ref：
+
+```yaml
+dependencies:
+  weft:
+    git:
+      url: https://github.com/Ricardo-Kaslana/weft-engine
+      ref: v0.7.0-dev.2
+      path: packages/weft
+
+dependency_overrides:
+  weft_runtime_api:
+    git: {url: https://github.com/Ricardo-Kaslana/weft-engine, ref: v0.7.0-dev.2, path: packages/weft_runtime_api}
+  weft_document:
+    git: {url: https://github.com/Ricardo-Kaslana/weft-engine, ref: v0.7.0-dev.2, path: packages/weft_document}
+  # …weft_capabilities / weft_runtime_fake / weft_runtime_contract /
+  #   weft_engine / weft_quickjs，共 7 个
+```
+
+`dart run tool/consumer_smoke.dart --keep` 会生成一份可直接参照的 `pubspec_overrides.yaml`。发布到 pub.dev 后只需一行：
+
+```yaml
+dependencies:
+  weft: ^0.7.0-dev.2
+```
+
+发布前可用 dry-run 门禁自查（不会联网推送）：
+
+```bash
+dart run tool/pub_dry_run.dart
+```
+
 ## 仓库结构
 
 ```text

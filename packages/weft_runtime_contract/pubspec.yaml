@@ -1,15 +1,20 @@
 name: weft_runtime_contract
 description: Shared contract test suite for Weft JsRuntimeBackend implementations.
+repository: https://github.com/Ricardo-Kaslana/weft-engine
+issue_tracker: https://github.com/Ricardo-Kaslana/weft-engine/issues
+topics:
+  - javascript
+  - testing
+  - runtime
 version: 0.7.0-dev.2
-publish_to: none
 resolution: workspace
 
 environment:
   sdk: ">=3.5.0 <4.0.0"
 
 dependencies:
-  weft_runtime_api:
-    path: ../weft_runtime_api
-
-dev_dependencies:
+  # The contract suite is a library, not just a test: lib/runtime_contract.dart
+  # imports package:test to declare matchers, so `test` must be a regular
+  # dependency for the package to be publishable.
   test: ^1.25.0
+  weft_runtime_api: ^0.7.0-dev.2

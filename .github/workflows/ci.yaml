@@ -50,6 +50,9 @@ jobs:
       - name: API doc coverage gate
         run: dart run tool/doc_coverage.dart
 
+      - name: Package publish dry-run gate
+        run: dart run tool/pub_dry_run.dart
+
       - name: Run package tests
         run: dart run tool/verify.dart
 
