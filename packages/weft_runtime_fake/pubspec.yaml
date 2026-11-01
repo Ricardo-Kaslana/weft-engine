@@ -1,6 +1,6 @@
 name: weft_runtime_fake
 description: Scripted fake JsRuntimeBackend for Weft contract tests and examples.
-version: 0.7.0-dev.1
+version: 0.7.0-dev.2
 publish_to: none
 resolution: workspace
 

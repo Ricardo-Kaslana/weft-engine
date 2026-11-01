@@ -1,6 +1,6 @@
 name: weft_quickjs
 description: QuickJS native runtime backend for Weft, driven through dart:ffi.
-version: 0.7.0-dev.1
+version: 0.7.0-dev.2
 publish_to: none
 resolution: workspace
 
