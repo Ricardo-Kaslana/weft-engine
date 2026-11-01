@@ -1,6 +1,6 @@
 name: weft_live
 description: A live editorial demo rendered entirely by Weft.
-version: 0.7.0-dev.1
+version: 0.7.0-dev.2
 publish_to: none
 resolution: workspace
 

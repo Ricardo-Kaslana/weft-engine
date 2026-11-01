@@ -2,10 +2,21 @@
 
 ## Unreleased
 
-- Added the MIT license.
+- No unreleased changes.
+
+## 0.7.0-dev.2 (2026-11-01)
+
+- Release cut over `v0.7.0-dev.1`: adds the external-consumer smoke test and the macOS iOS build/symbol job, and fixes the QuickJS pod layout those checks exposed. No runtime, layout, paint, snapshot or golden changes; the 587 package tests and 3 pixel goldens are unchanged.
+
 - Added a repeatable external-consumer smoke test: a disposable Flutter project clones the repository over Git, resolves `weft` from `packages/weft`, and renders a document through `WeftView`; CI runs it in the Linux verify job.
+
 - Added a macOS CI job that builds a disposable iOS host with `weft_quickjs` through CocoaPods and verifies that the app bundle (Runner or linked framework) contains all 10 `weft_*` symbols. Simulator/device runtime validation remains pending.
+
 - Relocated the vendored QuickJS sources under `ios/Classes/native/` so CocoaPods can collect them with a relative `source_files` pattern; CocoaPods rejects absolute and parent-directory globs. Desktop and Android builds now share the same relocated sources, and the iOS host link forces `_weft_now_ms` to prevent dead-strip.
+
+## 0.7.0-dev.1 (2026-10-31)
+
+- Added the MIT license.
 
 - Repository quality gates: capability and test documentation now matches the current implementation (587 tests, 22 normalization vectors, table support and semantic virtualization), and CI pins Flutter 3.35.5 on both jobs, uses read-only permissions with cancellation and timeouts, and fails before tests when the QuickJS native library cannot load.
 
@@ -33,17 +44,24 @@
 
 - ARIA foundation (ADR 0040): the normalizer keeps `role` (conservative mapping), `aria-hidden`, `aria-atomic` and `aria-label` on standard tags, closing the gap where the engine already read `aria-label` for custom tags while the normalizer dropped it. `role="button"/"link"` announce through `isButton`/`isLink` flags without activation actions; `role="img"/"heading"` collapse or derive header/headingLevel; `role="dialog"/"alertdialog"` become semantic containers; `role="alert"/"status"` act as implicit live regions with whole-group announcement; `presentation`/`none` suppress an element's own derived semantics while content stays announced; every other role is dropped with an `aria.role.unsupported` info diagnostic. Explicit roles override implicit semantics (`<a role="button">` loses the link flag and tap). `aria-hidden="true"` removes a subtree from the semantics tree (visuals and copy text unchanged). `aria-label` names an element: on `img` it beats `alt`, elsewhere it collapses the subtree into a single named leaf (structural table tags excluded; `<a aria-label>` keeps its tap). `aria-atomic="true"` inside a live region announces the subtree as one `liveRegion` leaf instead of per-leaf — the ADR 0039 limitation. Layout, paint, snapshots and pixel goldens are unchanged; the 21 normalization vectors stay byte-identical; tests 495 → 508.
 
-## 0.7.0-dev.1 (2026-10-31)
-
 - Accessibility/content semantics (ADR 0039): `h1..h6` now expose `SemanticsConfiguration.headingLevel`, explicit `aria-live` (`off/polite/assertive`) marks descendant leaf semantics as Flutter live regions, and `ol[start]` / `li[value]` control both visual and semantic ordered-list markers. The normalizer preserves these attributes and drops invalid values with diagnostics; the pinned lists normalization vector was regenerated (the only vector whose output changed). Documents without the new attributes keep the same tree, layout and paint output.
+
 - Compatibility baseline (ADR 0038): all Flutter-dependent packages and examples now declare `flutter: ">=3.35.5"`, and every package moves to `0.7.0-dev.1`. `weft_engine` has used `SemanticsRole` (Flutter 3.35.5) since ADR 0030 while the pubspecs still advertised 3.22; hosts on Flutter 3.22–3.34 could resolve the package but never compile it. No runtime, layout, snapshot, bridge or golden changes; pure Dart packages keep Dart `>=3.5.0`.
+
 - Cold deep-jump settling (ADR 0037): `WeftView.lazySettlingBuilder` lets hosts cover the viewport while budgeted lazy passes measure a deep target; `onLazySettlingChanged` and `WeftViewState.isLazySettling` report start/finish from post-frame callbacks. No layout, overscan, budget or raster changes; unconfigured views keep the existing progressive fill. `example/weft_live` wires a static skeleton and a jump-to-bottom control, and the Android device run records the overlay timing in `docs/device-matrix.md` §4.8.
+
 - B1 backend A/B on JNY-AL10 (12 Impeller + 12 Skia ABBA rounds, profile, reconstructed 901-element probe): no reproducible raster advantage for either backend — SCROLL total p95 median 25.70 vs 24.49 ms (p=0.33), PAINT_ONLY stable raster p95 8.77 vs 9.75 ms (p=0.42); the only significant delta is SCROLL build p95 (0.38 ms lower on Skia), which does not affect the frame budget. Do not disable Impeller on this Mali class; strict 60fps remains unmet. Evidence under `build/adr0036-evidence/b1/`.
+
 - Lazy layout now materializes measured windows from a conservative paint-bounds index (ADR 0036): admission, block-flow margins/lists and suffix estimates are cached per snapshot, while only entering/leaving blocks rebuild or release commands. Formatting whitespace between body blocks no longer disables virtualization; body text, NBSP and `white-space: pre` keep the full-layout path.
+
 - Float exclusions are restored from the measured prefix when a block rematerializes, body chrome still follows the current estimated extent, and `correctBy` extent corrections now sync the surface to the real scroll offset instead of replaying corrections.
+
 - Windows host profile (300/1000 paragraphs): warm `layoutViewport` p95 dropped from 1.37/85.35ms to 0.67/0.49ms for compact/newline documents; first viewport for the 1000-paragraph newline document went from 78.67ms (full) to 10.08ms (lazy). These are API timings, not device frame times.
+
 - Verified on Huawei JNY-AL10 (Android 10, profile, 901-element formatted article): 635ms median cold start, 25.5–26.0ms combined scroll p95 with no frame above 50ms, 37.12ms max deep jump, +9.4–10.0MB memory. Strict 60fps (p95 ≤16.7ms) is not met; raster p95 ≈17.2ms dominates.
+
 - 15 new regressions cover formatted-window budgets, negative-margin upward overflow, body chrome, invalidation, ownership transfer, async-anchor cancellation and correction convergence.
+
 - Added `example/weft_live`, a web-target live editorial demo rendered in one Weft surface: auto-refreshed metrics and pulse chart, streaming updates, topic filters, light/dark themes, deep links, poll/clap custom tags, and end-to-end tests that tap tags through the semantics tree.
 
 ## 0.6.0-dev.1 (2026-10-28)

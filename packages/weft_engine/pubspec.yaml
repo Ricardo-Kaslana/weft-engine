@@ -1,6 +1,6 @@
 name: weft_engine
 description: Flutter layout, rendering, and interaction contracts for Weft.
-version: 0.7.0-dev.1
+version: 0.7.0-dev.2
 publish_to: none
 resolution: workspace
 
