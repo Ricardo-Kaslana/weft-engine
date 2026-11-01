@@ -35,4 +35,12 @@ host application and exposes the weft_* entry points to dart:ffi.
     'OTHER_CFLAGS' =>
       '$(inherited) -DCONFIG_VERSION=\"2024-01-13\" -fno-strict-aliasing -Wno-unused-parameter'
   }
+  # Flutter hosts do not guarantee `-ObjC`, so a static pod's ObjC anchor can be
+  # dropped before its `+load` reference is considered. Force the entry point to
+  # remain undefined at the final link; the linker then pulls weft_glue.o and
+  # the QuickJS objects it references. The ObjC anchor remains as a second line
+  # of defense for hosts that do link with `-ObjC`.
+  s.user_target_xcconfig = {
+    'OTHER_LDFLAGS' => '$(inherited) -Wl,-u,_weft_now_ms'
+  }
 end
