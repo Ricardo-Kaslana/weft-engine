@@ -25,6 +25,12 @@ void main() {
 /// device app, and checks the `weft_*` symbols in the resulting binary.
 /// Pass `--ref <tag-or-sha>` to test a release tag or `--keep` to retain the
 /// generated project for inspection.
+///
+/// `--runtime` additionally runs an integration test on a booted iOS
+/// simulator: it loads the native entry points from the app image, evaluates a
+/// script, interrupts an infinite loop at the wall-clock budget, and proves a
+/// fresh session still works afterwards. Build and symbol checks alone cannot
+/// show that the shipped binary actually executes JavaScript.
 Future<void> main(List<String> arguments) async {
   if (!Platform.isMacOS) {
     stderr.writeln('iOS smoke requires macOS with Xcode and CocoaPods.');
@@ -43,6 +49,7 @@ Future<void> main(List<String> arguments) async {
   final gitUrl = _option(arguments, '--git-url') ??
       Uri.file(root.path, windows: Platform.isWindows).toString();
   final keep = arguments.contains('--keep');
+  final runtime = arguments.contains('--runtime');
   final project = Directory.systemTemp.createTempSync('weft_ios_');
 
   stdout.writeln('iOS smoke: $gitUrl at $ref');
@@ -56,7 +63,7 @@ Future<void> main(List<String> arguments) async {
       'weft_ios_smoke',
       '.',
     ]);
-    _writeProject(project, gitUrl: gitUrl, ref: ref);
+    _writeProject(project, gitUrl: gitUrl, ref: ref, runtime: runtime);
     await _run(project, 'flutter', const ['pub', 'get']);
     await _run(project, 'pod', const ['install', '--project-directory=ios']);
     await _run(project, 'flutter', const [
@@ -66,6 +73,16 @@ Future<void> main(List<String> arguments) async {
       '--release',
     ]);
     _verifySymbols(project);
+    if (runtime) {
+      final simulator = _bootSimulator();
+      await _run(project, 'flutter', [
+        'test',
+        'integration_test/runtime_smoke_test.dart',
+        '-d',
+        simulator,
+      ]);
+      stdout.writeln('iOS runtime smoke passed on $simulator.');
+    }
   } finally {
     if (keep) {
       stdout.writeln('Kept iOS project at ${project.path}');
@@ -79,8 +96,51 @@ void _writeProject(
   Directory project, {
   required String gitUrl,
   required String ref,
+  required bool runtime,
 }) {
-  File('${project.path}/pubspec.yaml').writeAsStringSync('''
+  File(
+    '${project.path}/pubspec.yaml',
+  ).writeAsStringSync(
+      buildIosSmokePubspec(gitUrl: gitUrl, ref: ref, runtime: runtime));
+  File('${project.path}/lib/main.dart').writeAsStringSync(_iosApp);
+  if (runtime) {
+    Directory('${project.path}/integration_test').createSync(recursive: true);
+    File(
+      '${project.path}/integration_test/runtime_smoke_test.dart',
+    ).writeAsStringSync(iosRuntimeSmokeTest);
+  }
+}
+
+/// Renders the disposable host's `pubspec.yaml`.
+///
+/// Kept pure so both modes can be parsed and checked without macOS; `--runtime`
+/// adds the SDK test packages and the explicit `weft_runtime_api` dependency
+/// the integration test imports.
+String buildIosSmokePubspec({
+  required String gitUrl,
+  required String ref,
+  required bool runtime,
+}) {
+  final devDependencies = runtime
+      ? '''
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+'''
+      : '';
+  final extraDependency = runtime
+      ? '''
+  weft_runtime_api:
+    git:
+      url: ${jsonEncode(gitUrl)}
+      ref: ${jsonEncode(ref)}
+      path: packages/weft_runtime_api
+'''
+      : '';
+  return '''
 name: weft_ios_smoke
 publish_to: none
 
@@ -96,9 +156,138 @@ dependencies:
       url: ${jsonEncode(gitUrl)}
       ref: ${jsonEncode(ref)}
       path: packages/weft_quickjs
-''');
-  File('${project.path}/lib/main.dart').writeAsStringSync(_iosApp);
+$extraDependency$devDependencies''';
 }
+
+/// Boots an available iPhone simulator and returns its UDID.
+///
+/// CI runners ship simulators shut down; `flutter test -d` needs a booted one.
+String _bootSimulator() {
+  final list = Process.runSync('xcrun', [
+    'simctl',
+    'list',
+    'devices',
+    'available',
+  ]);
+  if (list.exitCode != 0) {
+    throw StateError('xcrun simctl list failed: ${list.stderr}');
+  }
+  final pattern = RegExp(
+    r'^\s+(iPhone[^(]*?)\s+\(([0-9A-Fa-f-]{36})\)\s+\((Shutdown|Booted)\)',
+    multiLine: true,
+  );
+  final matches = pattern.allMatches(list.stdout as String).toList();
+  if (matches.isEmpty) {
+    throw StateError('No available iPhone simulator found.');
+  }
+  final booted = matches.where((match) => match.group(3) == 'Booted');
+  final chosen = booted.isNotEmpty ? booted.first : matches.first;
+  final udid = chosen.group(2)!;
+  stdout.writeln(
+    'iOS runtime smoke: ${chosen.group(1)!.trim()} ($udid, ${chosen.group(3)})',
+  );
+  if (chosen.group(3) == 'Shutdown') {
+    final boot = Process.runSync('xcrun', ['simctl', 'boot', udid]);
+    if (boot.exitCode != 0) {
+      throw StateError('simctl boot failed: ${boot.stderr}');
+    }
+  }
+  final status = Process.runSync('xcrun', [
+    'simctl',
+    'bootstatus',
+    udid,
+    '-b',
+  ]);
+  if (status.exitCode != 0) {
+    throw StateError('simctl bootstatus failed: ${status.stderr}');
+  }
+  return udid;
+}
+
+/// Integration test copied into the disposable host for `--runtime`.
+///
+/// It runs inside the iOS simulator, so it proves the shipped binary executes
+/// JavaScript rather than only containing the symbols.
+const iosRuntimeSmokeTest = r'''
+import 'package:flutter_test/flutter_test.dart';
+import 'package:integration_test/integration_test.dart';
+import 'package:weft_quickjs/weft_quickjs.dart';
+import 'package:weft_runtime_api/weft_runtime_api.dart';
+
+final class _NoopBridge implements BridgeDispatcher {
+  @override
+  Future<JsValue> dispatch(BridgeCall call) async {
+    throw StateError('capability ${call.capability} is not enabled');
+  }
+}
+
+RuntimeConfig _config(String documentId) => RuntimeConfig(
+      documentId: documentId,
+      memoryLimitBytes: 16 * 1024 * 1024,
+      stackLimitBytes: 512 * 1024,
+    );
+
+const _budget = ExecutionBudget(timeout: Duration(seconds: 5));
+
+void main() {
+  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets('resolves the QuickJS entry points from the app image', (
+    tester,
+  ) async {
+    final library = QuickJsNativeLibrary.load();
+    expect(library, isNotNull);
+    expect(QuickJsNativeLibrary.isLoadable, isTrue);
+  });
+
+  testWidgets('evaluates JavaScript on the device', (tester) async {
+    final session =
+        await QuickJsFfiBackend().open(_config('eval'), _NoopBridge());
+    addTearDown(session.dispose);
+
+    final result = await session.execute(
+      const ScriptUnit(id: 'sum', source: '1 + 2 * 3'),
+      _budget,
+    );
+
+    expect(result.isSuccess, isTrue, reason: result.failure?.message);
+    expect(result.value, 7);
+  });
+
+  testWidgets('interrupts an infinite loop and recovers in a fresh session', (
+    tester,
+  ) async {
+    final watch = Stopwatch()..start();
+    final session = await QuickJsFfiBackend().open(
+      _config('interrupt'),
+      _NoopBridge(),
+    );
+    final interrupted = await session.execute(
+      const ScriptUnit(id: 'spin', source: 'while (true) {}'),
+      const ExecutionBudget(timeout: Duration(milliseconds: 200)),
+    );
+    watch.stop();
+    await session.dispose();
+
+    expect(interrupted.isSuccess, isFalse);
+    expect(interrupted.failure?.kind, RuntimeFailureKind.timeout);
+    expect(watch.elapsed, lessThan(const Duration(seconds: 10)));
+
+    final recovered = await QuickJsFfiBackend().open(
+      _config('recover'),
+      _NoopBridge(),
+    );
+    addTearDown(recovered.dispose);
+    final result = await recovered.execute(
+      const ScriptUnit(id: 'after', source: '6 * 7'),
+      _budget,
+    );
+
+    expect(result.isSuccess, isTrue, reason: result.failure?.message);
+    expect(result.value, 42);
+  });
+}
+''';
 
 const _expectedSymbols = <String>{
   '_weft_new_runtime',
