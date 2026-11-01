@@ -6,7 +6,7 @@ import 'package:ffi/ffi.dart';
 import 'library_loader.dart';
 
 /// Opaque handle to the C-side `WeftRuntime` struct declared in
-/// `native/weft_glue.c`.
+/// `ios/Classes/native/weft_glue.c`.
 final class WeftRuntimeFfi extends Opaque {}
 
 typedef _BridgeNotifyNative = Void Function(Pointer<Utf8>, Pointer<Void>);
@@ -172,10 +172,10 @@ final class QuickJsNativeLibrary {
   static List<String> defaultLibraryCandidates() {
     final name = Platform.isWindows ? 'weft_quickjs.dll' : 'libweft_quickjs.so';
     return <String>[
-      'native/build/$name',
-      '../weft_quickjs/native/build/$name',
-      'packages/weft_quickjs/native/build/$name',
-      'example/packages/weft_quickjs/native/build/$name',
+      'ios/Classes/native/build/$name',
+      '../weft_quickjs/ios/Classes/native/build/$name',
+      'packages/weft_quickjs/ios/Classes/native/build/$name',
+      'example/packages/weft_quickjs/ios/Classes/native/build/$name',
     ];
   }
 

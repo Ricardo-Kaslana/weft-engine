@@ -84,7 +84,7 @@ flowchart TB
 
 ## 6. JavaScript 安全域（阶段 4 已交付，ADR 0033）
 
-首个后端采用 QuickJS 2024-01-13 与 `dart:ffi`：源码 vendor 在 `packages/weft_quickjs/native/quickjs/`，C 垫片 `weft_glue.c` 提供扁平 ABI（只有指针/整数跨界，JSON 是唯一编组格式），`QuickJsFfiSession` 负责会话生命周期。每文档独立 `JSRuntime`，同文档脚本顺序执行，不同文档不共享全局对象。
+首个后端采用 QuickJS 2024-01-13 与 `dart:ffi`：源码 vendor 在 `packages/weft_quickjs/ios/Classes/native/quickjs/`，C 垫片 `weft_glue.c` 提供扁平 ABI（只有指针/整数跨界，JSON 是唯一编组格式），`QuickJsFfiSession` 负责会话生命周期。每文档独立 `JSRuntime`，同文档脚本顺序执行，不同文档不共享全局对象。
 
 原生库来源按平台不同（ADR 0035）：桌面/CI 由 `tool/build_native.sh` 编出动态库；Android 由插件模块的 CMake 把同一批源码编成 `libweft_quickjs.so` 打进 APK；iOS 由 pod 把垫片静态编进 app image，Dart 用 `DynamicLibrary.process()` 解析符号。`librarySourceFor()` 统一分派，显式路径或 `WEFT_QUICKJS_LIBRARY` 仍可覆盖。
 
@@ -148,3 +148,4 @@ JS 不获得节点、盒树或渲染对象。它只能通过 `__weftBridge`（�
 - `0049`：lazy 准入估算前缀采用——diff 已证前缀沿用上一轮准入结论与 `_LazyChild` 逐子估算，只验证/重建后缀；provisional allowLazy 不合格重跑 plain 模式。
 - `0050`：plain 走查样式跨快照采用——diff 已证顶层子成对种子化上一轮样式，复用轮与样式表规模脱钩。
 - `0051`：k=0 头部插入索引条目平移——`buildFromSuffix` 接缝标志比对 + 逐子走查或采用，旧条目 globalStart 平移 + nodeId 重映射；head-insert 同机 A/B @1000 −60%。
+- `0052`：将 vendored QuickJS 移入 `ios/Classes/native/`，修复 CocoaPods 绝对/父目录源路径不生效导致的 iOS 静态库空链接；桌面、Android、iOS 共享同一份源码。

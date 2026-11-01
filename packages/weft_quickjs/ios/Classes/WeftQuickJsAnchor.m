@@ -6,10 +6,12 @@
 // without an anchor the shim (and the engine it references) would be dropped
 // when the app is built with -dead_strip.
 //
-// ObjC classes carrying +load are always linked because CocoaPods passes
-// -ObjC. Taking the address of `weft_now_ms` from that class creates the
-// missing reference, which pulls in weft_glue.o and, through it, the QuickJS
-// objects. `WEFT_EXPORT` carries __attribute__((used)) for the same reason.
+// Some hosts link CocoaPods with -ObjC, in which case an ObjC class carrying
+// +load is pulled in automatically. Taking the address of `weft_now_ms` creates
+// the missing reference, which pulls in weft_glue.o and, through it, the
+// QuickJS objects. Flutter does not guarantee -ObjC, so the podspec also adds
+// -Wl,-u,_weft_now_ms to the host link as the primary guard. `WEFT_EXPORT`
+// carries __attribute__((used)) for the same reason.
 
 #import <Foundation/Foundation.h>
 

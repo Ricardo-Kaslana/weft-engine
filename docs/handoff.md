@@ -31,7 +31,7 @@
 1. D1 RTL/语言属性已完成（ADR 0042）：`dir`/`lang` 白名单、块级基方向（含 `dir=auto` first-strong 检测与 CSS `direction`）、RTL 对齐/断行/列表镜像/caret 边缘、lang→locale、语义 textDirection 透传；`rtl_paragraph` Chrome 几何参考钉住方向边缘。C3 语义虚拟化（ADR 0041）、C2 ARIA 基础（ADR 0040）、C1（ADR 0039）、C0（ADR 0038）与 B2（ADR 0037）此前已完成。**增量布局画像（ADR 0043）与三方向全部落地：①文本索引增量（ADR 0044，U(2000) −60%、appendIncremental 7.1 → 5.8–6.0ms）；②逐行 probe 窗口化（ADR 0045，8000 字段落 764 → 11.1ms −98.5% 二次方转线性、floatWrap 6–9 → 4.8ms）；③后缀平移（ADR 0046，中部编辑 21.6 → 2.3ms、头部插入 40.9 → 2.4ms——weft_live 形态 saving ≈0% → 93%；plain 路径，先序 id 经形状比较 + 映射重写）。plain 宿主流式四形态全部进入 91–95% saving 档。「样式与状态跨快照」家族画像已交付（ADR 0047）：lazy 流式轮 97–99% 是每快照重付的家族工作（全量索引 T 38–63%、准入样式 S 12–18%、估算走查残差），真机 4× 后所有规模超帧预算。方向①(a) 文本索引增量参与已交付（ADR 0048）：参与门按内容纯函数论证放宽，lazy 部分测量窗口复用索引条目；配套修复 0044 两个潜伏缺陷（部分前缀尾 trim/drop 还原、前缀 checkpoint 播种——链式轮不再隔轮回退）；滚动会话尾追加轮 −52–68%（e4bs 形态）。①(b) 准入与估算前缀采用已交付（ADR 0049）：diff 已证前缀沿用上一轮准入结论与逐子估算（`_LazyChild` 克隆重绑 element），只验证/重建后缀；同机对比滚动轮再降 −22/−36/−46%，准入访问后缀化（931→111@300）。①(c) 种子消费/走查后缀采用已按数据降级缓办（剩余池 ~1–1.7ms@2000、机制最重，留案）；方向② plain 走查样式跨快照采用已交付（ADR 0050）：diff 已证顶层子成对种子化上一轮样式，E4f 同机 A/B 8 条规则 −27%、256 条 −60%——复用轮与样式表规模脱钩。方向③ k=0 头部插入的索引条目平移已交付（ADR 0051）：`buildFromSuffix` 接缝标志比对 + 逐子走查或采用（流首剥离分歧 fresh 回退），E1 head-insert 同机 A/B @300 2.11→1.16–1.38ms、@1000 7.82→3.02–3.09ms。0047 家族清单全部销账；下一步 = 按「先画像再选择」重新画像剩余轮成本（或先测 mid-edit 后缀采用推广的后缀走查份额）；行级缓存继续留案（E4e 记收益上界）。不要再改 layout/overscan、重复后端 A/B，或把遮罩当成零空白；禁止把桌面 layoutViewport 画像当真机帧耗时。**
 2. 语义真机抽查：C1 只在 `SemanticsOwner` 层验证 headingLevel/liveRegion 标志，尚未在 TalkBack/Web 读屏上验收播报；若产品需要，按 JNY-AL10 手动验证标题导航和 live region 播报并记录到 device-matrix。
 3. 深跳尖峰定性：ADR 0036 复测已把 FrameTiming 拆成 build/raster，~313ms 尖峰未复现且全程无 >50ms 帧；若再现，按 §4.4 的 build/raster 方法继续定位。
-4. iOS 构建与真机验证（**暂缓**：暂无 macOS 环境）：按 docs/device-matrix.md §2.2 清单执行；未验证前 iOS 不得宣称可用，发布说明要写明缺席。
+4. iOS 验证：macOS CI 已覆盖 `pod install`、无签名构建和 10 个 `weft_*` 符号检查；模拟器/真机 runtime 示例仍待执行。未完成 runtime 验证前不得宣称 iOS 可用，发布说明要写明缺口。
 5. 语义/增量布局后续：按产品需要，见下文「建议的下一步」。
 
 硬性约束：
@@ -40,7 +40,7 @@
 - 图片资源只能由宿主 WeftImageResolver 提供；引擎不得隐式发起网络请求。
 - 每次修改必须运行 `dart format --output=none --set-exit-if-changed .`、`dart analyze`、`dart run tool/verify.dart` 和 `packages/weft_engine/tool/golden_pixel_test.dart`。
 - 新增能力必须附带单元测试；影响布局时必须评估黄金基线与 conformance/reference/ 下的浏览器几何基线。
-- 改动 `packages/weft_quickjs/native/`、`android/` 或 `ios/` 后必须跑 `packages/weft_quickjs/tool/build_native.sh` 重编桌面库并执行 `dart test`（weft_quickjs）；平台工程的编译参数必须与桌面脚本保持一致（ADR 0035）。
+- 改动 `packages/weft_quickjs/ios/Classes/native/`、`android/` 或 `ios/` 后必须跑 `packages/weft_quickjs/tool/build_native.sh` 重编桌面库并执行 `dart test`（weft_quickjs）；平台工程的编译参数必须与桌面脚本保持一致（ADR 0035/0052）。
 - 重要技术取舍写入 docs/adr/（下一个编号为 0052）。
 
 接手前先知道的坑（本轮实测踩出来的，能省你几个小时）：
@@ -59,10 +59,10 @@
 
 - 分支：`main`
 - 最新提交：见 `git log`（本节只保证指南有效，不追踪哈希）
-- Flutter：3.35.5 stable（引擎/示例编译下限，ADR 0038）；Dart：3.9.2；ADR 51 份（0001–0051）；包版本 0.7.0-dev.1；tag `v0.7.0-dev.1` 已发布为 prerelease
+- Flutter：3.35.5 stable（引擎/示例编译下限，ADR 0038）；Dart：3.9.2；ADR 52 份（0001–0052）；包版本 0.7.0-dev.1；tag `v0.7.0-dev.1` 已发布为 prerelease
 - 常规测试 587 项（weft_engine 343、weft_document 84、weft 78、weft_quickjs 28、weft_capabilities 15、weft_runtime_fake 12、weft_runtime_contract 9、weft_runtime_api 2、weft_lab 1、weft_live 8、weft_fallback 7；D1 新增 14 项，增量布局画像与三方向新增 28 项、样式状态画像与 lazy 索引参与新增 10 项、lazy 前缀采用新增 11 项、plain 样式采用新增 7 项、头部插入条目平移新增 8 项）、像素黄金 3 项 + 选区高亮 1 项、性能门禁 14 场景（7 布局 + 3 绘制 + 4 命中）+ 增量布局画像工具（ADR 0043/0047，手动运行）；`dart analyze` 无问题，公开 API 文档覆盖零缺口。开发计划阶段 0–5 已完成（阶段 5 见 ADR 0034），阶段 5 之后补了移动端原生构建（ADR 0035）、懒布局窗口直物化（ADR 0036）、冷深跳 settling 遮罩（ADR 0037）、Flutter 3.35.5 兼容基线（ADR 0038）、语义补全（ADR 0039）、ARIA 基础（ADR 0040）、语义虚拟化（ADR 0041）、RTL/语言属性（ADR 0042）、增量布局画像及三方向优化（ADR 0043–0046）、样式状态家族画像（ADR 0047）、lazy 轮文本索引增量参与（ADR 0048）、lazy 准入估算前缀采用（ADR 0049）、plain 走查样式跨快照采用（ADR 0050）与 k=0 头部插入索引条目平移（ADR 0051）。
-- GitHub Actions 已配置固定 Flutter 3.35.5 的 Linux verify 与 Windows golden 两个任务，并在测试前校验 QuickJS 原生库可加载；远端为 `Ricardo-Kaslana/weft-engine`，首次完整运行已通过（run 41298473322）。
-- 2026-10-28 增量：Android 真机构建与执行验证、插件单 ABI 裁剪、回环直连修复与首轮矩阵；之后交付 ADR 0036 窗口直物化及桌面结构/耗时证据（docs/device-matrix.md §4.4）。真实 Flutter Web＋Edge 的滚动、锚点与选择复制已验证；JNY-AL10 profile 复测四项标准通过（中位冷启 635ms、滚动 p95 ≈26ms、深跳最大 37ms、内存 +10MB），strict 60fps 受 raster 限制。证据位于本地 build/adr0036-evidence。iOS 验证仍暂缓。
+- GitHub Actions 已配置固定 Flutter 3.35.5 的 Linux verify、Windows golden 与 macOS iOS build 三个任务；Linux 在测试前校验 QuickJS 原生库可加载，macOS 完成无签名 iOS 构建并验证 10 个 `weft_*` 符号。远端为 `Ricardo-Kaslana/weft-engine`，三项均已通过（iOS run 41303555887）。
+- 2026-10-28 增量：Android 真机构建与执行验证、插件单 ABI 裁剪、回环直连修复与首轮矩阵；之后交付 ADR 0036 窗口直物化及桌面结构/耗时证据（docs/device-matrix.md §4.4）。真实 Flutter Web＋Edge 的滚动、锚点与选择复制已验证；JNY-AL10 profile 复测四项标准通过（中位冷启 635ms、滚动 p95 ≈26ms、深跳最大 37ms、内存 +10MB），strict 60fps 受 raster 限制。证据位于本地 build/adr0036-evidence。iOS 已完成 macOS CI 构建/符号验证，模拟器/真机 runtime 仍暂缓。
 - 2026-10-31 增量：B1 后端 A/B 完成（12 Impeller + 12 Skia，ABBA，JNY-AL10 profile，24 轮全部有效）。PAINT_ONLY 与 SCROLL 的 raster/total 均无显著差异（SCROLL total p95 中位 25.70 vs 24.49ms，p=0.33；PAINT_ONLY stable raster p95 8.77 vs 9.75ms，p=0.42），唯一显著项是 SCROLL build p95 差 0.38ms，无实际意义。结论：不建议旧 Mali 关闭 Impeller；strict 60fps 仍未达成。证据在本地 `build/adr0036-evidence/b1/`，详见 device-matrix §4.7。
 - 2026-10-31 增量（B2）：冷深跳 settling 交付（ADR 0037）。`WeftView.lazySettlingBuilder` 在分帧测量期间渲染宿主视口遮罩；`onLazySettlingChanged` 与 `WeftViewState.isLazySettling` 从 post-frame 报告起止，未配置 builder 时树与黄金不变。引擎不改布局预算/overscan/后端，也不伪造未测量块；首帧仍可能空白，遮罩不加速测量。Android 验收（遮罩 544ms、29 帧收敛、无 >50ms 帧；异步/近距不触发）与证据见 device-matrix §4.8。
 - 2026-10-31 增量（C0）：Flutter 3.35.5 兼容基线（ADR 0038）。所有 Flutter 依赖包与示例声明 `flutter: ">=3.35.5"`，纯 Dart 包保持 Dart 3.5；包版本统一升到 0.7.0-dev.1。此前的 3.22 下限与实际 `SemanticsRole` 依赖不符，3.22–3.34 宿主无法编译。无运行时行为、快照/bridge 契约或黄金变化，测试仍为 491 项。
@@ -76,7 +76,7 @@
 - 2026-11-01 增量（plain 样式采用）: ADR 0047 决策 ② 交付（ADR 0050），①(c) 按数据降级缓办。决策块在 reusedMaps 终态后成对种子化：前缀连续正扫 + 后缀尾逆扫，把上一轮 styleCache 的顶层样式写进新缓存（前提 = `_sameNode`/`_sameNodeShape` + 样式表签名 + body 壳 + tagRenderers 身份；lazy 前缓存缺条目自然断首、优雅退化）。E4f 同机 A/B：mid-edit@300 轮 8 条规则 2.61→1.91ms（−27%）、256 条 29.14→11.66ms（−60%）——复用轮与样式表规模脱钩，剩余为 diff + 后缀克隆。新增 `debugAdoptedStyleCount`。测试 572 → 579。
 - 2026-11-01 增量（头部插入条目平移）: ADR 0047 决策 ③ 交付（ADR 0051），家族清单全部销账。`WeftTextIndex.buildFromSuffix`：头部子 fresh 走查后，carried 子逐个比对接缝四标志（hardBreaks/blockBreakPending/lastEmittedBreak/atLeadingEdge）——相等则旧条目平移 + `ids` 重映射采用并止，不等则 fresh 走查该子（流首剥离分歧唯一信号，走满即等价全量构建）；尾 trim/drop 还原为 0048 镜像；头部走查镜像 body 级 `blockBreakPending` 初值。探索钉死：旧 body 含体级 text 子时 0046 缓存门整体拒绝 diff（部分采用仅在新侧插入空白时可达）。E1 head-insert 同机 stash A/B：@300 2.11→1.16–1.38ms、@1000 7.82→3.02–3.09ms（entries=0→1500/5000 钉参与），head-insert 与 mid-edit 反差消失。E1 每轮行新增 `entries=` 读数。测试 579 → 587。
 
-已实现至 ADR 0051（Android 四项设备标准已通过，strict 60fps raster 待优化；B2 冷跳 settling 遮罩已交付；C0 兼容基线已交付；C1 语义补全已交付；C2 ARIA 基础已交付；C3 语义虚拟化已交付；D1 RTL/语言属性已交付；增量布局画像与三方向优化、样式状态家族画像、lazy 轮文本索引增量参与、lazy 准入估算前缀采用、plain 走查样式跨快照采用、k=0 头部插入索引条目平移已交付）。ADR 0042：RTL 基础方向与语言属性——dir/lang 白名单、块级基方向（auto first-strong + CSS direction）、RTL 对齐/断行/列表镜像/caret 边缘、lang→locale（缺省 zh 零回归）、语义 textDirection；rtl_paragraph Chrome 几何参考。ADR 0043：增量布局画像——流式轮成分分解（textIndex 56–81%、diff 近乎免费）与形态阶梯，方向选择的数据依据。ADR 0044：文本索引前缀复用——流式新快照按块 diff 前缀复用条目、只构建后缀，未命中回退全量。ADR 0045：逐行 probe 窗口化——Float 断行探测窗口化，fit 前缀单调保证断点不变。ADR 0046：后缀平移——变化区之后形状相同的块按共享垂直增量平移复用，先序 id 经形状比较 + 映射重写；Float 守卫与 body 级 li 截断保等价。ADR 0047：样式状态家族画像——E4 测得 lazy 流式轮 97–99% 为每快照重付的家族工作（全量索引 T 38–63%、准入样式 S 12–18%、估算走查残差）与样式表规模敏感性（每 resolve 随规则数陡增），决策 lazy 流式轮 O(change) 化三步走。ADR 0048：lazy 轮文本索引增量参与——参与门按内容纯函数放宽，lazy 部分窗口复用条目；修复 0044 的部分前缀尾 trim/drop 还原洞与前缀 checkpoint 播种（链式轮不再隔轮回退）；滚动会话尾追加轮 −52–68%。ADR 0049：lazy 准入估算前缀采用——diff 已证前缀沿用上一轮准入结论与 `_LazyChild` 逐子估算（element 重绑），只验证/重建后缀，provisional allowLazy 不合格重跑保 plain 后缀平移；滚动轮同机再降 −22/−46%。ADR 0050：plain 走查样式跨快照采用——diff 已证顶层子成对种子化上一轮样式，复用轮与样式表规模脱钩（E4f A/B 256 条规则 −60%）；①(c) 按数据降级缓办。ADR 0051：k=0 头部插入索引条目平移——`buildFromSuffix` 接缝标志比对 + 逐子走查或采用，旧条目平移 + ids 重映射（流首剥离分歧 fresh 回退；E1 A/B @1000 −60%）；mid-edit 后缀采用推广留案。ADR 0041：语义虚拟化——Semantics 不再升级 full，lazy 结果上组装窗口化语义（物化窗口精确、band 内未物化块粗叶子、未测后缀滚动物化后出现）；语义开启深跳进入 settling。ADR 0040：ARIA 基础——role 保守映射、aria-hidden/label 与 aria-atomic 整组播报；修复 aria-label 接缝错位；21 个规范化向量不变。ADR 0039：语义补全——headingLevel、`aria-live` live region 与有序列表 `start`/`value`；规范化向量同步更新。ADR 0038：Flutter 3.35.5 兼容基线——Flutter 依赖包/示例统一下限，版本 0.7.0-dev.1，运行时不变。ADR 0037：冷深跳 settling——WeftView 宿主视口遮罩与 post-frame 信号，未配置 builder 时行为不变。ADR 0036：已测区间索引直接物化、单所有者块元数据、增量后缀估算、格式化空白准入与 correctBy 后视口同步。ADR 0017–0033：分块渲染与命中裁剪（ADR 0017/0020）、行内图片（ADR 0018）、选择 chrome（ADR 0019）、块级盒模型（ADR 0021）、表格列轨道（ADR 0022）、流式顶层前缀复用（ADR 0023）、单表面 Semantics（ADR 0024/0026/0028/0030）、渐进式布局虚拟化（ADR 0025）、同步/异步锚点导航（ADR 0027/0029）、懒布局异步分帧与同快照复用（ADR 0031）、阶段 0–3 验收证据与重定界（ADR 0032）和受限 JS 运行时（QuickJS FFI + 能力网关 + 恢复去重 + 自定义标签，ADR 0033）。ADR 0034（阶段 5）：快照 JSON 线格式（format+version 门禁）与规范化一致性向量（现为 22 个）、种子化模糊测试（CI 快跑 + tool/fuzz.dart 长跑，修复诊断上限绕过与 toString 崩溃两个真实问题）、能力策略 8 子集矩阵、example/weft_fallback WebView 回退示例、发布手册与回滚演练测试、API 文档门禁、真机矩阵计划。ADR 0035：QuickJS 移动平台构建——ffiPlugin 声明、Android CMake 就地编译（16 KB 对齐）、iOS 静态链接与 dead-strip 锚点、按平台分派的加载器。
+已实现至 ADR 0052（Android 四项设备标准已通过，strict 60fps raster 待优化；B2 冷跳 settling 遮罩已交付；C0 兼容基线已交付；C1 语义补全已交付；C2 ARIA 基础已交付；C3 语义虚拟化已交付；D1 RTL/语言属性已交付；增量布局画像与三方向优化、样式状态家族画像、lazy 轮文本索引增量参与、lazy 准入估算前缀采用、plain 走查样式跨快照采用、k=0 头部插入索引条目平移已交付；iOS 构建/符号 CI 已通过，runtime 验证待做）。ADR 0042：RTL 基础方向与语言属性——dir/lang 白名单、块级基方向（auto first-strong + CSS direction）、RTL 对齐/断行/列表镜像/caret 边缘、lang→locale（缺省 zh 零回归）、语义 textDirection；rtl_paragraph Chrome 几何参考。ADR 0043：增量布局画像——流式轮成分分解（textIndex 56–81%、diff 近乎免费）与形态阶梯，方向选择的数据依据。ADR 0044：文本索引前缀复用——流式新快照按块 diff 前缀复用条目、只构建后缀，未命中回退全量。ADR 0045：逐行 probe 窗口化——Float 断行探测窗口化，fit 前缀单调保证断点不变。ADR 0046：后缀平移——变化区之后形状相同的块按共享垂直增量平移复用，先序 id 经形状比较 + 映射重写；Float 守卫与 body 级 li 截断保等价。ADR 0047：样式状态家族画像——E4 测得 lazy 流式轮 97–99% 为每快照重付的家族工作（全量索引 T 38–63%、准入样式 S 12–18%、估算走查残差）与样式表规模敏感性（每 resolve 随规则数陡增），决策 lazy 流式轮 O(change) 化三步走。ADR 0048：lazy 轮文本索引增量参与——参与门按内容纯函数放宽，lazy 部分窗口复用条目；修复 0044 的部分前缀尾 trim/drop 还原洞与前缀 checkpoint 播种（链式轮不再隔轮回退）；滚动会话尾追加轮 −52–68%。ADR 0049：lazy 准入估算前缀采用——diff 已证前缀沿用上一轮准入结论与 `_LazyChild` 逐子估算（element 重绑），只验证/重建后缀，provisional allowLazy 不合格重跑保 plain 后缀平移；滚动轮同机再降 −22/−46%。ADR 0050：plain 走查样式跨快照采用——diff 已证顶层子成对种子化上一轮样式，复用轮与样式表规模脱钩（E4f A/B 256 条规则 −60%）；①(c) 按数据降级缓办。ADR 0051：k=0 头部插入索引条目平移——`buildFromSuffix` 接缝标志比对 + 逐子走查或采用，旧条目平移 + ids 重映射（流首剥离分歧 fresh 回退；E1 A/B @1000 −60%）；mid-edit 后缀采用推广留案。ADR 0041：语义虚拟化——Semantics 不再升级 full，lazy 结果上组装窗口化语义（物化窗口精确、band 内未物化块粗叶子、未测后缀滚动物化后出现）；语义开启深跳进入 settling。ADR 0040：ARIA 基础——role 保守映射、aria-hidden/label 与 aria-atomic 整组播报；修复 aria-label 接缝错位；21 个规范化向量不变。ADR 0039：语义补全——headingLevel、`aria-live` live region 与有序列表 `start`/`value`；规范化向量同步更新。ADR 0038：Flutter 3.35.5 兼容基线——Flutter 依赖包/示例统一下限，版本 0.7.0-dev.1，运行时不变。ADR 0037：冷深跳 settling——WeftView 宿主视口遮罩与 post-frame 信号，未配置 builder 时行为不变。ADR 0036：已测区间索引直接物化、单所有者块元数据、增量后缀估算、格式化空白准入与 correctBy 后视口同步。ADR 0017–0033：分块渲染与命中裁剪（ADR 0017/0020）、行内图片（ADR 0018）、选择 chrome（ADR 0019）、块级盒模型（ADR 0021）、表格列轨道（ADR 0022）、流式顶层前缀复用（ADR 0023）、单表面 Semantics（ADR 0024/0026/0028/0030）、渐进式布局虚拟化（ADR 0025）、同步/异步锚点导航（ADR 0027/0029）、懒布局异步分帧与同快照复用（ADR 0031）、阶段 0–3 验收证据与重定界（ADR 0032）和受限 JS 运行时（QuickJS FFI + 能力网关 + 恢复去重 + 自定义标签，ADR 0033）。ADR 0034（阶段 5）：快照 JSON 线格式（format+version 门禁）与规范化一致性向量（现为 22 个）、种子化模糊测试（CI 快跑 + tool/fuzz.dart 长跑，修复诊断上限绕过与 toString 崩溃两个真实问题）、能力策略 8 子集矩阵、example/weft_fallback WebView 回退示例、发布手册与回滚演练测试、API 文档门禁、真机矩阵计划。ADR 0035：QuickJS 移动平台构建——ffiPlugin 声明、Android CMake 就地编译（16 KB 对齐）、iOS 静态链接与 dead-strip 锚点、按平台分派的加载器。
 
 ## 包结构
 
@@ -136,7 +136,7 @@ docs/adr/               架构决策记录
 - 表格：嵌套表格（触发回退）、浏览器级 auto 列宽分配精度、`col` 的 min/max 语义。
 - Semantics 的跨行跨列语义索引、table/list 角色导航、可编辑 selection/caret 动作、landmark/tab/menu/radio 族角色、`aria-level`/`aria-labelledby`/`aria-describedby`、`polite`/`assertive` 播报优先级。语义虚拟化已由 ADR 0041 提供（物化窗口精确、band 内粗叶子、未测后缀随滚动物化），但尚无 TalkBack/Web 读屏真机验收。`role=button`/`link` 只播报角色，无激活动作；aria-label/role=img/aria-atomic 折叠不播报子树内容，presentation 表格后代 th 的 header flag 保留（ADR 0040 记录在案的简化）。
 - 受限 JS 的既有边界：bridge 风暴上限按单轮计数、`weft.net` 仅 GET、自定义标签不支持行内混排与 Float 环绕、JSON 编组把 undefined 折叠为 null（ADR 0033 后续小节）。
-- 移动端验收证据：Android 已完成构建、打包与真机执行（Huawei JNY-AL10 / Android 10，加载/求值/内存与墙钟预算共 6 项冒烟全过）；iOS 构建与运行（需 macOS + Xcode + CocoaPods）**暂缓**——podspec 与锚点只经过代码审查，未执行过 `pod install`（ADR 0035）。
+- 移动端验收证据：Android 已完成构建、打包与真机执行（Huawei JNY-AL10 / Android 10，加载/求值/内存与墙钟预算共 6 项冒烟全过）；iOS 由 macOS CI 执行 `pod install`、无签名 release 构建和 10 个 `weft_*` 符号检查，模拟器/真机 runtime 示例仍未执行（ADR 0035）。
 
 ## 关键约束
 
@@ -175,6 +175,7 @@ dart format --output=none --set-exit-if-changed .
 dart analyze
 dart run tool/verify.dart
 dart run tool/consumer_smoke.dart
+dart run tool/ios_smoke.dart  # 仅 macOS
 cd packages/weft_engine && flutter test tool/golden_pixel_test.dart --timeout 60s
 
 # 浏览器诊断参考（本机 Chrome/Edge + Node 22）
@@ -198,13 +199,13 @@ python tool/generate_assets.py
 
 开发计划阶段 0–5 已完成。以下为既有技术路线的延续候选（阶段 5 的验收边界外）。
 
-### A. iOS 构建验证（暂缓，等待 macOS 环境）
+### A. iOS runtime 验证（构建/符号已完成）
 
 目标：在 macOS + Xcode 上完成首次 `pod install` 与构建，确认 `weft_*` 符号未被剥离，并在 iOS 真机/模拟器跑通 runtime 示例；结果写入 `docs/device-matrix.md`。
 
-状态：2026-10-28 决定暂缓——手头没有 macOS 设备。Android 已真机验证，桌面与 CI 路径不受影响；恢复时按 device-matrix §2.2 的清单逐条执行。未验证前不得对外宣称 iOS 可用，发布说明中要写明缺席。
+状态：GitHub Actions 的 `iOS build (macOS)` 已通过：临时宿主完成 `pod install`、无签名 release 构建，并在 `weft_quickjs.framework` 中确认完整 10 个 `weft_*` 符号。剩余工作是用 `tool/ios_smoke.dart --keep` 或独立宿主在模拟器/真机执行 `QuickJsNativeLibrary.load()` 与脚本求值。未完成 runtime 验证前不得对外宣称 iOS 可用，发布说明中要写明缺口。
 
-注意：若符号缺失，先查 `-ObjC` 是否被宿主 Podfile 覆盖，再考虑把 vendor 源码移进 `ios/`（CocoaPods 文件模式不支持 `..`，当前用绝对路径绕过）。
+注意：若符号缺失，先确认 `-Wl,-u,_weft_now_ms` 进入宿主链接、`-fvisibility=hidden` 只隐藏内部函数，再查 vendor 源码是否位于 `ios/Classes/native`（CocoaPods 文件模式不能 traverse `..`，不要恢复绝对路径）。
 
 ### B. ADR 0036 后续：60fps 光栅画像（B1 已完成，2026-10-31）
 

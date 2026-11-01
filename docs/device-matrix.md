@@ -37,30 +37,32 @@ JS 在移动端依赖随包分发的原生库，先确认它存在、符号正�
 # Android：APK 内应有三个 ABI 的库
 unzip -l build/app/outputs/flutter-apk/app-debug.apk | grep libweft_quickjs
 
-# iOS（macOS）：可执行文件里应有 weft_* 符号
-nm -gU Runner.app/Runner | grep weft_
+# iOS（macOS）：符号可能在 Runner 或链接的 framework 中
+for f in Runner.app/Runner Runner.app/Frameworks/weft_quickjs.framework/weft_quickjs; do
+  [ -f "$f" ] && nm -gU "$f"
+done | grep weft_
 ```
 
 真机首启若 `QuickJsNativeLibrary.load()` 抛 `StateError`，按错误文案给出的
 平台补救处理（重打 APK / `pod install` 后重建），不要当成性能问题排查。
 
-### 2.2 iOS 首次验证清单（暂缓，2026-10-28）
+### 2.2 iOS 构建与符号验证（CI 已通过，runtime 待跑）
 
-暂无 macOS 环境，iOS 的构建与真机验证整体挂起。拿到机器后按顺序执行，
-哪一步失败都先解决再往下走：
+GitHub Actions 的 **iOS build (macOS)** 任务已通过：在临时 iOS 宿主中通过
+Git 依赖引入 `weft_quickjs`，执行 CocoaPods 集成、无签名 release 构建，并确认
+app bundle（Runner 或链接的 framework）恰好包含全部 10 个 `weft_*` 符号。手动复验：
 
 ```bash
-cd example/weft_lab
-flutter create --platforms=ios .      # 仓库不携带平台目录
-flutter pub get
-pod install --project-directory=ios
-flutter build ios --no-codesign
-nm -gU build/ios/iphoneos/Runner.app/Runner | grep weft_   # 期望 10 个
+dart run tool/ios_smoke.dart              # 需要 macOS + Xcode + CocoaPods
+dart run tool/ios_smoke.dart --keep       # 保留临时宿主供检查
 ```
 
-符号为空或少于 10 个 → 先查 `-ObjC`（`use_frameworks!` 会改变链接形态），
-再确认 `WeftQuickJsAnchor.m` 进了 pod target，最后看 `WEFT_EXPORT` 的
-`used`。构建通过后跑一次 runtime 示例，把结果补进 §4.1。
+这一步验证构建和链接，不替代模拟器/真机 runtime 验证。若符号为空或不足
+10 个，先确认 `-Wl,-u,_weft_now_ms` 进入宿主链接、`-fvisibility=hidden` 只
+隐藏内部函数，再检查 `WeftQuickJsAnchor.m` 是否进入 pod target，最后看
+`WEFT_EXPORT` 的 `used`。
+模拟器/真机运行 `QuickJsNativeLibrary.load()` 与脚本求值仍待执行，结果补进
+§4.1 后才能宣称 iOS 可用。
 
 ## 3. 通过标准
 
@@ -76,7 +78,7 @@ nm -gU build/ios/iphoneos/Runner.app/Runner | grep weft_   # 期望 10 个
 
 移动端首轮还要单独记录「JS 原生库加载」是否通过（ADR 0035）：Android 与
 iOS 各至少一台设备跑通 runtime 示例，才算该端可用。Android 已于 2026-10-28
-完成（§4.1）；iOS 暂缓（§2.2）。
+完成（§4.1）；iOS 已完成 macOS CI 的构建与符号检查（§2.2），模拟器/真机 runtime 验证仍待执行。
 
 ### 4.1 原生库冒烟（ADR 0035）
 
@@ -190,7 +192,7 @@ Android 真机（JNY-AL10 / Android 10，profile APK 仅 arm64-v8a，901 元素 
 
 严格 60fps 的 combined p95 ≤16.7ms 未达成：raster p95 ≈17.2ms、build p95 ≈9.9ms，combined p50 为 14.6–23.6ms，瓶颈在光栅/合成而非排版。后续要冲 60fps 应先做光栅画像。冷跳测量期间仍可能有短暂空白（与 ADR 0036 一致），本次未做像素级零空白断言。
 
-iOS 继续暂缓；Web debug 与桌面画像只作结构性证据，不替代设备矩阵。完整日志、Web 截图与 build/raster 记录在本地 `build/adr0036-evidence/`。
+iOS 已接入 macOS CI 的无签名构建与符号检查（§2.2），模拟器/真机 runtime 仍待执行；Web debug 与桌面画像只作结构性证据，不替代设备矩阵。完整日志、Web 截图与 build/raster 记录在本地 `build/adr0036-evidence/`。
 
 ### 4.5 光栅 A/B 画像（ADR 0036 后续，2026-10-29）
 

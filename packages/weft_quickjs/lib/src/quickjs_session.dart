@@ -13,7 +13,7 @@ typedef _BridgeNotifyNative = Void Function(Pointer<Utf8>, Pointer<Void>);
 /// through `dart:ffi`. Each [open] creates an isolated `JSRuntime` with the
 /// configured memory and stack limits; wall-clock timeouts and microtask
 /// budgets are enforced natively by the interrupt handler in
-/// `native/weft_glue.c`.
+/// `ios/Classes/native/weft_glue.c`.
 final class QuickJsFfiBackend implements JsRuntimeBackend {
   /// Creates the backend; [libraryPath] overrides shared-library discovery
   /// in [QuickJsNativeLibrary.load], otherwise the default search applies.

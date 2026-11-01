@@ -6,18 +6,14 @@
 # image. Dart then resolves the `weft_*` entry points with
 # `DynamicLibrary.process()`.
 #
-# CocoaPods file *patterns* do not support traversing `..` (podspec guide,
-# "File patterns"), so the native sources are expanded to absolute paths here
-# instead of writing '../native/**/*'. Development pods already live outside
-# the Pods sandbox, so absolute references are the same mechanism the sandbox
-# uses for every Flutter plugin.
+# Vendored native sources live under Classes/native so CocoaPods can collect
+# them with a plain relative glob. CocoaPods file patterns cannot traverse to a
+# sibling directory; do not move them back under a top-level native/ folder.
 #
-# The ObjC anchor in Classes/ keeps the C objects alive when the app is linked
-# with -dead_strip; see the comment in WeftQuickJsAnchor.m.
+# The ObjC anchor in Classes/ and the forced `_weft_now_ms` reference below
+# keep the C objects alive when the app is linked with -dead_strip.
 #
 Pod::Spec.new do |s|
-  native_dir = File.expand_path('../native', __dir__)
-
   s.name             = 'weft_quickjs'
   s.version          = '0.7.0-dev.1'
   s.summary          = 'QuickJS native backend for the Weft rendering engine.'
@@ -26,11 +22,10 @@ Compiles the vendored QuickJS 2024-01-13 engine and the Weft FFI shim into the
 host application and exposes the weft_* entry points to dart:ffi.
                        DESC
   s.homepage         = 'http://example.com'
-  s.license          = { :type => 'MIT', :file => '../native/quickjs/LICENSE' }
+  s.license          = { :type => 'MIT', :file => 'Classes/native/quickjs/LICENSE' }
   s.author           = { 'Weft' => 'weft@example.com' }
   s.source           = { :path => '.' }
-  s.source_files     = Dir.glob(File.join(native_dir, '**/*.{c,h}')) +
-                       Dir.glob(File.join(__dir__, 'Classes/**/*.{h,m}'))
+  s.source_files     = 'Classes/**/*.{c,h,m}'
   s.dependency 'Flutter'
   s.ios.deployment_target = '13.0'
   s.pod_target_xcconfig = {
@@ -38,6 +33,14 @@ host application and exposes the weft_* entry points to dart:ffi.
     'GCC_PREPROCESSOR_DEFINITIONS' =>
       '$(inherited) _GNU_SOURCE=1 CONFIG_BIGNUM=1',
     'OTHER_CFLAGS' =>
-      '$(inherited) -DCONFIG_VERSION=\"2024-01-13\" -fno-strict-aliasing -Wno-unused-parameter'
+      '$(inherited) -DCONFIG_VERSION=\"2024-01-13\" -fno-strict-aliasing -Wno-unused-parameter -fvisibility=hidden'
+  }
+  # Flutter hosts do not guarantee `-ObjC`, so a static pod's ObjC anchor can be
+  # dropped before its `+load` reference is considered. Force the entry point to
+  # remain undefined at the final link; the linker then pulls weft_glue.o and
+  # the QuickJS objects it references. The ObjC anchor remains as a second line
+  # of defense for hosts that do link with `-ObjC`.
+  s.user_target_xcconfig = {
+    'OTHER_LDFLAGS' => '$(inherited) -Wl,-u,_weft_now_ms'
   }
 end

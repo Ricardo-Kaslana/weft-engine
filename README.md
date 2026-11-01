@@ -64,7 +64,7 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - 选择工具条（完整菜单）与 chrome 动画打磨；ARIA 增强（landmark/tab/menu 族角色、`aria-level`/`aria-labelledby`）；行内双向重排的中性字符行缘解析与竖排（基础 RTL 块方向已由 ADR 0042 支持，行内 BiDi 委托 SkParagraph）。
 - 未测区域的精确 O(1)/O(log N) 随机跳转，以及超高顶层块/表内行/图片解码资源虚拟化；冷跳仍分帧测量前缀，配置 `lazySettlingBuilder` 时由宿主遮罩覆盖，但仍不承诺零空白（ADR 0037）。
 - 严格 60fps 的滚动预算：JNY-AL10 上 combined p95 ≈26ms，瓶颈在 raster；12+12 轮 Impeller/Skia A/B（device-matrix §4.7）未发现可复现的后端优势（SCROLL total p95 25.70 vs 24.49ms，p≈0.33），不建议旧 Mali 关闭 Impeller；冷跳分帧期间仍会有短暂空白，见 `docs/device-matrix.md` §4.4/§4.7。
-- 真机证据：Android 已完成构建、打包与真机执行验证（Huawei JNY-AL10 / Android 10）；iOS 的构建与真机验证**暂缓**（暂无 macOS 环境，2026-10-28 决定），未验证前不宣称 iOS 可用，见 `docs/device-matrix.md`。
+- 真机证据：Android 已完成构建、打包与真机执行验证（Huawei JNY-AL10 / Android 10）；iOS 的 macOS 无签名构建与 `weft_*` 符号检查由 CI 覆盖，模拟器/真机运行验证仍待完成，见 `docs/device-matrix.md`。
 
 `example/weft_lab` 展示真实可滚动的静态文章；`example/weft_live` 把实时图表、自动快照、投票、主题切换和深链接聚合到一张专题页里，并接入冷跳 settling 骨架与跳底控件。两者均不用于验收完整 HTML/CSS 兼容性。当前限制与后续顺序见 `docs/supported-subset.md` 和 `docs/development-plan.md`。
 
@@ -89,6 +89,7 @@ conformance/            语料、固定字体、Flutter 基线和浏览器参考
 docs/                   架构、规范、计划和管理文档
 tool/verify.dart        全包测试入口
 tool/consumer_smoke.dart  仓库外 Git 消费者冒烟测试
+tool/ios_smoke.dart       macOS 上的 iOS 无签名构建与 QuickJS 符号检查
 tool/browser_references.mjs  Chrome/Edge 诊断截图生成器
 tool/compare_goldens.py     跨引擎像素差异报告
 .github/workflows/      持续集成
@@ -138,10 +139,11 @@ flutter test tool/golden_pixel_test.dart --timeout 120s
 
 ## 持续集成
 
-`.github/workflows/ci.yaml` 定义两个任务，均固定 Flutter 3.35.5：
+`.github/workflows/ci.yaml` 定义三个任务，均固定 Flutter 3.35.5：
 
 - `verify`（Ubuntu）：解析依赖、构建 QuickJS 原生库、验证原生库可加载，然后执行格式、静态分析、API 文档覆盖、全部包测试和仓库外 Git 消费者冒烟测试。
 - `golden`（Windows）：比较 3 个 Flutter 像素黄金基线。
+- `ios`（macOS 15）：创建临时 iOS 宿主，执行 CocoaPods 集成和无签名 release 构建，并在 app bundle（Runner 或链接的 framework）中确认全部 10 个 `weft_*` 符号。
 
 仓库已配置 GitHub 远端 `origin`（`Ricardo-Kaslana/weft-engine`）。工作流在 `main` push、Pull Request 和手动触发时运行，状态见顶部 CI 徽章与 Actions 页面。
 
@@ -172,7 +174,7 @@ flutter create --platforms=android,ios --project-name weft_lab .
 flutter run
 ```
 
-实验室演示使用 `weft_runtime_fake`。真实 QuickJS 的原生构建已由 `weft_quickjs` 提供（ADR 0035）：Android 由 CMake 就地编译，iOS 由 podspec 静态链接（尚未在 macOS 验证），桌面端需先运行 `packages/weft_quickjs/tool/build_native.sh`。
+实验室演示使用 `weft_runtime_fake`。真实 QuickJS 的原生构建已由 `weft_quickjs` 提供（ADR 0035）：Android 由 CMake 就地编译，iOS 由 podspec 静态链接并由 macOS CI 执行无签名构建与符号检查（模拟器/真机运行仍待验证），桌面端需先运行 `packages/weft_quickjs/tool/build_native.sh`。
 
 ## 运行实时专题页
 
@@ -215,5 +217,5 @@ DOM 或第三方脚本。详情见 `example/weft_live/README.md`。
 
 第三方组件保留各自许可证：
 
-- QuickJS：MIT，见 `packages/weft_quickjs/native/quickjs/LICENSE`
+- QuickJS：MIT，见 `packages/weft_quickjs/ios/Classes/native/quickjs/LICENSE`
 - Roboto / Roboto Mono：Apache-2.0，见 `conformance/fonts/LICENSE-Roboto.txt`
