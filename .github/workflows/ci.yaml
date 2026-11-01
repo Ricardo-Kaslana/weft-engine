@@ -80,7 +80,9 @@ jobs:
   ios:
     name: iOS build (macOS)
     runs-on: macos-15
-    timeout-minutes: 40
+    # Device build, symbol scan, simulator boot and one smoke retry; each
+    # external command has its own hard ceiling in tool/ios_smoke.dart.
+    timeout-minutes: 55
     steps:
       - name: Checkout
         uses: actions/checkout@v7
