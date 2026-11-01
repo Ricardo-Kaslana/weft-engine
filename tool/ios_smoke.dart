@@ -247,7 +247,11 @@ Future<void> _runSimulatorSmoke(Directory project, String simulator) async {
           '180s',
           '--no-pub',
         ],
-        timeout: const Duration(minutes: 8),
+        // The simulator debug build alone takes 2-4 minutes on a hosted
+        // runner and the passing run took 7m12s end to end, so the outer
+        // ceiling only has to catch a genuine hang (the 180s per-test timeout
+        // fires first); anything tighter risks killing a healthy run.
+        timeout: const Duration(minutes: 12),
       );
       return;
     } on StateError {
