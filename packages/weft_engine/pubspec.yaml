@@ -1,7 +1,13 @@
 name: weft_engine
 description: Flutter layout, rendering, and interaction contracts for Weft.
+repository: https://github.com/Ricardo-Kaslana/weft-engine
+issue_tracker: https://github.com/Ricardo-Kaslana/weft-engine/issues
+topics:
+  - flutter
+  - html
+  - layout
+  - rendering
 version: 0.7.0-dev.2
-publish_to: none
 resolution: workspace
 
 environment:
@@ -11,8 +17,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  weft_document:
-    path: ../weft_document
+  weft_document: ^0.7.0-dev.2
 
 dev_dependencies:
   flutter_test:

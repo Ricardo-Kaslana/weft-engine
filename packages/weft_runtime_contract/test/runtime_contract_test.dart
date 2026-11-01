@@ -1,5 +1,5 @@
 import 'package:weft_runtime_api/weft_runtime_api.dart';
-import 'package:weft_runtime_contract/runtime_contract.dart';
+import 'package:weft_runtime_contract/weft_runtime_contract.dart';
 
 /// The simplest backend that can satisfy the contract: it maps the well-known
 /// script ids straight to compliant results. Keeping it in this package

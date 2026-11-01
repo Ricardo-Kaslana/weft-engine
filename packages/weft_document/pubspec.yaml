@@ -1,7 +1,12 @@
 name: weft_document
 description: Immutable document, support reporting, and logical text contracts for Weft.
+repository: https://github.com/Ricardo-Kaslana/weft-engine
+issue_tracker: https://github.com/Ricardo-Kaslana/weft-engine/issues
+topics:
+  - html
+  - rendering
+  - document
 version: 0.7.0-dev.2
-publish_to: none
 resolution: workspace
 
 environment:

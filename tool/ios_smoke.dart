@@ -50,6 +50,7 @@ Future<void> main(List<String> arguments) async {
       Uri.file(root.path, windows: Platform.isWindows).toString();
   final keep = arguments.contains('--keep');
   final runtime = arguments.contains('--runtime');
+  final version = _workspaceVersion(root, 'weft_runtime_api');
   final project = Directory.systemTemp.createTempSync('weft_ios_');
 
   stdout.writeln('iOS smoke: $gitUrl at $ref');
@@ -68,7 +69,13 @@ Future<void> main(List<String> arguments) async {
       ],
       timeout: const Duration(minutes: 5),
     );
-    _writeProject(project, gitUrl: gitUrl, ref: ref, runtime: runtime);
+    _writeProject(
+      project,
+      gitUrl: gitUrl,
+      ref: ref,
+      runtime: runtime,
+      version: version,
+    );
     await _run(
       project,
       'flutter',
@@ -107,18 +114,59 @@ void _writeProject(
   required String gitUrl,
   required String ref,
   required bool runtime,
+  required String version,
 }) {
   File(
     '${project.path}/pubspec.yaml',
-  ).writeAsStringSync(
-      buildIosSmokePubspec(gitUrl: gitUrl, ref: ref, runtime: runtime));
+  ).writeAsStringSync(buildIosSmokePubspec(
+    gitUrl: gitUrl,
+    ref: ref,
+    runtime: runtime,
+    version: version,
+  ));
   File('${project.path}/lib/main.dart').writeAsStringSync(_iosApp);
   if (runtime) {
     Directory('${project.path}/integration_test').createSync(recursive: true);
     File(
       '${project.path}/integration_test/runtime_smoke_test.dart',
     ).writeAsStringSync(iosRuntimeSmokeTest);
+    // The host declares `weft_runtime_api` so the integration test can import
+    // it, but `weft_quickjs` requires that package from the hosted server.
+    // Until the packages are published, the override is what lets a git
+    // checkout resolve at all.
+    File('${project.path}/pubspec_overrides.yaml').writeAsStringSync(
+      buildIosSmokeOverrides(gitUrl: gitUrl, ref: ref),
+    );
   }
+}
+
+/// Pre-publication overrides for the disposable host.
+///
+/// `weft_quickjs` requires `weft_runtime_api` from the hosted server; a git
+/// checkout cannot satisfy that until the package is published, so the host
+/// pins the source to the same ref.
+String buildIosSmokeOverrides({
+  required String gitUrl,
+  required String ref,
+}) {
+  return 'dependency_overrides:\n'
+      '  weft_runtime_api:\n'
+      '    git:\n'
+      '      url: ${jsonEncode(gitUrl)}\n'
+      '      ref: ${jsonEncode(ref)}\n'
+      '      path: packages/weft_runtime_api\n';
+}
+
+/// Reads a workspace package version, so the disposable host never pins a
+/// stale constraint after a version bump.
+String _workspaceVersion(Directory root, String package) {
+  final pubspec = File('${root.path}/packages/$package/pubspec.yaml');
+  final match = RegExp(r'^version: (.+)$', multiLine: true)
+      .firstMatch(pubspec.readAsStringSync());
+  if (match == null) {
+    throw StateError('No version in ${pubspec.path}');
+  }
+  return match.group(1)!.trim();
 }
 
 /// Renders the disposable host's `pubspec.yaml`.
@@ -130,6 +178,7 @@ String buildIosSmokePubspec({
   required String gitUrl,
   required String ref,
   required bool runtime,
+  required String version,
 }) {
   final devDependencies = runtime
       ? '''
@@ -141,15 +190,11 @@ dev_dependencies:
     sdk: flutter
 '''
       : '';
-  final extraDependency = runtime
-      ? '''
-  weft_runtime_api:
-    git:
-      url: ${jsonEncode(gitUrl)}
-      ref: ${jsonEncode(ref)}
-      path: packages/weft_runtime_api
-'''
-      : '';
+  // Declared as a hosted constraint because that is what the published
+  // dependency graph looks like; the runtime mode writes a
+  // `pubspec_overrides.yaml` that pins the source to the same git ref until
+  // the package exists on pub.dev.
+  final extraDependency = runtime ? '  weft_runtime_api: ^$version\n' : '';
   return '''
 name: weft_ios_smoke
 publish_to: none

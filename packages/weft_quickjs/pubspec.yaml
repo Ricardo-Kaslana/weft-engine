@@ -1,7 +1,12 @@
 name: weft_quickjs
 description: QuickJS native runtime backend for Weft, driven through dart:ffi.
+repository: https://github.com/Ricardo-Kaslana/weft-engine
+issue_tracker: https://github.com/Ricardo-Kaslana/weft-engine/issues
+topics:
+  - flutter
+  - javascript
+  - quickjs
 version: 0.7.0-dev.2
-publish_to: none
 resolution: workspace
 
 environment:
@@ -10,11 +15,11 @@ environment:
 
 dependencies:
   ffi: ^2.2.0
-  weft_runtime_api:
-    path: ../weft_runtime_api
+  weft_runtime_api: ^0.7.0-dev.2
 
 dev_dependencies:
   test: ^1.25.0
+  weft_runtime_contract: ^0.7.0-dev.2
 
 flutter:
   plugin:
@@ -23,3 +28,5 @@ flutter:
         ffiPlugin: true
       ios:
         ffiPlugin: true
+
+dev_dependencies:/n  weft_runtime_contract: ^0.7.0-dev.2

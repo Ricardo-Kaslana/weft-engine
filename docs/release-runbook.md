@@ -41,7 +41,7 @@
 发布前逐项执行，全部通过才允许打 tag：
 
 1. `tool/check.sh`（format、analyze、全部包测试、像素黄金）通过。
-2. `dart run tool/consumer_smoke.dart --ref <待发布-ref>` 通过，确认 workspace 外的 Git 消费者可以解析并渲染；`dart run tool/doc_coverage.dart` 报告公开 API 文档零缺口。
+2. `dart run tool/consumer_smoke.dart --ref <待发布-ref>` 通过，确认 workspace 外的 Git 消费者可以解析并渲染；`dart run tool/doc_coverage.dart` 报告公开 API 文档零缺口；`dart run tool/pub_dry_run.dart` 对 8 个包全部通过 `pub publish --dry-run`（除“未提交改动”外的任何校验项都视为失败）。
 3. `dart run tool/fuzz.dart --iterations 50000`（或本地接受的更大规模）
    无崩溃；发现的崩溃要么修复，要么固化为一致性向量。
 4. 布局相关变更：`packages/weft_engine/tool/golden_pixel_test.dart` 通过，
@@ -56,6 +56,30 @@
    跑通加载/求值/超时中断/恢复。若本次发布包含 iOS 产物，仍须补一次物理
    设备验证；未做真机轮前不得宣称 iOS 真机可用，发布说明中要写明缺口。
 8. 打 tag `v<版本>`；tag 信息列出本版本 CHANGELOG 条目。
+
+## 3.1 发布到 pub.dev（尚未执行）
+
+8 个包已具备发布条件，CI 的 `Package publish dry-run gate` 会在每次提交上校验。真正推送需要 pub.dev 凭据，按以下顺序执行（依赖在前）：
+
+```bash
+dart pub token add https://pub.dev
+
+for pkg in weft_runtime_api weft_document weft_capabilities weft_runtime_fake \
+           weft_runtime_contract; do
+  dart pub -C "packages/$pkg" publish
+done
+for pkg in weft_engine weft_quickjs weft; do
+  flutter pub -C "packages/$pkg" publish
+done
+```
+
+注意事项：
+
+- 预发布版本（`0.7.0-dev.N`）不会成为 pub.dev 的默认解析结果；消费者必须显式写 `^0.7.0-dev.N`。
+- 版本一旦发布不可删除；出问题只能用 `dart pub retract <version>` 标记撤回，或立即发修复版本。
+- `resolution: workspace` 会在发布归档中剥离；包间依赖已经是版本约束，因此单个包在 workspace 之外也能解析。
+- 每个包的 CHANGELOG 只记录该包历史，项目级变更仍写在仓库根 `CHANGELOG.md`。
+- 全部发布完成后，用 `dart run tool/consumer_smoke.dart --mode published --version <版本>` 验证 hosted 解析；在此之前该脚本默认的 `git` 模式会用 `dependency_overrides` 把同级包钉在同一 ref。
 
 ## 4. 回滚路径
 

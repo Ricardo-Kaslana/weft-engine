@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Package publication readiness: every package now carries its own README, CHANGELOG and LICENSE copy, `repository`/`issue_tracker`/`topics` metadata, and inter-package dependencies moved from `path:` to `^0.7.0-dev.2` version constraints (workspace resolution still picks the local copies). `publish_to: none` is gone, `weft_runtime_contract` exports `weft_runtime_contract.dart` (matching the package name) and declares `test` as a regular dependency because its library imports it, and the two packages whose tests use the contract suite now declare it. New `tool/pub_dry_run.dart` runs `pub publish --dry-run` for all eight packages in dependency order and is wired into the Linux CI job; it fails on any validation issue except uncommitted files. `tool/consumer_smoke.dart` keeps working across the transition: its default `git` mode now pins the sibling packages with `dependency_overrides` (a git checkout cannot satisfy hosted version constraints before publication), and `--mode published` checks the hosted path afterwards. No runtime, layout, paint or API changes; tests stay at 587.
+
 - iOS runtime smoke on CI: `tool/ios_smoke.dart --runtime` boots an iPhone simulator inside the macOS job and runs an integration test that loads the QuickJS entry points from the app image, evaluates `1 + 2 * 3`, interrupts `while (true) {}` at a 200 ms wall-clock budget and proves a fresh session still returns 42. The iOS job no longer proves only that the symbols exist; physical-device validation remains outstanding. No runtime, layout, paint or golden changes; tests stay at 587.
 
 ## 0.7.0-dev.2 (2026-11-01)
