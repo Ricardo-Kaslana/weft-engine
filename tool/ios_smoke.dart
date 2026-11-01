@@ -75,12 +75,7 @@ Future<void> main(List<String> arguments) async {
     _verifySymbols(project);
     if (runtime) {
       final simulator = _bootSimulator();
-      await _run(project, 'flutter', [
-        'test',
-        'integration_test/runtime_smoke_test.dart',
-        '-d',
-        simulator,
-      ]);
+      await _runSimulatorSmoke(project, simulator);
       stdout.writeln('iOS runtime smoke passed on $simulator.');
     }
   } finally {
@@ -202,6 +197,51 @@ String _bootSimulator() {
     throw StateError('simctl bootstatus failed: ${status.stderr}');
   }
   return udid;
+}
+
+/// Runs the runtime integration test on [simulator], retrying once on a fresh
+/// boot.
+///
+/// The hosted macOS runner occasionally fails to attach to the app's VM
+/// service ("log reader failed unexpectedly"), which surfaces as a test-harness
+/// timeout rather than an assertion failure. Rebooting the simulator clears it;
+/// a real regression fails both attempts, so the retry cannot mask one. The
+/// per-test timeout stays short so a stuck connection costs minutes, not the
+/// job's whole budget.
+Future<void> _runSimulatorSmoke(Directory project, String simulator) async {
+  for (var attempt = 1;; attempt++) {
+    try {
+      await _run(project, 'flutter', [
+        'test',
+        'integration_test/runtime_smoke_test.dart',
+        '-d',
+        simulator,
+        '--timeout',
+        '180s',
+        '--no-pub',
+      ]);
+      return;
+    } on StateError {
+      if (attempt >= 2) rethrow;
+      stdout.writeln(
+        'iOS runtime smoke attempt $attempt failed; rebooting the simulator '
+        'and retrying once.',
+      );
+      _restartSimulator(simulator);
+    }
+  }
+}
+
+void _restartSimulator(String udid) {
+  Process.runSync('xcrun', ['simctl', 'shutdown', udid]);
+  final boot = Process.runSync('xcrun', ['simctl', 'boot', udid]);
+  if (boot.exitCode != 0) {
+    throw StateError('simctl boot failed: ${boot.stderr}');
+  }
+  final status = Process.runSync('xcrun', ['simctl', 'bootstatus', udid, '-b']);
+  if (status.exitCode != 0) {
+    throw StateError('simctl bootstatus failed: ${status.stderr}');
+  }
 }
 
 /// Integration test copied into the disposable host for `--runtime`.
