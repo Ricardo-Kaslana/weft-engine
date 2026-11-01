@@ -1,6 +1,7 @@
 # Weft Engine
 
 [![ci](https://github.com/Ricardo-Kaslana/weft-engine/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/Ricardo-Kaslana/weft-engine/actions/workflows/ci.yaml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项目，目标场景是 CMS 文章、商品描述、帮助文档和 AI 流式内容。它以内容呈现和轻交互为主，不试图成为完整浏览器。
 
@@ -206,3 +207,12 @@ DOM 或第三方脚本。详情见 `example/weft_live/README.md`。
 ## 明确边界
 
 不执行不可信第三方脚本，不提供完整 DOM、npm 生态、Canvas/WebGL、富文本编辑或现有 Web 应用的无损迁移。内容规范化不是安全清洗器；复杂或明确不支持的内容由宿主通过 `SupportReport` 和回退策略处理。
+
+## 许可证
+
+本项目采用 [MIT License](LICENSE)，版权归 Weft Engine contributors 所有。
+
+第三方组件保留各自许可证：
+
+- QuickJS：MIT，见 `packages/weft_quickjs/native/quickjs/LICENSE`
+- Roboto / Roboto Mono：Apache-2.0，见 `conformance/fonts/LICENSE-Roboto.txt`
