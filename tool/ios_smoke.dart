@@ -18,7 +18,7 @@ void main() {
 ''';
 
 /// Builds a disposable iOS host against the current repository and verifies
-/// that QuickJS was linked into the app binary.
+/// that QuickJS was linked into the app bundle.
 ///
 /// This runs on macOS only. It creates a temporary Flutter app with a Git
 /// dependency on `packages/weft_quickjs`, runs CocoaPods, builds an unsigned
@@ -100,36 +100,59 @@ dependencies:
   File('${project.path}/lib/main.dart').writeAsStringSync(_iosApp);
 }
 
+const _expectedSymbols = <String>{
+  '_weft_new_runtime',
+  '_weft_set_deadline',
+  '_weft_now_ms',
+  '_weft_free_runtime',
+  '_weft_eval',
+  '_weft_pump_jobs',
+  '_weft_install_bridge',
+  '_weft_resolve',
+  '_weft_send_event',
+  '_weft_free_string',
+};
+
 void _verifySymbols(Directory project) {
-  final binary = File(
-    '${project.path}/build/ios/iphoneos/Runner.app/Runner',
-  );
-  if (!binary.existsSync()) {
-    throw StateError('iOS app binary not found at ${binary.path}');
+  final app = Directory('${project.path}/build/ios/iphoneos/Runner.app');
+  if (!app.existsSync()) {
+    throw StateError('iOS app bundle not found at ${app.path}');
   }
 
-  final result = Process.runSync('nm', ['-gU', binary.path]);
-  if (result.exitCode != 0) {
-    throw StateError('nm failed: ${result.stderr}');
+  final symbolsByBinary = <String, Set<String>>{};
+  for (final entity in app.listSync(recursive: true)) {
+    if (entity is! File) continue;
+    final result = Process.runSync('nm', ['-gU', entity.path]);
+    if (result.exitCode != 0) continue;
+    final found = <String>{};
+    for (final line in (result.stdout as String).split('\n')) {
+      final match = RegExp(
+        r'\b[Tt]\s+(_weft_[A-Za-z0-9_]+)$',
+      ).firstMatch(line.trim());
+      if (match != null) found.add(match.group(1)!);
+    }
+    if (found.isNotEmpty) {
+      symbolsByBinary[entity.path] = found;
+    }
   }
-  final output = result.stdout as String;
-  final symbols = <String>{};
-  for (final line in output.split('\n')) {
-    final match = RegExp(
-      r'\b[Tt]\s+(_weft_[A-Za-z0-9_]+)$',
-    ).firstMatch(line.trim());
-    if (match != null) symbols.add(match.group(1)!);
-  }
-  if (symbols.length != 10) {
+
+  final symbols = symbolsByBinary.values.expand((set) => set).toSet();
+  final missing = _expectedSymbols.difference(symbols);
+  final unexpected = symbols.difference(_expectedSymbols);
+  if (missing.isNotEmpty || unexpected.isNotEmpty) {
     throw StateError(
-      'Expected 10 linked weft_* symbols, found ${symbols.length}: '
-      '${symbols.join(', ')}\n$output',
+      'QuickJS symbol verification failed.\n'
+      'Missing: ${missing.toList()..sort()}\n'
+      'Unexpected: ${unexpected.toList()..sort()}\n'
+      'Found in: $symbolsByBinary',
     );
   }
   stdout.writeln(
-    'iOS smoke passed: ${symbols.length} QuickJS symbols linked.',
+    'iOS smoke passed: all ${_expectedSymbols.length} QuickJS symbols linked.',
   );
-  stdout.writeln(symbols.toList()..sort());
+  symbolsByBinary.forEach((path, found) {
+    stdout.writeln('  $path: ${found.toList()..sort()}');
+  });
 }
 
 Future<void> _run(

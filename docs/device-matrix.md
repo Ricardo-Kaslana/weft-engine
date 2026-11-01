@@ -37,8 +37,10 @@ JS 在移动端依赖随包分发的原生库，先确认它存在、符号正�
 # Android：APK 内应有三个 ABI 的库
 unzip -l build/app/outputs/flutter-apk/app-debug.apk | grep libweft_quickjs
 
-# iOS（macOS）：可执行文件里应有 weft_* 符号
-nm -gU Runner.app/Runner | grep weft_
+# iOS（macOS）：符号可能在 Runner 或链接的 framework 中
+for f in Runner.app/Runner Runner.app/Frameworks/weft_quickjs.framework/weft_quickjs; do
+  [ -f "$f" ] && nm -gU "$f"
+done | grep weft_
 ```
 
 真机首启若 `QuickJsNativeLibrary.load()` 抛 `StateError`，按错误文案给出的
@@ -48,7 +50,7 @@ nm -gU Runner.app/Runner | grep weft_
 
 GitHub Actions 的 **iOS build (macOS)** 任务会在临时 iOS 宿主中通过 Git
 依赖引入 `weft_quickjs`，执行 CocoaPods 集成、无签名 release 构建，并检查
-app 二进制恰好包含 10 个 `weft_*` 符号：
+app bundle（Runner 或链接的 framework）恰好包含全部 10 个 `weft_*` 符号：
 
 ```bash
 dart run tool/ios_smoke.dart              # 需要 macOS + Xcode + CocoaPods

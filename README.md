@@ -143,7 +143,7 @@ flutter test tool/golden_pixel_test.dart --timeout 120s
 
 - `verify`（Ubuntu）：解析依赖、构建 QuickJS 原生库、验证原生库可加载，然后执行格式、静态分析、API 文档覆盖、全部包测试和仓库外 Git 消费者冒烟测试。
 - `golden`（Windows）：比较 3 个 Flutter 像素黄金基线。
-- `ios`（macOS 15）：创建临时 iOS 宿主，执行 CocoaPods 集成和无签名 release 构建，并确认 app 二进制包含 10 个 `weft_*` 符号。
+- `ios`（macOS 15）：创建临时 iOS 宿主，执行 CocoaPods 集成和无签名 release 构建，并在 app bundle（Runner 或链接的 framework）中确认全部 10 个 `weft_*` 符号。
 
 仓库已配置 GitHub 远端 `origin`（`Ricardo-Kaslana/weft-engine`）。工作流在 `main` push、Pull Request 和手动触发时运行，状态见顶部 CI 徽章与 Actions 页面。
 
