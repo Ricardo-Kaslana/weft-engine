@@ -6,18 +6,14 @@
 # image. Dart then resolves the `weft_*` entry points with
 # `DynamicLibrary.process()`.
 #
-# CocoaPods file *patterns* do not support traversing `..` (podspec guide,
-# "File patterns"), so the native sources are expanded to absolute paths here
-# instead of writing '../native/**/*'. Development pods already live outside
-# the Pods sandbox, so absolute references are the same mechanism the sandbox
-# uses for every Flutter plugin.
+# Native sources are referenced relatively from the pod root. CocoaPods
+# rejects absolute source patterns, so the vendored engine must stay relative
+# to this podspec; do not reintroduce File.expand_path here.
 #
 # The ObjC anchor in Classes/ keeps the C objects alive when the app is linked
 # with -dead_strip; see the comment in WeftQuickJsAnchor.m.
 #
 Pod::Spec.new do |s|
-  native_dir = File.expand_path('../native', __dir__)
-
   s.name             = 'weft_quickjs'
   s.version          = '0.7.0-dev.1'
   s.summary          = 'QuickJS native backend for the Weft rendering engine.'
@@ -29,8 +25,7 @@ host application and exposes the weft_* entry points to dart:ffi.
   s.license          = { :type => 'MIT', :file => '../native/quickjs/LICENSE' }
   s.author           = { 'Weft' => 'weft@example.com' }
   s.source           = { :path => '.' }
-  s.source_files     = Dir.glob(File.join(native_dir, '**/*.{c,h}')) +
-                       Dir.glob(File.join(__dir__, 'Classes/**/*.{h,m}'))
+  s.source_files     = '../native/**/*.{c,h}', 'Classes/**/*.{h,m}'
   s.dependency 'Flutter'
   s.ios.deployment_target = '13.0'
   s.pod_target_xcconfig = {
