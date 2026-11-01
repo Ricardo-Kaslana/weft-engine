@@ -46,23 +46,26 @@ done | grep weft_
 真机首启若 `QuickJsNativeLibrary.load()` 抛 `StateError`，按错误文案给出的
 平台补救处理（重打 APK / `pod install` 后重建），不要当成性能问题排查。
 
-### 2.2 iOS 构建与符号验证（CI 已通过，runtime 待跑）
+### 2.2 iOS 构建、符号与模拟器 runtime 验证（CI 已通过）
 
 GitHub Actions 的 **iOS build (macOS)** 任务已通过：在临时 iOS 宿主中通过
 Git 依赖引入 `weft_quickjs`，执行 CocoaPods 集成、无签名 release 构建，并确认
-app bundle（Runner 或链接的 framework）恰好包含全部 10 个 `weft_*` 符号。手动复验：
+app bundle（Runner 或链接的 framework）恰好包含全部 10 个 `weft_*` 符号。
+额外的 `--runtime` 步骤会启动一台 iPhone 模拟器，在该宿主上运行 integration
+test：从 app image 解析入口点、求值脚本、按墙钟预算中断死循环、并在新会话中
+确认恢复（结果见 §4.1）。手动复验：
 
 ```bash
 dart run tool/ios_smoke.dart              # 需要 macOS + Xcode + CocoaPods
+dart run tool/ios_smoke.dart --runtime    # 追加模拟器 runtime 冒烟
 dart run tool/ios_smoke.dart --keep       # 保留临时宿主供检查
 ```
 
-这一步验证构建和链接，不替代模拟器/真机 runtime 验证。若符号为空或不足
-10 个，先确认 `-Wl,-u,_weft_now_ms` 进入宿主链接、`-fvisibility=hidden` 只
-隐藏内部函数，再检查 `WeftQuickJsAnchor.m` 是否进入 pod target，最后看
-`WEFT_EXPORT` 的 `used`。
-模拟器/真机运行 `QuickJsNativeLibrary.load()` 与脚本求值仍待执行，结果补进
-§4.1 后才能宣称 iOS 可用。
+若符号为空或不足 10 个，先确认 `-Wl,-u,_weft_now_ms` 进入宿主链接、
+`-fvisibility=hidden` 只隐藏内部函数，再检查 `WeftQuickJsAnchor.m` 是否进入
+pod target，最后看 `WEFT_EXPORT` 的 `used`。
+真机（物理设备）运行仍未执行，不能把模拟器结果当作真机可用；未做真机轮前
+发布说明要写明这一缺口。
 
 ## 3. 通过标准
 
@@ -78,7 +81,8 @@ dart run tool/ios_smoke.dart --keep       # 保留临时宿主供检查
 
 移动端首轮还要单独记录「JS 原生库加载」是否通过（ADR 0035）：Android 与
 iOS 各至少一台设备跑通 runtime 示例，才算该端可用。Android 已于 2026-10-28
-完成（§4.1）；iOS 已完成 macOS CI 的构建与符号检查（§2.2），模拟器/真机 runtime 验证仍待执行。
+完成（§4.1）；iOS 已完成 macOS CI 的构建、符号检查与模拟器 runtime 验证
+（§4.1），物理设备验证仍待执行。
 
 ### 4.1 原生库冒烟（ADR 0035）
 
@@ -94,6 +98,20 @@ iOS 各至少一台设备跑通 runtime 示例，才算该端可用。Android �
 
 采集方式：`adb logcat -s flutter:I | grep PROBE|`；探针是临时 App（依赖
 `weft_quickjs`，不随仓库分发）。这只证明原生库在真机可用。
+
+2026-11-01 · iPhone 16 Pro 模拟器（iOS 18，GitHub Actions `macos-15`）
+
+| 检查 | 结果 |
+|---|---|
+| `QuickJsNativeLibrary.load()` 从 app image 解析入口点 | 通过 |
+| 脚本求值 `1 + 2 * 3` | 通过，回读 `7` |
+| 墙钟预算中断 `while (true) {}`（200ms） | 通过，`RuntimeFailureKind.timeout` |
+| 中断后新开会话求值 `6 * 7` | 通过，`42` |
+
+采集方式：CI 任务 `iOS build (macOS)` 执行 `dart run tool/ios_smoke.dart
+--runtime`，integration test 逐条打印 ✅/失败；日志见 run 41310624048（job
+124860036737），iOS 任务耗时 7m5s（含模拟器启动与 debug 构建）。
+未覆盖项：iOS 的堆预算中断、微任务预算与真机帧耗时尚未测量。
 
 ### 4.2 帧耗时（2026-10-28）
 
@@ -192,7 +210,7 @@ Android 真机（JNY-AL10 / Android 10，profile APK 仅 arm64-v8a，901 元素 
 
 严格 60fps 的 combined p95 ≤16.7ms 未达成：raster p95 ≈17.2ms、build p95 ≈9.9ms，combined p50 为 14.6–23.6ms，瓶颈在光栅/合成而非排版。后续要冲 60fps 应先做光栅画像。冷跳测量期间仍可能有短暂空白（与 ADR 0036 一致），本次未做像素级零空白断言。
 
-iOS 已接入 macOS CI 的无签名构建与符号检查（§2.2），模拟器/真机 runtime 仍待执行；Web debug 与桌面画像只作结构性证据，不替代设备矩阵。完整日志、Web 截图与 build/raster 记录在本地 `build/adr0036-evidence/`。
+iOS 已接入 macOS CI 的无签名构建、符号检查与模拟器 runtime 冒烟（§2.2、§4.1），物理设备仍未验证；Web debug 与桌面画像只作结构性证据，不替代设备矩阵。完整日志、Web 截图与 build/raster 记录在本地 `build/adr0036-evidence/`。
 
 ### 4.5 光栅 A/B 画像（ADR 0036 后续，2026-10-29）
 
@@ -295,4 +313,4 @@ iOS 已接入 macOS CI 的无签名构建与符号检查（§2.2），模拟器/
 
 - **语义开启滚动的帧耗时**（ADR 0041）：语义虚拟化后读屏开启的滚动/深跳帧耗时未在真机测量；按 §4.4 的 build/raster 拆分方法对 JNY-AL10 复测，关注 lazy 滚动 + TalkBack 会话的 assemble 频率。
 - **TalkBack 读屏播报抽查**（ADR 0039/0040/0041/0042）：标题导航（headingLevel）、live region 播报粒度（含 aria-atomic 整组）、窗口化语义在滚动物化时的节点出现/消失体验、RTL 内容的播报方向。
-- **iOS 构建与验证**：维持暂缓（无 macOS 环境），见 §2.2。
+- **iOS 真机验证**：构建、符号与**模拟器 runtime** 已由 macOS CI 覆盖（§2.2、§4.1）；物理设备上的加载/求值、帧耗时与 ProMotion 差异仍待执行，此前不得宣称 iOS 真机可用。

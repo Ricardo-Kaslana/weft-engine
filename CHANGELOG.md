@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- No unreleased changes.
+- iOS runtime smoke on CI: `tool/ios_smoke.dart --runtime` boots an iPhone simulator inside the macOS job and runs an integration test that loads the QuickJS entry points from the app image, evaluates `1 + 2 * 3`, interrupts `while (true) {}` at a 200 ms wall-clock budget and proves a fresh session still returns 42. The iOS job no longer proves only that the symbols exist; physical-device validation remains outstanding. No runtime, layout, paint or golden changes; tests stay at 587.
 
 ## 0.7.0-dev.2 (2026-11-01)
 
