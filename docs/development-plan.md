@@ -33,7 +33,7 @@
 - `WeftView.onLinkTap` 将清洗后的链接交给宿主；引擎不自行导航。
 - 命中与手势测试覆盖布局层、渲染表面和公开视图。
 - 块级宽度、最小/最大宽度、`box-sizing` 和 solid 边框已进入布局及绘制。
-- 已建立六类代表性语料和自动化结构验收，覆盖链接、盒边界、最小高度与文本命令。
+- 已建立十二类代表性语料和自动化结构验收，覆盖链接、盒边界、最小高度、文本命令、无静默丢失、无重叠和无越界。
 - 已建立 Chrome/Edge 诊断参考截图生成器，可记录浏览器版本和固定视口产物。
 - 已固定 Roboto/Roboto Mono 字体，提交两个 Flutter 像素基线，并加入 Windows CI 黄金门禁。
 - 已加入 Pillow 跨引擎差异报告；`box_model` 已进入 1% 预算。
@@ -93,7 +93,7 @@
 
 主要验收证据：
 
-- 快照线格式：`WeftDocumentSnapshot` 获得规范 JSON 编解码（`WeftDocumentJson`，format+version 门禁，确定性编码、严格解码）；服务端规范化一次、客户端解码消费的一致性由 `conformance/normalization/` 下 21 个固化向量保证（11 个 conformance 语料 + 10 个合成用例），测试逐字节复现，重新生成需人工审查 diff。
+- 快照线格式：`WeftDocumentSnapshot` 获得规范 JSON 编解码（`WeftDocumentJson`，format+version 门禁，确定性编码、严格解码）；服务端规范化一次、客户端解码消费的一致性由 `conformance/normalization/` 下 22 个固化向量保证（11 个 conformance 语料 + 11 个合成用例），测试逐字节复现，重新生成需人工审查 diff。
 - 模糊测试：`packages/weft_document/test/fuzz_test.dart`（CI 层，种子化 400+ 迭代 × 2 种子）+ `tool/fuzz.dart`（发布层，默认 2 万迭代；发布清单要求 5 万）；发布前硬化扫描发现并修复两个真实问题——诊断列表两条路径绕过 `maxIssues` 上限、`package:html` 的 `ParseError.toString()` 在敌意输入下自身崩溃（诊断生成改防御性处理）。20000 迭代扫描全净。
 - 能力开关矩阵：8 个策略子集全覆盖（启用的能力探针通过、禁用的被网关拒绝且网络客户端调用数严格等于策略允许数）；JS 整体关闭 = 不开 `WeftDocumentRuntime`，`WeftView` 无 runtime 依赖。
 - WebView 回退示例：`example/weft_fallback`，`decideWeftFallback` 三路决策（原生渲染 / requiresWebView → 宿主 WebView / 错误卡片），`webview_flutter` 只进示例包，widget 测试经注入占位走完整决策路径。

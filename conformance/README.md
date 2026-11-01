@@ -4,6 +4,8 @@
 
 ## 当前语料
 
+`manifest.json` 当前登记 12 个案例：
+
 - `article`：标题、段落、强调、列表、引用、代码和链接。
 - `typography`：标题层级、行内样式、对齐、行高和分隔线。
 - `box_model`：content-box、border-box、padding、边框和最大宽度。
@@ -12,6 +14,10 @@
 - `pixel_basic`：拉丁文字的文章、行内样式、列表、引用、链接和边框；启用像素基线。
 - `float_image`：左/右浮动图片、带 margin 的排除区、clear、块级图片和逐行文字环绕；启用像素基线和浏览器几何基线。
 - `table_basic`：caption、thead/tbody、colspan/rowspan、collapse/separate 边框、单元格 padding 与垂直对齐；启用浏览器几何基线（暂不启用像素基线）。
+- `table_cols`：`colgroup/col` 声明列宽、百分比列和 span；启用浏览器几何基线。
+- `product_description`：商品描述形态的图片 alt、列表、规格表和链接。
+- `help_doc`：帮助文档形态的步骤列表、引用、代码和链接。
+- `rtl_paragraph`：RTL 块级对齐、列表镜像和方向敏感文本边缘；启用专用浏览器几何基线。
 
 `packages/weft_engine/test/conformance_corpus_test.dart` 会自动读取 manifest，验证：
 
@@ -19,7 +25,9 @@
 - 内容在支持子集内，未请求回退。
 - 能完成布局并达到最小高度、文本命令和盒数量。
 - 链接目标符合 manifest。
-- 块盒和链接区域不超出声明宽度或内容高度。
+- 块盒、链接区域和全部绘制命令不超出声明宽度或文档高度。
+- 每个非空白文本节点存活到逻辑索引（无静默丢失）。
+- 文本命令矩形两两不相交（无重叠；贴边不算）。
 
 该测试是结构验收，不替代像素测试。
 
@@ -53,7 +61,7 @@ cd packages/weft_engine
 flutter test tool/golden_pixel_test.dart --update-goldens --timeout 120s
 ```
 
-`golden` CI 任务在 Windows 上固定 Flutter 3.35.5 运行该测试。基线使用固定 TTF、固定视口、DPR 1 和显式白色背景，不依赖操作系统字体回退。带图片的案例（`float_image`）在测试内预解码夹具并用同步完成的 ImageProvider 注入，避免 fake clock 下真实异步解码。更新基线必须在 PR 中提供差异图和浏览器参考理由。
+`golden` CI 任务在 Windows 上固定 Flutter 3.35.5 运行该测试。基线使用固定 TTF、固定视口、DPR 1 和显式白色背景，不依赖操作系统字体回退。带图片的案例（`float_image`）在测试内预解码夹具并用同步完成的 ImageProvider 注入，避免 fake clock 下真实异步解码。更新基线必须在 PR 中提供差异图和浏览器参考理由。Linux 的 `verify` 任务会先构建 QuickJS 并运行 `verify_native.dart`，缺库时在测试前失败。
 
 ## 浏览器参考截图与几何基线
 
@@ -139,7 +147,6 @@ python tool/compare_goldens.py --report-only
 ## 仍需补齐
 
 1. 固定并合法分发覆盖 CJK 的测试字体，启用中文像素案例。
-2. 补齐剩余 CSS 高度/百分比宽度等能力，并扩大商品描述和帮助文档语料。
+2. 为 `pixel_basic`、`box_model` 增加几何参考和通用门禁；当前只有 `float_image`、`table_basic`、`table_cols`、`rtl_paragraph` 具备浏览器几何基线。
 3. 固定浏览器构建并在 CI 或容器中运行跨引擎比较。
 4. 根据修复后的数据重新评估通道容差和差异比例，不直接放宽阈值。
-5. 把几何基线机制推广到其余像素案例（`pixel_basic`/`box_model` 的 geometry JSON 已生成，尚无对应比对测试）。

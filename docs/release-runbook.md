@@ -30,7 +30,7 @@
 | 能力 bridge 协议 | bootstrap 内 `bridgeVersion` | `1` | 与 `weftCapabilitiesBootstrap` 一起改；契约套件跟随 |
 | bootstrap 脚本 id | `weft/bootstrap` | 固定 | 宿主依赖该 id 识别能力引导 |
 | 快照格式标签 | `WeftDocumentJson.formatId` | `weft.document` | 永不改变（识别用） |
-| 规范化输出 | `conformance/normalization/` 向量 | 21 个 | 变更必须重新生成并人工审查 diff |
+| 规范化输出 | `conformance/normalization/` 向量 | 22 个 | 变更必须重新生成并人工审查 diff |
 
 ## 3. 发布检查清单
 

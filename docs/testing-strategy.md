@@ -15,25 +15,33 @@
 
 ```bash
 flutter pub get
+packages/weft_quickjs/tool/build_native.sh
+(cd packages/weft_quickjs && dart run tool/verify_native.dart)
 dart format --output=none --set-exit-if-changed .
 dart analyze
 dart run tool/verify.dart
 ```
 
-当前主 CI 覆盖格式、静态分析、纯 Dart 测试和 Flutter 单元/Widget 测试，共 495 项（weft_engine 258、weft_document 78、weft 77、weft_quickjs 28、weft_capabilities 15、weft_runtime_fake 12、weft_runtime_contract 9、weft_runtime_api 2、weft_lab 1、weft_live 8、weft_fallback 7；2026-10-31 实测；QuickJS FFI 测试在 native 库缺失时跳过）；阶段 5 起还有两类门禁：规范化一致性向量（`conformance/normalization/` 21 个固化快照，逐字节复现）与公开 API 文档覆盖（`tool/doc_coverage.dart` 零缺口）；另有 Windows 独立执行的 3 项 Flutter 像素基线测试：
+CI 在 `verify_native.dart` 失败时直接阻断，避免 QuickJS 测试因缺库被跳过却仍报绿。
+
+当前主 CI（2026-11-01 本地复核）覆盖格式、静态分析、纯 Dart 测试和 Flutter 单元/Widget 测试，共 587 项（weft_engine 343、weft_document 84、weft 78、weft_quickjs 28、weft_capabilities 15、weft_runtime_fake 12、weft_runtime_contract 9、weft_runtime_api 2、weft_lab 1、weft_live 8、weft_fallback 7）；具体数量以 `tool/verify.dart` 输出为准。QuickJS FFI 测试在本地 native 库缺失时会跳过；CI 在测试前执行 `packages/weft_quickjs/tool/verify_native.dart`，缺库直接失败，因此 CI 绿灯不允许以“跳过原生测试”换取。阶段 5 起还有两类门禁：规范化一致性向量（`conformance/normalization/` 22 个固化快照，逐字节复现）与公开 API 文档覆盖（`tool/doc_coverage.dart` 零缺口）；另有 Windows 独立执行的 3 项 Flutter 像素基线测试：
 
 - 规范化：标签、属性、URL、未知元素、回退能力、节点上限、图片地址与尺寸。
 - CSS：选择器结构、后代/子代匹配、特异性、内联覆盖、声明过滤。
 - 布局：标题/段落、层叠、空白折叠、强制换行、列表、隐藏内容。
 - Margin 折叠：父子边、padding 阻断、负 margin、空块折叠穿透、行内内容阻断和嵌套包装传播。
 - 图片与 Float：属性尺寸、固有比例、max-width、alt 回退、左右浮动、跨段落环绕、CJK 环绕、clear、同侧堆叠、对侧并排和跨行链接命中。
+- 表格：槽位网格、跨行跨列、caption、collapse/separate 边框、列轨道和 Chrome 几何基线。
+- 选择与语义：10 万字符随机跨段选区、复制/重映射、选择手势与 chrome、标题/表头/列表/ARIA 语义。
+- 分块与虚拟化：分块绘制像素等价、命中裁剪、懒布局窗口、锚点导航、settling 和增量快照复用。
 - 图片资源：宿主解析、异步解码后的重新布局和资源释放。
-- 稳健性：窄宽度换行、中文文本、300 段长文档。
+- 稳健性：窄宽度换行、中文文本、CJK 禁则、基础 RTL 和 300 段长文档。
 - 链接：跨行区域、相邻链接、非链接区域、渲染表面命中和公开回调。
 - 命中裁剪（ADR 0020）：裁剪路径与全量扫描的逐点等价、chrome 散落文本命中、负 margin 跨块重叠下的扁平序、块间隙与文档外空点；`WeftView` 滚动透传（注入 controller、手势滚动、不加入 PrimaryScrollController）。
 - 盒模型：content-box/border-box、最小/最大宽度、边框简写覆盖和不支持样式的降级。
-- 一致性语料：文章、排版、盒模型、嵌套列表和 CJK 的内容/链接/盒边界检查。
+- 一致性语料：12 个案例的内容、链接、盒边界、无静默丢失、无重叠和无越界检查。
 - 公开层：控制器、显式回退、链接回调、图片解析器转发和渲染表面替换。
+- Runtime：QuickJS 预算中断、能力网关、恢复去重、FakeRuntime 契约和 8 子集能力矩阵。
 
 真机任务仍不在 CI（数据见 `docs/device-matrix.md`）；模糊冒烟、性能门禁与规范化一致性向量已随主 CI 执行（ADR 0034），但完整安全任务仍需发布前人工执行，不能把当前绿灯理解为产品发布门禁。像素基线覆盖三个拉丁案例（`pixel_basic`、`box_model`、`float_image`）；CJK 像素字体和跨引擎预算仍未完成，详见 `conformance/README.md`。
 

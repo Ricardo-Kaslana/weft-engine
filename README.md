@@ -50,7 +50,7 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - `table_basic`/`table_cols` 一致性案例：表格浏览器几何基线（单元格 ≤ 1.5px、行/列结构精确断言），覆盖 collapse/separate、跨列跨行、caption 与 colgroup/col 列宽。
 - 单一 `RenderObject` 渲染表面、可滚动公开视图和真实文本/背景/图片绘制指令。
 - 中英文内容、窄宽度换行及 300 段长文档的布局烟测。
-- 六类代表性内容语料，以及 Chrome/Edge 诊断参考截图生成器。
+- 十二类代表性内容语料，以及 Chrome/Edge 诊断参考截图生成器。
 - Apache 2.0 Roboto/Roboto Mono 固定字体、三个 Flutter 像素黄金基线（含图片/浮动案例）、确定性 PNG 图片资产和 Windows CI 门禁。
 - Dart Pub workspace、全包自动测试（数量以 `tool/verify.dart` 输出为准）、3 项像素测试、浏览器几何基线测试、规范化一致性向量、模糊测试、API 文档门禁和 GitHub Actions CI。
 
@@ -111,7 +111,7 @@ dart analyze
 dart run tool/verify.dart
 ```
 
-一键本地门禁（等价于 CI 的全部步骤，`--fast` 跳过像素门禁）：
+一键本地门禁（覆盖 CI 的格式、分析、API 文档覆盖、全包测试和像素检查；`--fast` 跳过像素门禁）：
 
 ```bash
 tool/check.sh
@@ -132,7 +132,14 @@ cd packages/weft_engine
 flutter test tool/golden_pixel_test.dart --timeout 120s
 ```
 
-CI 使用 Windows + Flutter 3.35.5 执行同一命令。
+## 持续集成
+
+`.github/workflows/ci.yaml` 定义两个任务，均固定 Flutter 3.35.5：
+
+- `verify`（Ubuntu）：解析依赖、构建 QuickJS 原生库、验证原生库可加载，然后执行格式、静态分析、API 文档覆盖和全部包测试。
+- `golden`（Windows）：比较 3 个 Flutter 像素黄金基线。
+
+工作流在 `main` push、Pull Request 和手动触发时运行；当前本地仓库尚未配置 GitHub 远端，因此工作流不会自动触发。首次推送前请确认仓库已启用 Actions。
 
 ## 图片资源
 

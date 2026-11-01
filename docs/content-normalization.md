@@ -4,7 +4,7 @@
 
 规范化把服务端或客户端输入转换为引擎定义的可预测子集，并生成机器可读支持度报告。它不是通用 XSS 清洗器，也不能把不可信脚本变成可信脚本。
 
-阶段 2 已支持 `img` 标签的 `src/alt/width/height` 规范化，并继续对脚本、表格、Canvas 等复杂内容生成回退诊断。服务端参考实现、策略版本迁移和双端一致性语料尚未交付。
+阶段 2 已支持 `img` 标签的 `src/alt/width/height` 规范化；普通表格族已实现，嵌套表格仍生成回退诊断；脚本、Canvas 等复杂内容继续回退。客户端与服务端共用 `WeftNormalizer` 和 `WeftDocumentJson` v1 线格式，`conformance/normalization/` 下 22 个向量逐字节约束输出。独立服务端实现、策略版本迁移工具和跨版本双端矩阵仍未交付。
 
 阶段 4 增加自定义标签白名单（ADR 0033）：`WeftNormalizer(customTags: {...})` 把命中的未知标签保留为属性驱动的叶子元素——class/id/style 与任意安全命名的属性（值截断，`on*` 与 `style` 除外，`href/src` 走既有清洗）保留，内部内容丢弃并产出 `html.tag.custom.contentIgnored` 诊断；不在白名单的未知标签保持原 unwrap 行为。
 

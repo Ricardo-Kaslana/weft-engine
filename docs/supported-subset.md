@@ -113,7 +113,7 @@
 - ARIA 基础（ADR 0040）：`role` 保守映射——`button`/`link` 输出 isButton/isLink 标志（无激活动作），`img`/`heading` 折叠或派生 header/headingLevel，`dialog`/`alertdialog` 成为容器角色，`alert`/`status` 隐式化为 live+atomic 播报，`presentation`/`none` 抑制元素自身派生语义（内容仍朗读），其余角色丢弃并产出 `aria.role.unsupported` 诊断；显式 role 覆盖元素隐式语义（`<a role="button">` 不再是链接）。`aria-hidden="true"` 子树从语义树移除（视觉与复制文本不变）。`aria-label` 作为可访问名称：img 上优先于 alt，其余元素（table 族除外）子树折叠为单个命名叶子，`<a aria-label>` 保留 tap。live region 内 `aria-atomic="true"`（含 alert/status 隐式）将子树折叠为单个 liveRegion 叶子整组播报，替代逐叶子播报。
 - 宿主可用 `ExcludeSemantics` 排除表面；`WeftSurface.onSemanticsLinkTap` 默认回退到 `onLinkTap`，WeftView 自动接入同一宿主回调。
 
-边界与限制：尚无 table/list 角色导航、可编辑 setSelection/caret 动作、逐文本节点 selected state、landmark/tab/menu/radio 族角色、`aria-level`/`aria-labelledby`/`aria-describedby`、`polite`/`assertive` 播报优先级或语义虚拟化；`role=button`/`link` 只播报角色，不产生激活动作（引擎不执行脚本）；折叠类语义（aria-label/role=img/aria-atomic）不播报子树内容且不带列表 marker；presentation 表格后代 th 的 header flag 保留（记录在案的简化）。已解析图片位于链接内时不额外提供 tap，与当前 pointer 命中能力一致。
+边界与限制：语义虚拟化已由 ADR 0041 提供（物化窗口精确、band 内未物化块折叠为粗叶子、未测后缀滚动物化后出现），但尚无 table/list 角色导航、跨行跨列语义索引、可编辑 setSelection/caret 动作、逐文本节点 selected state、landmark/tab/menu/radio 族角色、`aria-level`/`aria-labelledby`/`aria-describedby`、`polite`/`assertive` 播报优先级，也未在 TalkBack/Web 读屏上做真机验收；`role=button`/`link` 只播报角色，不产生激活动作（引擎不执行脚本）；折叠类语义（aria-label/role=img/aria-atomic）不播报子树内容且不带列表 marker；presentation 表格后代 th 的 header flag 保留（记录在案的简化）。已解析图片位于链接内时不额外提供 tap，与当前 pointer 命中能力一致。
 
 ## 流式增量布局
 
