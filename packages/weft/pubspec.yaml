@@ -8,7 +8,7 @@ topics:
   - css
   - rendering
   - widget
-version: 0.7.0-dev.2
+version: 0.7.0-dev.3
 resolution: workspace
 
 environment:
@@ -18,13 +18,13 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  weft_capabilities: ^0.7.0-dev.2
-  weft_document: ^0.7.0-dev.2
-  weft_engine: ^0.7.0-dev.2
-  weft_runtime_api: ^0.7.0-dev.2
+  weft_capabilities: ^0.7.0-dev.3
+  weft_document: ^0.7.0-dev.3
+  weft_engine: ^0.7.0-dev.3
+  weft_runtime_api: ^0.7.0-dev.3
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  weft_quickjs: ^0.7.0-dev.2
-  weft_runtime_fake: ^0.7.0-dev.2
+  weft_quickjs: ^0.7.0-dev.3
+  weft_runtime_fake: ^0.7.0-dev.3

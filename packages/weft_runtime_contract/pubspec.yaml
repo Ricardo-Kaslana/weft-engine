@@ -6,7 +6,7 @@ topics:
   - javascript
   - testing
   - runtime
-version: 0.7.0-dev.2
+version: 0.7.0-dev.3
 resolution: workspace
 
 environment:
@@ -17,4 +17,4 @@ dependencies:
   # imports package:test to declare matchers, so `test` must be a regular
   # dependency for the package to be publishable.
   test: ^1.25.0
-  weft_runtime_api: ^0.7.0-dev.2
+  weft_runtime_api: ^0.7.0-dev.3

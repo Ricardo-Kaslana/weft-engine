@@ -1,6 +1,6 @@
 name: weft_fallback
 description: Demonstrates WebView fallback for content Weft cannot render (ADR 0034).
-version: 0.7.0-dev.2
+version: 0.7.0-dev.3
 publish_to: none
 resolution: workspace
 

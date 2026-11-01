@@ -9,7 +9,7 @@
   weft_capabilities、weft_runtime_fake、weft_runtime_contract、weft_quickjs）
   **共用一个版本号**，在同一个提交中一起递增。宿主升级时按同一版本对齐，
   不支持跨版本混搭。
-- 当前基线：`0.7.0-dev.2`（发布闭环：外部消费者冒烟测试 + macOS iOS 构建/符号门禁），并新增 iOS 模拟器 runtime 冒烟。
+- 当前基线：`0.7.0-dev.3`（首批可发布包：单包文档与元数据、版本约束、pub dry-run 门禁），上一基线 `0.7.0-dev.2` 补入了发布闭环与 iOS 模拟器 runtime 冒烟。
   首个稳定版为 `1.0.0`，此前一切变更都在 CHANGELOG 的对应开发版本小节累积。
   上一个基线是 `0.7.0-dev.1`（Flutter 3.35.5 兼容基线，ADR 0038），再往前是
   `0.6.0-dev.1`（移动端构建 ADR 0035）和 `0.5.0-dev.1`（阶段 5）。注意：包含
@@ -25,6 +25,7 @@
 - 语义化版本：布局输出、选区语义、诊断码、快照格式、bridge 协议的任何
   可观察变化都算破坏性，必须升主版本或（1.0 前）升 minor 并在 CHANGELOG
   标注 Migration。
+- `0.7.0-dev.3` 是首个可发布版本：8 个包补齐单包 README/CHANGELOG/LICENSE 与仓库元数据，包间依赖改为版本约束，新增 `tool/pub_dry_run.dart` 并接入 CI；运行时、布局、绘制与黄金基线均未变化。
 
 ## 2. 兼容契约（代码内的版本锚点）
 

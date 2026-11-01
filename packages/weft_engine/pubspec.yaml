@@ -7,7 +7,7 @@ topics:
   - html
   - layout
   - rendering
-version: 0.7.0-dev.2
+version: 0.7.0-dev.3
 resolution: workspace
 
 environment:
@@ -17,7 +17,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  weft_document: ^0.7.0-dev.2
+  weft_document: ^0.7.0-dev.3
 
 dev_dependencies:
   flutter_test:

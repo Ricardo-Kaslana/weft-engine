@@ -6,15 +6,15 @@ topics:
   - javascript
   - testing
   - runtime
-version: 0.7.0-dev.2
+version: 0.7.0-dev.3
 resolution: workspace
 
 environment:
   sdk: ">=3.5.0 <4.0.0"
 
 dependencies:
-  weft_runtime_api: ^0.7.0-dev.2
+  weft_runtime_api: ^0.7.0-dev.3
 
 dev_dependencies:
   test: ^1.25.0
-  weft_runtime_contract: ^0.7.0-dev.2
+  weft_runtime_contract: ^0.7.0-dev.3
