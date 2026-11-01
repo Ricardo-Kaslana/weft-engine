@@ -59,11 +59,26 @@
 
 ## 3.1 发布到 pub.dev（尚未执行）
 
-8 个包已具备发布条件，CI 的 `Package publish dry-run gate` 会在每次提交上校验。真正推送需要 pub.dev 凭据，按以下顺序执行（依赖在前）：
+8 个包已具备发布条件，CI 的 `Package publish dry-run gate` 会在每次提交上校验。
+
+**认证方式**：pub.dev 使用 Google 账号 OAuth，不是 API key，也不走 `dart pub token add`
+（那条命令只用于第三方/私有 hosted 仓库）。首次发布前在本机执行：
 
 ```bash
-dart pub token add https://pub.dev
+dart pub login        # 打开浏览器完成 Google 授权，凭据缓存到本机用户目录
+```
 
+凭据由 pub 保存在用户配置目录（Windows 通常是 `%APPDATA%\dart\`），可用
+`dart pub logout` 清除。凭据属于个人账号，不要写进仓库、CI secret 或聊天记录。
+
+首次发布还有个不可逆的顺序约束：**先发到个人 Google 账号，再转移到 verified
+publisher**。pub 不支持直接向 publisher 首发布；谁首发谁就是唯一 uploader。
+本项目建议先建 `weft` 相关 publisher（需要域名 DNS 校验），完成首发布后在包
+admin 页 `Transfer to Publisher`（转移不可撤销）。
+
+发布顺序（依赖在前，逐包成功后再下一个）：
+
+```bash
 for pkg in weft_runtime_api weft_document weft_capabilities weft_runtime_fake \
            weft_runtime_contract; do
   dart pub -C "packages/$pkg" publish
