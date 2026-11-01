@@ -1,5 +1,7 @@
 # Weft Engine
 
+[![ci](https://github.com/Ricardo-Kaslana/weft-engine/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/Ricardo-Kaslana/weft-engine/actions/workflows/ci.yaml)
+
 Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项目，目标场景是 CMS 文章、商品描述、帮助文档和 AI 流式内容。它以内容呈现和轻交互为主，不试图成为完整浏览器。
 
 ## 当前状态
@@ -139,7 +141,7 @@ flutter test tool/golden_pixel_test.dart --timeout 120s
 - `verify`（Ubuntu）：解析依赖、构建 QuickJS 原生库、验证原生库可加载，然后执行格式、静态分析、API 文档覆盖和全部包测试。
 - `golden`（Windows）：比较 3 个 Flutter 像素黄金基线。
 
-工作流在 `main` push、Pull Request 和手动触发时运行；当前本地仓库尚未配置 GitHub 远端，因此工作流不会自动触发。首次推送前请确认仓库已启用 Actions。
+仓库已配置 GitHub 远端 `origin`（`Ricardo-Kaslana/weft-engine`）。工作流在 `main` push、Pull Request 和手动触发时运行，状态见顶部 CI 徽章与 Actions 页面。
 
 ## 图片资源
 
