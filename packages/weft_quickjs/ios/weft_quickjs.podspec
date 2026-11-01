@@ -33,7 +33,7 @@ host application and exposes the weft_* entry points to dart:ffi.
     'GCC_PREPROCESSOR_DEFINITIONS' =>
       '$(inherited) _GNU_SOURCE=1 CONFIG_BIGNUM=1',
     'OTHER_CFLAGS' =>
-      '$(inherited) -DCONFIG_VERSION=\"2024-01-13\" -fno-strict-aliasing -Wno-unused-parameter'
+      '$(inherited) -DCONFIG_VERSION=\"2024-01-13\" -fno-strict-aliasing -Wno-unused-parameter -fvisibility=hidden'
   }
   # Flutter hosts do not guarantee `-ObjC`, so a static pod's ObjC anchor can be
   # dropped before its `+load` reference is considered. Force the entry point to

@@ -29,7 +29,10 @@ CocoaPods 的 podspec 文件模式要求路径位于 pod 根目录内；`prepare
 4. 保留 `s.user_target_xcconfig` 的 `-Wl,-u,_weft_now_ms`。Flutter 宿主不保证
    `-ObjC`，这个引用把 `weft_glue.o` 及其 QuickJS 对象拉入最终链接；ObjC
    `+load` 锚点保留为第二道保险。
-5. 这是唯一一份源码，不复制到 Android 或桌面目录；所有平台继续使用同一批 C 文件。
+5. iOS 编译也必须带 `-fvisibility=hidden`，与 Android/桌面一致；只有
+   `WEFT_EXPORT` 的 10 个入口应为默认可见符号，内部
+   `weft_register_bridge_function` 不得出现在导出集合中。
+6. 这是唯一一份源码，不复制到 Android 或桌面目录；所有平台继续使用同一批 C 文件。
 
 ## 验证
 
