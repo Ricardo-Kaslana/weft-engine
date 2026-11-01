@@ -13,6 +13,6 @@ Thumbs.db
 .workbuddy/
 __pycache__/
 *.pyc
-packages/weft_quickjs/native/build/
+packages/weft_quickjs/ios/Classes/native/build/
 # Android NDK / CMake scratch output for the QuickJS plugin module.
 .cxx/

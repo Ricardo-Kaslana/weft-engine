@@ -1,14 +1,16 @@
 # Builds the Weft QuickJS shim plus the vendored QuickJS engine into
 # libweft_quickjs.so for Android.
 #
-# The sources are consumed in place from packages/weft_quickjs/native, the same
-# files tool/build_native.sh compiles for desktop and the iOS pod compiles for
-# the app image. Nothing is copied, so there is one definition of the build.
+# The sources are consumed in place from packages/weft_quickjs/ios/Classes/native,
+# the same files tool/build_native.sh compiles for desktop and the iOS pod
+# compiles for the app image. The location under ios/ is required because
+# CocoaPods file patterns cannot traverse to a sibling directory. Nothing is
+# copied, so there is one definition of the build.
 
 cmake_minimum_required(VERSION 3.13)
 project(weft_quickjs LANGUAGES C)
 
-set(WEFT_NATIVE "${CMAKE_CURRENT_SOURCE_DIR}/../../../../native")
+set(WEFT_NATIVE "${CMAKE_CURRENT_SOURCE_DIR}/../../../../ios/Classes/native")
 
 if(NOT EXISTS "${WEFT_NATIVE}/weft_glue.c")
     message(FATAL_ERROR "weft_quickjs: native sources not found at ${WEFT_NATIVE}")

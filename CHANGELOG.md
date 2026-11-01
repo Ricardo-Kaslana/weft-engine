@@ -5,6 +5,7 @@
 - Added the MIT license.
 - Added a repeatable external-consumer smoke test: a disposable Flutter project clones the repository over Git, resolves `weft` from `packages/weft`, and renders a document through `WeftView`; CI runs it in the Linux verify job.
 - Added a macOS CI job that builds a disposable iOS host with `weft_quickjs` through CocoaPods and verifies that the app bundle (Runner or linked framework) contains all 10 `weft_*` symbols. Simulator/device runtime validation remains pending.
+- Relocated the vendored QuickJS sources under `ios/Classes/native/` so CocoaPods can collect them with a relative `source_files` pattern; CocoaPods rejects absolute and parent-directory globs. Desktop and Android builds now share the same relocated sources, and the iOS host link forces `_weft_now_ms` to prevent dead-strip.
 
 - Repository quality gates: capability and test documentation now matches the current implementation (587 tests, 22 normalization vectors, table support and semantic virtualization), and CI pins Flutter 3.35.5 on both jobs, uses read-only permissions with cancellation and timeouts, and fails before tests when the QuickJS native library cannot load.
 

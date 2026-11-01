@@ -3,13 +3,14 @@
 #
 #   packages/weft_quickjs/tool/build_native.sh
 #
-# Output: packages/weft_quickjs/native/build/weft_quickjs.dll (.so on POSIX).
-# Requires a C compiler (gcc by default; override with CC). The build directory
-# is gitignored; run this once per machine before running weft_quickjs tests.
-# CI builds the library from the vendored sources in the same way.
+# Output: packages/weft_quickjs/ios/Classes/native/build/weft_quickjs.dll
+# (.so on POSIX). Requires a C compiler (gcc by default; override with CC).
+# The build directory is gitignored; run this once per machine before running
+# weft_quickjs tests. CI builds the library from the vendored sources in the
+# same way.
 set -euo pipefail
 
-cd "$(dirname "$0")/../native"
+cd "$(dirname "$0")/../ios/Classes/native"
 mkdir -p build
 
 CC="${CC:-gcc}"
@@ -30,4 +31,4 @@ case "$(uname -s)" in
     ;;
 esac
 
-echo "built native/$OUT"
+echo "built ios/Classes/native/$OUT"

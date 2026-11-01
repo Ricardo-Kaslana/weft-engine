@@ -53,16 +53,15 @@ cutils/libbf），**不复制、不生成中间副本**——桌面脚本与移�
 
 ### D3 · iOS：pod 把垫片编进 app image，锚点防 dead-strip
 
-`ios/weft_quickjs.podspec` 把 `native/` 的源码与 `Classes/` 一起作为 pod
+`ios/weft_quickjs.podspec` 把原生源码与 `Classes/` 一起作为 pod
 源文件编译进宿主二进制，Dart 侧用 `DynamicLibrary.process()` 解析符号。
 选择静态链接而不是 xcframework 的理由见"备选与取舍"。
 
-一个容易踩的坑：CocoaPods 的文件模式**不支持 `..` 穿越父目录**（podspec
-指南 "File patterns" 明写）。所以 podspec 不用 `'../native/**/*'`，而是在
-求值时用 `Dir.glob(File.expand_path('../native', __dir__))` 展开成绝对路径
-数组交给 `source_files`。开发 pod（`:path`）本身就在 Pods sandbox 之外，
-绝对引用与 Flutter 插件平时的引用方式同源；若某个 CocoaPods 版本仍拒绝
-sandbox 外的绝对路径，回退方案是把 vendor 源码移进 `ios/`。
+2026-11-01 的 macOS CI 验证推翻了早期的路径方案：CocoaPods 拒绝绝对
+`source_files`，而相对 `../native/**/*` 又不会收集父目录文件。已在 ADR 0052
+把 vendored 源码移到 `ios/Classes/native/`，podspec 改用
+`Classes/**/*.{c,h,m}`；桌面脚本与 Android CMake 共用该目录。下面保留当时
+的绝对路径尝试作为历史记录，不再代表当前实现。
 
 静态链接还有一个陷阱：CocoaPods 产出静态库，链接器只拉取"能解决未定义符号"
 的目标文件；Dart 是运行时 `dlsym`，链接期看不到任何引用，`-dead_strip`

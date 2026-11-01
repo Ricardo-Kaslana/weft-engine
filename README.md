@@ -217,5 +217,5 @@ DOM 或第三方脚本。详情见 `example/weft_live/README.md`。
 
 第三方组件保留各自许可证：
 
-- QuickJS：MIT，见 `packages/weft_quickjs/native/quickjs/LICENSE`
+- QuickJS：MIT，见 `packages/weft_quickjs/ios/Classes/native/quickjs/LICENSE`
 - Roboto / Roboto Mono：Apache-2.0，见 `conformance/fonts/LICENSE-Roboto.txt`

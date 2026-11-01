@@ -79,7 +79,7 @@
 
 主要验收证据：
 
-- QuickJS 2024-01-13 源码 vendor 至 `packages/weft_quickjs/native/`，经 C 垫片（`native/weft_glue.c`，扁平 FFI ABI + JSON 编组）与 `dart:ffi` 驱动；墙钟（中断处理器）、内存（`JS_SetMemoryLimit`）、栈（`JS_SetMaxStackSize`）与微任务（任务泵计数，新增 `RuntimeFailureKind.microtaskBudget`）四类预算原生强制。`packages/weft_quickjs/tool/build_native.sh` 构建动态库，CI 从同一源码构建。
+- QuickJS 2024-01-13 源码 vendor 至 `packages/weft_quickjs/ios/Classes/native/`，经 C 垫片（`ios/Classes/native/weft_glue.c`，扁平 FFI ABI + JSON 编组）与 `dart:ffi` 驱动；墙钟（中断处理器）、内存（`JS_SetMemoryLimit`）、栈（`JS_SetMaxStackSize`）与微任务（任务泵计数，新增 `RuntimeFailureKind.microtaskBudget`）四类预算原生强制。`packages/weft_quickjs/tool/build_native.sh` 构建动态库，CI 从同一源码构建。
 - 真实 QuickJS 测试：`while(true)` 在 120ms 预算内超时；内存炸弹命中堆上限；深递归报 stackOverflow；微任务链在预算处停止；能力调用风暴（单轮 4096 上限）与 `settle()` 256 轮兜底防止事件循环饿死。
 - 能力面：`weftCapabilitiesBootstrap` 只为启用命名空间安装 JS API（真实 JS 里 `typeof weft.net === 'undefined'`）；`CapabilityGateway` 按 `CapabilityPolicy` 拒绝未启用/未安装/描述符外方法。`weft.state/events/net` 模块就绪，网络仅 GET、白名单 host、逐跳重定向校验、响应体与跳数上限，`file:`/`javascript:`/`data:` 在调用宿主客户端前被拦截（客户端调用数为 0）。
 - 恢复：`WeftDocumentRuntime.recover()` 只重跑能力引导；网关按 `(sessionId, sequence)` 去重，恢复后重投递旧命令返回记账结果，网络客户端跨两轮调用恰好一次；`WeftNetworkJournal` 审计每次副作用且跨恢复保留。
