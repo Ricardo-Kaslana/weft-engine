@@ -36,10 +36,15 @@ CocoaPods 的 podspec 文件模式要求路径位于 pod 根目录内；`prepare
 
 ## 验证
 
-`macOS 15` CI 任务会创建临时 iOS 宿主，通过 Git 依赖引入 `weft_quickjs`，
+`macOS 15` CI 任务创建临时 iOS 宿主，通过 Git 依赖引入 `weft_quickjs`，
 执行 `pod install`、无签名 release 构建，并扫描 app bundle 中 Runner 与
-framework 的完整 `_weft_*` 符号集合（期望 10 个）。该任务通过前，不把 iOS
-构建称为已验证。
+framework 的完整 `_weft_*` 符号集合。2026-11-01 的 PR 验证已通过：
+`weft_quickjs.framework/weft_quickjs` 中恰好导出 10 个入口。
+
+验证过程还发现并修复了两层问题：源文件不在 pod sandbox 内导致静态库为空，
+以及未设置 `-fvisibility=hidden` 时内部 `weft_register_bridge_function`
+也被导出。当前 podspec 同时固定了源路径、`-Wl,-u,_weft_now_ms` 强制链接和
+隐藏内部符号。
 
 真机/模拟器的 `QuickJsNativeLibrary.load()` 与脚本求值仍是后续验收项；
 本次只证明构建、CocoaPods 集成、链接与导出符号。

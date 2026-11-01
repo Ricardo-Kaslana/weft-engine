@@ -46,20 +46,21 @@ done | grep weft_
 真机首启若 `QuickJsNativeLibrary.load()` 抛 `StateError`，按错误文案给出的
 平台补救处理（重打 APK / `pod install` 后重建），不要当成性能问题排查。
 
-### 2.2 iOS 构建与符号验证（CI 已接入，runtime 待跑）
+### 2.2 iOS 构建与符号验证（CI 已通过，runtime 待跑）
 
-GitHub Actions 的 **iOS build (macOS)** 任务会在临时 iOS 宿主中通过 Git
-依赖引入 `weft_quickjs`，执行 CocoaPods 集成、无签名 release 构建，并检查
-app bundle（Runner 或链接的 framework）恰好包含全部 10 个 `weft_*` 符号：
+GitHub Actions 的 **iOS build (macOS)** 任务已通过：在临时 iOS 宿主中通过
+Git 依赖引入 `weft_quickjs`，执行 CocoaPods 集成、无签名 release 构建，并确认
+app bundle（Runner 或链接的 framework）恰好包含全部 10 个 `weft_*` 符号。手动复验：
 
 ```bash
 dart run tool/ios_smoke.dart              # 需要 macOS + Xcode + CocoaPods
 dart run tool/ios_smoke.dart --keep       # 保留临时宿主供检查
 ```
 
-这一步验证构建和链接，不替代模拟器/真机 runtime 验证。若符号为空或少于
-10 个，先查 `-ObjC`（`use_frameworks!` 会改变链接形态），再确认
-`WeftQuickJsAnchor.m` 进了 pod target，最后看 `WEFT_EXPORT` 的 `used`。
+这一步验证构建和链接，不替代模拟器/真机 runtime 验证。若符号为空或不足
+10 个，先确认 `-Wl,-u,_weft_now_ms` 进入宿主链接、`-fvisibility=hidden` 只
+隐藏内部函数，再检查 `WeftQuickJsAnchor.m` 是否进入 pod target，最后看
+`WEFT_EXPORT` 的 `used`。
 模拟器/真机运行 `QuickJsNativeLibrary.load()` 与脚本求值仍待执行，结果补进
 §4.1 后才能宣称 iOS 可用。
 
