@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- No unreleased changes.
+- First pub.dev publication of all eight packages at `0.7.0-dev.3` (2026-11-02). Verified with `tool/consumer_smoke.dart --mode published`: a plain `weft: ^0.7.0-dev.3` dependency resolves and renders outside the workspace. Docs updated accordingly: the README install section leads with the hosted one-liner (Git + overrides stays as the fallback), and the release runbook records the publishing gotchas hit in practice — a read-only `PUB_HOSTED_URL` mirror must be overridden to `https://pub.dev` for uploads, `flutter pub` rejects `-C`, and pub.dev rate-limits new package creation.
 
 ## 0.7.0-dev.3 (2026-11-02)
 
