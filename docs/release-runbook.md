@@ -16,8 +16,8 @@
   0.5/0.6 实际也要求 Flutter 3.35.5，不能把它们当作 3.22 的兼容回滚目标。
 - Flutter 依赖包和示例自 `0.7.0-dev.1` 起声明 `flutter: ">=3.35.5"`；
   纯 Dart 包仍保持 Dart `>=3.5.0`。
-- `0.7.0-dev.1` 尚未打 tag；C1 语义补全（ADR 0039）与列表规范化向量更新
-  已进入该开发基线，发布时按 §3 整理。
+- `0.7.0-dev.1` 已创建 annotated tag `v0.7.0-dev.1` 并在 GitHub 发布为
+  prerelease；C1 语义补全（ADR 0039）与列表规范化向量更新已进入该开发基线。
 - 语义化版本：布局输出、选区语义、诊断码、快照格式、bridge 协议的任何
   可观察变化都算破坏性，必须升主版本或（1.0 前）升 minor 并在 CHANGELOG
   标注 Migration。
@@ -37,7 +37,7 @@
 发布前逐项执行，全部通过才允许打 tag：
 
 1. `tool/check.sh`（format、analyze、全部包测试、像素黄金）通过。
-2. `dart run tool/doc_coverage.dart` 报告公开 API 文档零缺口。
+2. `dart run tool/consumer_smoke.dart --ref <待发布-ref>` 通过，确认 workspace 外的 Git 消费者可以解析并渲染；`dart run tool/doc_coverage.dart` 报告公开 API 文档零缺口。
 3. `dart run tool/fuzz.dart --iterations 50000`（或本地接受的更大规模）
    无崩溃；发现的崩溃要么修复，要么固化为一致性向量。
 4. 布局相关变更：`packages/weft_engine/tool/golden_pixel_test.dart` 通过，

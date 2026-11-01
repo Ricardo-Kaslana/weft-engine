@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Added the MIT license.
+- Added a repeatable external-consumer smoke test: a disposable Flutter project clones the repository over Git, resolves `weft` from `packages/weft`, and renders a document through `WeftView`; CI runs it in the Linux verify job.
 
 - Repository quality gates: capability and test documentation now matches the current implementation (587 tests, 22 normalization vectors, table support and semantic virtualization), and CI pins Flutter 3.35.5 on both jobs, uses read-only permissions with cancellation and timeouts, and fails before tests when the QuickJS native library cannot load.
 

@@ -59,7 +59,7 @@
 
 - 分支：`main`
 - 最新提交：见 `git log`（本节只保证指南有效，不追踪哈希）
-- Flutter：3.35.5 stable（引擎/示例编译下限，ADR 0038）；Dart：3.9.2；ADR 51 份（0001–0051）；包版本 0.7.0-dev.1
+- Flutter：3.35.5 stable（引擎/示例编译下限，ADR 0038）；Dart：3.9.2；ADR 51 份（0001–0051）；包版本 0.7.0-dev.1；tag `v0.7.0-dev.1` 已发布为 prerelease
 - 常规测试 587 项（weft_engine 343、weft_document 84、weft 78、weft_quickjs 28、weft_capabilities 15、weft_runtime_fake 12、weft_runtime_contract 9、weft_runtime_api 2、weft_lab 1、weft_live 8、weft_fallback 7；D1 新增 14 项，增量布局画像与三方向新增 28 项、样式状态画像与 lazy 索引参与新增 10 项、lazy 前缀采用新增 11 项、plain 样式采用新增 7 项、头部插入条目平移新增 8 项）、像素黄金 3 项 + 选区高亮 1 项、性能门禁 14 场景（7 布局 + 3 绘制 + 4 命中）+ 增量布局画像工具（ADR 0043/0047，手动运行）；`dart analyze` 无问题，公开 API 文档覆盖零缺口。开发计划阶段 0–5 已完成（阶段 5 见 ADR 0034），阶段 5 之后补了移动端原生构建（ADR 0035）、懒布局窗口直物化（ADR 0036）、冷深跳 settling 遮罩（ADR 0037）、Flutter 3.35.5 兼容基线（ADR 0038）、语义补全（ADR 0039）、ARIA 基础（ADR 0040）、语义虚拟化（ADR 0041）、RTL/语言属性（ADR 0042）、增量布局画像及三方向优化（ADR 0043–0046）、样式状态家族画像（ADR 0047）、lazy 轮文本索引增量参与（ADR 0048）、lazy 准入估算前缀采用（ADR 0049）、plain 走查样式跨快照采用（ADR 0050）与 k=0 头部插入索引条目平移（ADR 0051）。
 - GitHub Actions 已配置固定 Flutter 3.35.5 的 Linux verify 与 Windows golden 两个任务，并在测试前校验 QuickJS 原生库可加载；远端为 `Ricardo-Kaslana/weft-engine`，首次完整运行已通过（run 41298473322）。
 - 2026-10-28 增量：Android 真机构建与执行验证、插件单 ABI 裁剪、回环直连修复与首轮矩阵；之后交付 ADR 0036 窗口直物化及桌面结构/耗时证据（docs/device-matrix.md §4.4）。真实 Flutter Web＋Edge 的滚动、锚点与选择复制已验证；JNY-AL10 profile 复测四项标准通过（中位冷启 635ms、滚动 p95 ≈26ms、深跳最大 37ms、内存 +10MB），strict 60fps 受 raster 限制。证据位于本地 build/adr0036-evidence。iOS 验证仍暂缓。
@@ -174,6 +174,7 @@ flutter pub get
 dart format --output=none --set-exit-if-changed .
 dart analyze
 dart run tool/verify.dart
+dart run tool/consumer_smoke.dart
 cd packages/weft_engine && flutter test tool/golden_pixel_test.dart --timeout 60s
 
 # 浏览器诊断参考（本机 Chrome/Edge + Node 22）

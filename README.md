@@ -7,7 +7,7 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 
 ## 当前状态
 
-开发计划 **阶段 0–5 已完成**（静态渲染、内容排版、长文档与性能、受限 JS 与能力扩展、回退硬化与发布），可用于受控内容子集的实验和内部验证，尚不是稳定版本。
+开发计划 **阶段 0–5 已完成**（静态渲染、内容排版、长文档与性能、受限 JS 与能力扩展、回退硬化与发布），可用于受控内容子集的实验和内部验证，尚不是稳定版本。当前预发布：[v0.7.0-dev.1](https://github.com/Ricardo-Kaslana/weft-engine/releases/tag/v0.7.0-dev.1)。
 
 已实现：
 
@@ -88,6 +88,7 @@ example/weft_fallback/  WebView 回退示例（requiresWebView 决策演示）
 conformance/            语料、固定字体、Flutter 基线和浏览器参考输入
 docs/                   架构、规范、计划和管理文档
 tool/verify.dart        全包测试入口
+tool/consumer_smoke.dart  仓库外 Git 消费者冒烟测试
 tool/browser_references.mjs  Chrome/Edge 诊断截图生成器
 tool/compare_goldens.py     跨引擎像素差异报告
 .github/workflows/      持续集成
@@ -139,7 +140,7 @@ flutter test tool/golden_pixel_test.dart --timeout 120s
 
 `.github/workflows/ci.yaml` 定义两个任务，均固定 Flutter 3.35.5：
 
-- `verify`（Ubuntu）：解析依赖、构建 QuickJS 原生库、验证原生库可加载，然后执行格式、静态分析、API 文档覆盖和全部包测试。
+- `verify`（Ubuntu）：解析依赖、构建 QuickJS 原生库、验证原生库可加载，然后执行格式、静态分析、API 文档覆盖、全部包测试和仓库外 Git 消费者冒烟测试。
 - `golden`（Windows）：比较 3 个 Flutter 像素黄金基线。
 
 仓库已配置 GitHub 远端 `origin`（`Ricardo-Kaslana/weft-engine`）。工作流在 `main` push、Pull Request 和手动触发时运行，状态见顶部 CI 徽章与 Actions 页面。

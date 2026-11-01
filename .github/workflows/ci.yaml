@@ -22,6 +22,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -50,6 +52,9 @@ jobs:
 
       - name: Run package tests
         run: dart run tool/verify.dart
+
+      - name: Consumer Git dependency smoke
+        run: dart run tool/consumer_smoke.dart
 
   golden:
     name: Pixel goldens (Windows)

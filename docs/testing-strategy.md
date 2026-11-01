@@ -24,6 +24,15 @@ dart run tool/verify.dart
 
 CI 在 `verify_native.dart` 失败时直接阻断，避免 QuickJS 测试因缺库被跳过却仍报绿。
 
+外部消费者冒烟测试会从 Git 克隆当前仓库，在系统临时目录创建独立 Flutter 项目，通过 `packages/weft` Git 依赖解析并渲染 `WeftView`：
+
+```bash
+dart run tool/consumer_smoke.dart
+dart run tool/consumer_smoke.dart --ref v0.7.0-dev.1
+```
+
+它验证 workspace 之外的依赖解析，不依赖本地 path 覆盖；CI 在 Linux `verify` 任务中执行。
+
 当前主 CI（2026-11-01 本地复核）覆盖格式、静态分析、纯 Dart 测试和 Flutter 单元/Widget 测试，共 587 项（weft_engine 343、weft_document 84、weft 78、weft_quickjs 28、weft_capabilities 15、weft_runtime_fake 12、weft_runtime_contract 9、weft_runtime_api 2、weft_lab 1、weft_live 8、weft_fallback 7）；具体数量以 `tool/verify.dart` 输出为准。QuickJS FFI 测试在本地 native 库缺失时会跳过；CI 在测试前执行 `packages/weft_quickjs/tool/verify_native.dart`，缺库直接失败，因此 CI 绿灯不允许以“跳过原生测试”换取。阶段 5 起还有两类门禁：规范化一致性向量（`conformance/normalization/` 22 个固化快照，逐字节复现）与公开 API 文档覆盖（`tool/doc_coverage.dart` 零缺口）；另有 Windows 独立执行的 3 项 Flutter 像素基线测试：
 
 - 规范化：标签、属性、URL、未知元素、回退能力、节点上限、图片地址与尺寸。
