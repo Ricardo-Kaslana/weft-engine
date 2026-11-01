@@ -58,9 +58,12 @@
    设备验证；未做真机轮前不得宣称 iOS 真机可用，发布说明中要写明缺口。
 8. 打 tag `v<版本>`；tag 信息列出本版本 CHANGELOG 条目。
 
-## 3.1 发布到 pub.dev（尚未执行）
+## 3.1 发布到 pub.dev
 
-8 个包已具备发布条件，CI 的 `Package publish dry-run gate` 会在每次提交上校验。
+**首次发布已于 2026-11-02 执行完成**：8 个包的 `0.7.0-dev.3` 均已上传到
+pub.dev（发布账号为个人 Google 账号，因此包页面显示 unverified uploader；
+转移到 verified publisher 仍是可选项，转移不可撤销）。后续版本只需走完
+§3 清单、改版本号后按下述顺序重发。
 
 **认证方式**：pub.dev 使用 Google 账号 OAuth，不是 API key，也不走 `dart pub token add`
 （那条命令只用于第三方/私有 hosted 仓库）。首次发布前在本机执行：
@@ -72,10 +75,10 @@ dart pub login        # 打开浏览器完成 Google 授权，凭据缓存到本
 凭据由 pub 保存在用户配置目录（Windows 通常是 `%APPDATA%\dart\`），可用
 `dart pub logout` 清除。凭据属于个人账号，不要写进仓库、CI secret 或聊天记录。
 
-首次发布还有个不可逆的顺序约束：**先发到个人 Google 账号，再转移到 verified
+转移 verified publisher 的约束不变：**先发到个人 Google 账号，再转移到
 publisher**。pub 不支持直接向 publisher 首发布；谁首发谁就是唯一 uploader。
-本项目建议先建 `weft` 相关 publisher（需要域名 DNS 校验），完成首发布后在包
-admin 页 `Transfer to Publisher`（转移不可撤销）。
+本项目建议先建 `weft` 相关 publisher（需要域名 DNS 校验），然后在包 admin 页
+`Transfer to Publisher`（转移不可撤销）。
 
 发布顺序（依赖在前，逐包成功后再下一个）：
 
@@ -85,17 +88,24 @@ for pkg in weft_runtime_api weft_document weft_capabilities weft_runtime_fake \
   dart pub -C "packages/$pkg" publish
 done
 for pkg in weft_engine weft_quickjs weft; do
-  flutter pub -C "packages/$pkg" publish
+  # flutter pub 不支持 -C，必须 cd 进包目录
+  (cd "packages/$pkg" && flutter pub publish)
 done
 ```
 
 注意事项：
 
-- 预发布版本（`0.7.0-dev.N`）不会成为 pub.dev 的默认解析结果；消费者必须显式写 `^0.7.0-dev.N`。
+- **本机若配置了 `PUB_HOSTED_URL` 镜像（如腾讯云镜像），发布前必须临时覆盖为
+  `PUB_HOSTED_URL=https://pub.dev`**：镜像是只读的，上传请求会被镜像的仓库管理器
+  （Nexus）以 404 拒绝。同理 `consumer_smoke --mode published` 也要带上该覆盖。
+- pub.dev 对“新建包”有速率限制（首次发布时第 5 个包触发 4 包/几分钟的上限，
+  等待约 1 分钟重试即可）；已存在包的后续版本不受此限制。
 - 版本一旦发布不可删除；出问题只能用 `dart pub retract <version>` 标记撤回，或立即发修复版本。
 - `resolution: workspace` 会在发布归档中剥离；包间依赖已经是版本约束，因此单个包在 workspace 之外也能解析。
 - 每个包的 CHANGELOG 只记录该包历史，项目级变更仍写在仓库根 `CHANGELOG.md`。
-- 全部发布完成后，用 `dart run tool/consumer_smoke.dart --mode published --version <版本>` 验证 hosted 解析；在此之前该脚本默认的 `git` 模式会用 `dependency_overrides` 把同级包钉在同一 ref。
+- 每次发布完成后，用 `dart run tool/consumer_smoke.dart --mode published --version <版本>`
+  验证 hosted 解析（0.7.0-dev.3 已验证通过）；该脚本默认的 `git` 模式用
+  `dependency_overrides` 把同级包钉在同一 ref，用于发布前的仓库检出验证。
 
 ## 4. 回滚路径
 

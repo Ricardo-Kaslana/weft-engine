@@ -70,9 +70,17 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 
 ## 安装
 
-8 个包已具备发布条件（每包 README/CHANGELOG/LICENSE、`repository`/`issue_tracker`/`topics`，包间依赖为版本约束），但**尚未发布到 pub.dev**。这带来一个过渡期约束：**包间依赖是版本约束，pub 只会去 pub.dev 找它们**，因此单独引用 `packages/weft` 会解析失败。
+8 个包已发布到 pub.dev，直接一行接入：
 
-发布前的外部接入方式是把同级包也指向同一 ref：
+```yaml
+dependencies:
+  weft: ^0.7.0-dev.3
+```
+
+> 注意：`0.7.0-dev.N` 是预发布版本，pub 不会默认解析到它，必须显式写 `^0.7.0-dev.N`。
+
+如果不方便访问 pub.dev，也可以走 Git 依赖。此时包间依赖（版本约束）需要用
+`dependency_overrides` 指到同一 ref，因为 pub 只会为版本约束查询 pub.dev：
 
 ```yaml
 dependencies:
@@ -91,12 +99,7 @@ dependency_overrides:
   #   weft_engine / weft_quickjs，共 7 个
 ```
 
-`dart run tool/consumer_smoke.dart --keep` 会生成一份可直接参照的 `pubspec_overrides.yaml`。发布到 pub.dev 后只需一行：
-
-```yaml
-dependencies:
-  weft: ^0.7.0-dev.3
-```
+`dart run tool/consumer_smoke.dart --keep` 会生成一份可直接参照的 `pubspec_overrides.yaml`。
 
 发布前可用 dry-run 门禁自查（不会联网推送）：
 
