@@ -39,7 +39,7 @@ iOS 构建/符号验证需要 macOS、Xcode 和 CocoaPods：
 dart run tool/ios_smoke.dart
 ```
 
-它创建临时 iOS 宿主、通过 Git 依赖引入 `weft_quickjs`、执行 `pod install` 和无签名 release 构建，并在 app bundle（Runner 或链接的 framework）中校验完整 10 个 `weft_*` 符号集合。CI 在独立 macOS 任务中执行；模拟器/真机运行仍不在 CI。
+它创建临时 iOS 宿主、通过 Git 依赖引入 `weft_quickjs`、执行 `pod install` 和无签名 release 构建，并在 app bundle（Runner 或链接的 framework）中校验完整 10 个 `weft_*` 符号集合。加 `--runtime` 时会启动一台 iPhone 模拟器并运行 integration test：从 app image 加载入口点、求值脚本、按墙钟预算中断死循环、验证新会话恢复。CI 的 macOS 任务始终带 `--runtime`；物理设备运行仍不在 CI。托管 runner 偶尔会连不上 app 的 VM service（表现为测试挂起到超时），脚本会把单测超时收紧到 180s，并在失败后重启模拟器重试一次；真实回归两次都会失败，重试不会掩盖问题。
 
 当前主 CI（2026-11-01 本地复核）覆盖格式、静态分析、纯 Dart 测试和 Flutter 单元/Widget 测试，共 587 项（weft_engine 343、weft_document 84、weft 78、weft_quickjs 28、weft_capabilities 15、weft_runtime_fake 12、weft_runtime_contract 9、weft_runtime_api 2、weft_lab 1、weft_live 8、weft_fallback 7）；具体数量以 `tool/verify.dart` 输出为准。QuickJS FFI 测试在本地 native 库缺失时会跳过；CI 在测试前执行 `packages/weft_quickjs/tool/verify_native.dart`，缺库直接失败，因此 CI 绿灯不允许以“跳过原生测试”换取。阶段 5 起还有两类门禁：规范化一致性向量（`conformance/normalization/` 22 个固化快照，逐字节复现）与公开 API 文档覆盖（`tool/doc_coverage.dart` 零缺口）；另有 Windows 独立执行的 3 项 Flutter 像素基线测试：
 

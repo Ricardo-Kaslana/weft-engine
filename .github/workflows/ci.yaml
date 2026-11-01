@@ -96,5 +96,5 @@ jobs:
       - name: Resolve workspace dependencies
         run: flutter pub get
 
-      - name: Build iOS host and verify QuickJS symbols
-        run: dart run tool/ios_smoke.dart
+      - name: Build iOS host, verify QuickJS symbols and run simulator smoke
+        run: dart run tool/ios_smoke.dart --runtime

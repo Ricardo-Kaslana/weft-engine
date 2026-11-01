@@ -64,7 +64,7 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - 选择工具条（完整菜单）与 chrome 动画打磨；ARIA 增强（landmark/tab/menu 族角色、`aria-level`/`aria-labelledby`）；行内双向重排的中性字符行缘解析与竖排（基础 RTL 块方向已由 ADR 0042 支持，行内 BiDi 委托 SkParagraph）。
 - 未测区域的精确 O(1)/O(log N) 随机跳转，以及超高顶层块/表内行/图片解码资源虚拟化；冷跳仍分帧测量前缀，配置 `lazySettlingBuilder` 时由宿主遮罩覆盖，但仍不承诺零空白（ADR 0037）。
 - 严格 60fps 的滚动预算：JNY-AL10 上 combined p95 ≈26ms，瓶颈在 raster；12+12 轮 Impeller/Skia A/B（device-matrix §4.7）未发现可复现的后端优势（SCROLL total p95 25.70 vs 24.49ms，p≈0.33），不建议旧 Mali 关闭 Impeller；冷跳分帧期间仍会有短暂空白，见 `docs/device-matrix.md` §4.4/§4.7。
-- 真机证据：Android 已完成构建、打包与真机执行验证（Huawei JNY-AL10 / Android 10）；iOS 的 macOS 无签名构建与 `weft_*` 符号检查由 CI 覆盖，模拟器/真机运行验证仍待完成，见 `docs/device-matrix.md`。
+- 真机证据：Android 已完成构建、打包与真机执行验证（Huawei JNY-AL10 / Android 10）；iOS 由 macOS CI 覆盖无签名构建、`weft_*` 符号检查与 iPhone 模拟器 runtime 冒烟（加载/求值/超时中断/恢复），物理设备仍未验证，见 `docs/device-matrix.md`。
 
 `example/weft_lab` 展示真实可滚动的静态文章；`example/weft_live` 把实时图表、自动快照、投票、主题切换和深链接聚合到一张专题页里，并接入冷跳 settling 骨架与跳底控件。两者均不用于验收完整 HTML/CSS 兼容性。当前限制与后续顺序见 `docs/supported-subset.md` 和 `docs/development-plan.md`。
 
@@ -174,7 +174,7 @@ flutter create --platforms=android,ios --project-name weft_lab .
 flutter run
 ```
 
-实验室演示使用 `weft_runtime_fake`。真实 QuickJS 的原生构建已由 `weft_quickjs` 提供（ADR 0035）：Android 由 CMake 就地编译，iOS 由 podspec 静态链接并由 macOS CI 执行无签名构建与符号检查（模拟器/真机运行仍待验证），桌面端需先运行 `packages/weft_quickjs/tool/build_native.sh`。
+实验室演示使用 `weft_runtime_fake`。真实 QuickJS 的原生构建已由 `weft_quickjs` 提供（ADR 0035）：Android 由 CMake 就地编译，iOS 由 podspec 静态链接，由 macOS CI 执行无签名构建、符号检查与模拟器 runtime 冒烟（物理设备仍待验证），桌面端需先运行 `packages/weft_quickjs/tool/build_native.sh`。
 
 ## 运行实时专题页
 

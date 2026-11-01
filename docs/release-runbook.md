@@ -9,7 +9,7 @@
   weft_capabilities、weft_runtime_fake、weft_runtime_contract、weft_quickjs）
   **共用一个版本号**，在同一个提交中一起递增。宿主升级时按同一版本对齐，
   不支持跨版本混搭。
-- 当前基线：`0.7.0-dev.2`（发布闭环：外部消费者冒烟测试 + macOS iOS 构建/符号门禁）。
+- 当前基线：`0.7.0-dev.2`（发布闭环：外部消费者冒烟测试 + macOS iOS 构建/符号门禁），并新增 iOS 模拟器 runtime 冒烟。
   首个稳定版为 `1.0.0`，此前一切变更都在 CHANGELOG 的对应开发版本小节累积。
   上一个基线是 `0.7.0-dev.1`（Flutter 3.35.5 兼容基线，ADR 0038），再往前是
   `0.6.0-dev.1`（移动端构建 ADR 0035）和 `0.5.0-dev.1`（阶段 5）。注意：包含
@@ -52,9 +52,9 @@
 7. 移动端原生库（ADR 0035）：Android 必查——`flutter build apk` 后确认
    APK 内 `lib/<abi>/libweft_quickjs.so` 存在、恰好导出 10 个 `weft_*`、
    LOAD 段 16 KB 对齐。iOS 的 macOS CI 任务会执行 `pod install`、无签名
-   release 构建并检查 10 个 `weft_*` 符号；若本次发布包含 iOS 产物，仍须
-   在模拟器或真机跑通 runtime 示例，未完成前不得宣称 iOS 可用，发布说明
-   中要写明缺口。
+   release 构建、检查 10 个 `weft_*` 符号，并用 `--runtime` 在 iPhone 模拟器
+   跑通加载/求值/超时中断/恢复。若本次发布包含 iOS 产物，仍须补一次物理
+   设备验证；未做真机轮前不得宣称 iOS 真机可用，发布说明中要写明缺口。
 8. 打 tag `v<版本>`；tag 信息列出本版本 CHANGELOG 条目。
 
 ## 4. 回滚路径
