@@ -17,7 +17,7 @@
 - 行内图片基线混排（ADR 0018）：img 默认 inline 原子参与断行，CSS 宽高（含百分比宽）。
 - 块级盒模型（ADR 0021）：显式 height（不裁剪溢出）、百分比宽度、水平 auto margin。
 - 表格列轨道（ADR 0022）：colgroup/col 声明 px 固定列、百分比列与 span 轨道。
-- 流式增量布局（ADR 0023/0044/0046）：复用无 Float 的顶层前缀块/TextPainter，尾部重排；未变 Picture 跨快照复用；文本索引按块 diff 前缀复用条目（plain 与 lazy 部分窗口，ADR 0044/0048），变化区之后的形状相同块平移复用（plain，ADR 0046）；lazy 轮的准入结论与逐子估算按已证前缀沿用（ADR 0049），plain 复用块样式成对沿用（ADR 0050），头部插入/头删除轮的旧索引条目平移重映射（plain，ADR 0051）——四种流式形态 plain 91–95% saving，lazy 滚动会话轮 0047 基线 −77–84%。
+- 流式增量布局（ADR 0023/0044/0046）：复用无 Float 的顶层前缀块/TextPainter，尾部重排；未变 Picture 跨快照复用；文本索引按块 diff 前缀复用条目（plain 与 lazy 部分窗口，ADR 0044/0048），变化区之后的形状相同块平移复用（plain，ADR 0046）；lazy 轮的准入结论与逐子估算按已证前缀沿用（ADR 0049），plain 复用块样式成对沿用（ADR 0050），头部插入/头删除轮的旧索引条目平移重映射（plain，ADR 0051）——四种流式形态 plain 91–97% saving，lazy 滚动会话轮 0047 基线 −77–84%。
 - 可访问性语义（ADR 0024/0026/0028/0030）：单表面文本/链接/图片/选区、标题与表头 header、列表标记、list/table 嵌套角色、链接 tap、选区 copy、稳定节点 id 与屏外 showOnScreen。
 - 渐进式布局虚拟化（ADR 0025/0041）：WeftView 只物化可见顶层块，估算后缀 extent，复杂文档/选区回退 full；Semantics 直接在 lazy 结果上组装窗口化语义（物化窗口精确、视口附近未物化块粗叶子、未测后缀滚动物化后出现）。
 - 锚点导航（ADR 0027/0029）：`scrollToAnchor` 同步 focus 定位，`scrollToAnchorAsync` 逐帧测量深链前缀并保持当前内容；无效/取消安全返回 false。
