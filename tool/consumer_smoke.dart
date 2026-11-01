@@ -192,7 +192,7 @@ String _gitOverrides({required String gitUrl, required String ref}) {
     'weft_engine',
     'weft_quickjs',
   ];
-  final buffer = StringBuffer('dependency_overrides://n');
+  final buffer = StringBuffer('dependency_overrides:\n');
   for (final name in siblings) {
     buffer.writeln('  $name:');
     buffer.writeln('    git:');
