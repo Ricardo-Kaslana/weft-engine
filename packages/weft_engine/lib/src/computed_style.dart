@@ -46,6 +46,7 @@ final class WeftComputedStyle {
     required this.whiteSpace,
     required this.listStyle,
     this.fontFamily,
+    this.fontFamilyFallback,
     this.backgroundColor,
     this.marginTop = 0,
     this.marginRight = 0,
@@ -97,6 +98,13 @@ final class WeftComputedStyle {
   final FontWeight fontWeight;
   final FontStyle fontStyle;
   final String? fontFamily;
+
+  /// Extra families consulted when [fontFamily] lacks a glyph.
+  ///
+  /// The host supplies these (typically a CJK face); the engine keeps the
+  /// list so CJK text renders as glyphs rather than tofu boxes.
+  final List<String>? fontFamilyFallback;
+
   final Color color;
   final Color? backgroundColor;
   final double lineHeight;
@@ -188,6 +196,9 @@ final class WeftComputedStyle {
       fontWeight: fontWeight,
       fontStyle: fontStyle,
       fontFamily: fontFamily,
+      // Hosts may declare extra families (typically a CJK face) so glyphs
+      // missing from the primary family still render instead of tofu.
+      fontFamilyFallback: fontFamilyFallback,
       height: lineHeight,
       // CSS distributes line-height leading evenly above and below the
       // content area (half-leading). Flutter's default is proportional,

@@ -67,6 +67,7 @@ class WeftView extends StatefulWidget {
     this.onLinkTap,
     this.onSelectionChanged,
     this.imageResolver,
+    this.fontFamilyFallback,
     this.enableLazyLayout = true,
     this.lazyOverscan = 250,
     this.lazySettlingBuilder,
@@ -107,6 +108,13 @@ class WeftView extends StatefulWidget {
   /// Supplies decoded images for `img` sources; the engine never
   /// performs network I/O, so hosts gate allowed URLs here.
   final WeftImageResolver? imageResolver;
+
+  /// Extra font families consulted when the document's own `font-family`
+  /// does not cover a glyph (typically a CJK face).
+  ///
+  /// Chinese text renders as tofu boxes when the primary family is
+  /// Latin-only and no fallback is declared.
+  final List<String>? fontFamilyFallback;
 
   /// Whether simple documents lazily materialize only the visible block
   /// window. A non-null selection still upgrades to a complete layout;
@@ -661,6 +669,7 @@ class WeftViewState extends State<WeftView> {
               selection: widget.controller.selection,
               textScaler: textScaler,
               imageResolver: widget.imageResolver,
+              fontFamilyFallback: widget.fontFamilyFallback,
               onSemanticsLinkTap: widget.onLinkTap,
               onSemanticsCopy: _copyText,
               enableLazyLayout: widget.enableLazyLayout,

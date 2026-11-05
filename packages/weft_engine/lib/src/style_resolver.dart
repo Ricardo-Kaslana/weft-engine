@@ -15,13 +15,21 @@ final RegExp _borderWidthLength = RegExp(r'(\d+(?:\.\d+)?)(px|em|rem)');
 
 final class WeftStyleResolver {
   const WeftStyleResolver(this.styleSheet,
-      {this.customTags = const <String>{}});
+      {this.customTags = const <String>{}, this.defaultFontFamilyFallback});
 
   final WeftStyleSheet styleSheet;
 
   /// Custom tags registered with the layout engine. They render as block
   /// boxes by default; author `display` declarations still win (ADR 0033).
   final Set<String> customTags;
+
+  /// Families consulted when neither the author CSS nor the inherited style
+  /// names a usable family for a glyph.
+  ///
+  /// Hosts pass a CJK face here so Chinese text renders as glyphs rather
+  /// than tofu boxes. Author `font-family` lists still take priority: only
+  /// the families they do not name are appended.
+  final List<String>? defaultFontFamilyFallback;
 
   WeftComputedStyle resolve(
     WeftElement element, {
@@ -62,6 +70,10 @@ final class WeftStyleResolver {
     }
     _mergeDeclarations(winning, element.inlineStyle);
     builder.applyCascaded(winning, parent);
+    if (defaultFontFamilyFallback != null &&
+        defaultFontFamilyFallback!.isNotEmpty) {
+      builder.appendFontFallback(defaultFontFamilyFallback!);
+    }
     return builder.build();
   }
 
@@ -174,6 +186,7 @@ final class _StyleBuilder {
         fontWeight = parent.fontWeight,
         fontStyle = parent.fontStyle,
         fontFamily = parent.fontFamily,
+        fontFamilyFallback = parent.fontFamilyFallback,
         color = parent.color,
         lineHeight = parent.lineHeight,
         textAlign = parent.textAlign,
@@ -188,6 +201,7 @@ final class _StyleBuilder {
   FontWeight fontWeight;
   FontStyle fontStyle;
   String? fontFamily;
+  List<String>? fontFamilyFallback;
   Color color;
   double lineHeight;
   TextAlign textAlign;
@@ -396,7 +410,10 @@ final class _StyleBuilder {
 
     final fontFamilyValue = declarations['font-family'];
     if (fontFamilyValue != null) {
-      fontFamily = _fontFamily(fontFamilyValue);
+      final families = _fontFamilies(fontFamilyValue);
+      fontFamily = families.isEmpty ? null : families.first;
+      // Remaining candidates act as fallbacks, per CSS font-family lists.
+      fontFamilyFallback = families.length > 1 ? families.sublist(1) : null;
     }
 
     final fontWeightValue = declarations['font-weight'];
@@ -629,6 +646,18 @@ final class _StyleBuilder {
         _borderSide(declarations['border-left'], fontSize, color) ?? borderLeft;
   }
 
+  /// Appends extra families that the author CSS did not already name.
+  void appendFontFallback(List<String> families) {
+    final existing = fontFamilyFallback ?? const <String>[];
+    final merged = <String>[...existing];
+    for (final family in families) {
+      if (family == fontFamily) continue;
+      if (merged.contains(family)) continue;
+      merged.add(family);
+    }
+    fontFamilyFallback = merged.isEmpty ? null : merged;
+  }
+
   WeftComputedStyle build() {
     return WeftComputedStyle(
       display: display,
@@ -636,6 +665,7 @@ final class _StyleBuilder {
       fontWeight: fontWeight,
       fontStyle: fontStyle,
       fontFamily: fontFamily,
+      fontFamilyFallback: fontFamilyFallback,
       color: color,
       backgroundColor: backgroundColor,
       lineHeight: lineHeight,
@@ -809,18 +839,32 @@ final class _StyleBuilder {
     return FontWeight.values[index];
   }
 
-  static String? _fontFamily(String raw) {
-    final value = raw.toLowerCase();
-    if (value.contains('monospace')) return 'monospace';
-    if (value.contains('serif') && !value.contains('sans-serif')) {
-      return 'serif';
+  /// Parses a CSS `font-family` list into concrete family candidates.
+  ///
+  /// Named families are returned in order (primary first), so the caller can
+  /// treat the tail as fallbacks per CSS. Generic keywords carry no family to
+  /// look up, so they only contribute when they are the list's first usable
+  /// entry — otherwise Flutter's default family applies. `monospace` and
+  /// `serif` keep their previous mapping; `sans-serif` and the remaining
+  /// generics map to Flutter's default by being dropped.
+  static List<String> _fontFamilies(String raw) {
+    final out = <String>[];
+    for (final rawItem in raw.split(',')) {
+      final item = rawItem.trim().replaceAll('"', '').replaceAll("'", '');
+      if (item.isEmpty) continue;
+      switch (item.toLowerCase()) {
+        case 'monospace':
+          if (out.isEmpty) out.add('monospace');
+        case 'serif':
+          if (out.isEmpty) out.add('serif');
+        case 'sans-serif' || 'cursive' || 'fantasy' || 'system-ui':
+          // Flutter resolves these through its default family.
+          break;
+        default:
+          out.add(item);
+      }
     }
-    if (value.contains('sans-serif')) return null;
-    final first = raw.split(',').first.trim().replaceAll('"', '').replaceAll(
-          "'",
-          '',
-        );
-    return first.isEmpty ? null : first;
+    return out;
   }
 
   static TextDirection? _direction(String raw) {

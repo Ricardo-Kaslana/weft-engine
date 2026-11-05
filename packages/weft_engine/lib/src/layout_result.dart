@@ -795,9 +795,16 @@ final class WeftIncrementalLayoutCache {
     required this.isLazy,
     required this.estimatedExtent,
     this.tagRenderers = const <String, WeftTagRenderer>{},
+    List<String>? fontFamilyFallback,
     Map<WeftElement, WeftComputedStyle>? styleCache,
     this.viewportState,
   })  : images = Map<int, ui.Image>.unmodifiable(images),
+
+        /// Unmodifiable copy of the host fallback families the styles embed,
+        /// so a later layout can tell whether the style cache still applies.
+        fontFamilyFallback = fontFamilyFallback == null
+            ? null
+            : List<String>.unmodifiable(fontFamilyFallback),
 
         /// Unmodifiable copy of the line-break rules the layout used.
         lineBreakRules = WeftLineBreakRules(
@@ -850,11 +857,16 @@ final class WeftIncrementalLayoutCache {
   /// disabled when the map identity changes.
   final Map<String, WeftTagRenderer> tagRenderers;
 
+  /// Host fallback families the cached styles were resolved with, or null
+  /// when the host declared none (ADR 0053).
+  final List<String>? fontFamilyFallback;
+
   /// Computed styles keyed by element identity, filled by layout passes and
-  /// reused while [document] stays the same instance. Valid because computed
-  /// styles derive only from the snapshot; width, text scaling and images do
-  /// not participate. The layout engine mutates the map while relayouting
-  /// this snapshot and reads previous entries for unchanged elements.
+  /// reused while [document] and [fontFamilyFallback] stay equal. Valid
+  /// because computed styles derive only from the snapshot and the host
+  /// fallback list; width, text scaling and images do not participate. The
+  /// layout engine mutates the map while relayouting this snapshot and reads
+  /// previous entries for unchanged elements.
   final Map<WeftElement, WeftComputedStyle> styleCache;
 
   /// Window geometry transferred with this cache, never shared by live owners.

@@ -85,6 +85,7 @@ class WeftSurface extends StatefulWidget {
     this.selection,
     this.textScaler = TextScaler.noScaling,
     this.imageResolver,
+    this.fontFamilyFallback,
     this.onLinkTap,
     this.onSemanticsLinkTap,
     this.onSemanticsCopy,
@@ -114,6 +115,13 @@ class WeftSurface extends StatefulWidget {
   /// Resolves document images; null leaves every image unresolved so its
   /// alternative text paints instead.
   final WeftImageResolver? imageResolver;
+
+  /// Extra font families consulted when the document's own `font-family`
+  /// does not cover a glyph (typically a CJK face).
+  ///
+  /// Without this, Chinese text renders as tofu boxes whenever the primary
+  /// family is Latin-only.
+  final List<String>? fontFamilyFallback;
 
   /// Called when a tap lands on a link region.
   final ValueChanged<WeftLinkRegion>? onLinkTap;
@@ -381,9 +389,11 @@ class RenderWeftSurface extends RenderBox {
     Map<String, WeftTagRenderer> tagRenderers =
         const <String, WeftTagRenderer>{},
     ValueChanged<WeftTagRegion>? onTagTap,
+    List<String>? fontFamilyFallback,
   })  : _document = document,
         _selection = selection,
         _textScaler = textScaler,
+        _fontFamilyFallback = fontFamilyFallback,
         _imageResolver = imageResolver,
         _onSemanticsLinkTap = onSemanticsLinkTap,
         _onSemanticsCopy = onSemanticsCopy,
@@ -419,6 +429,7 @@ class RenderWeftSurface extends RenderBox {
   WeftDocumentSnapshot _document;
   TextSelectionRange? _selection;
   TextScaler _textScaler;
+  List<String>? _fontFamilyFallback;
   WeftImageResolver? _imageResolver;
   ValueChanged<WeftLinkRegion>? _onSemanticsLinkTap;
   ValueChanged<String>? _onSemanticsCopy;
@@ -690,6 +701,17 @@ class RenderWeftSurface extends RenderBox {
     _invalidateLayout();
   }
 
+  /// Extra font families consulted when the document's own `font-family`
+  /// does not cover a glyph (typically a CJK face).
+  List<String>? get fontFamilyFallback => _fontFamilyFallback;
+
+  /// Sets the fallback families and relayouts.
+  set fontFamilyFallback(List<String>? value) {
+    if (_fontFamilyFallback == value) return;
+    _fontFamilyFallback = value;
+    _invalidateLayout();
+  }
+
   /// Resolves document images.
   WeftImageResolver? get imageResolver => _imageResolver;
 
@@ -868,6 +890,7 @@ class RenderWeftSurface extends RenderBox {
             textScaler: _textScaler,
             images: _resolvedImages,
             previous: previous,
+            fontFamilyFallback: _fontFamilyFallback,
           )
         : _engine.layout(
             _document,
@@ -875,6 +898,7 @@ class RenderWeftSurface extends RenderBox {
             textScaler: _textScaler,
             images: _resolvedImages,
             previous: previous,
+            fontFamilyFallback: _fontFamilyFallback,
           );
     if (useLazy && !current.debugIsLazy) {
       _markFullLayoutRequired('engine-fallback');

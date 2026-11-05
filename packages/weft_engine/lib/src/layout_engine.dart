@@ -42,6 +42,7 @@ final class WeftLayoutEngine {
     Map<int, ui.Image> images = const {},
     WeftLineBreakRules lineBreakRules = const WeftLineBreakRules(),
     WeftLayoutResult? previous,
+    List<String>? fontFamilyFallback,
   }) {
     return _layoutDocument(
       document,
@@ -50,6 +51,7 @@ final class WeftLayoutEngine {
       images: images,
       lineBreakRules: lineBreakRules,
       previous: previous,
+      fontFamilyFallback: fontFamilyFallback,
     );
   }
 
@@ -72,6 +74,7 @@ final class WeftLayoutEngine {
     Map<int, ui.Image> images = const {},
     WeftLineBreakRules lineBreakRules = const WeftLineBreakRules(),
     WeftLayoutResult? previous,
+    List<String>? fontFamilyFallback,
   }) {
     return _layoutDocument(
       document,
@@ -80,6 +83,7 @@ final class WeftLayoutEngine {
       images: images,
       lineBreakRules: lineBreakRules,
       previous: previous,
+      fontFamilyFallback: fontFamilyFallback,
       viewportStart: viewportStart,
       viewportEnd: viewportEnd,
       focusNodeId: focusNodeId,
@@ -98,6 +102,7 @@ final class WeftLayoutEngine {
     double? viewportEnd,
     NodeId? focusNodeId,
     int? maxNewBlocks,
+    List<String>? fontFamilyFallback,
   }) {
     if (!width.isFinite || width <= 0) {
       return WeftLayoutResult(
@@ -118,6 +123,18 @@ final class WeftLayoutEngine {
       );
     }
 
+    // The host fallback families are baked into every computed style and,
+    // through the shaped TextPainters, into every paint command. A host may
+    // change them between passes (locale switch, font download completing),
+    // so a changed list invalidates all cached artifacts; dropping [previous]
+    // here keeps each reuse path from having to know about the extra key
+    // (ADR 0053). A cold pass on that rare event is the cheaper trade.
+    if (previous != null &&
+        !_sameFallback(previous.incrementalCache?.fontFamilyFallback,
+            fontFamilyFallback)) {
+      previous = null;
+    }
+
     // Computed styles and the logical text index depend only on the snapshot
     // (its stylesheet and text are part of it), never on width, text scaling
     // or images. When the snapshot instance is unchanged, the previous
@@ -134,6 +151,7 @@ final class WeftLayoutEngine {
     final styleResolver = WeftStyleResolver(
       document.styleSheet,
       customTags: tagRenderers.keys.toSet(),
+      defaultFontFamilyFallback: fontFamilyFallback,
     );
     final reusableState = viewportStart != null &&
             viewportEnd != null &&
@@ -347,6 +365,7 @@ final class WeftLayoutEngine {
         images: images,
         lineBreakRules: lineBreakRules,
         previous: previous,
+        fontFamilyFallback: fontFamilyFallback,
       );
     }
     if (context.topLevelCacheEligible &&
@@ -363,6 +382,7 @@ final class WeftLayoutEngine {
         isLazy: lazy,
         estimatedExtent: result.size.height,
         tagRenderers: tagRenderers,
+        fontFamilyFallback: fontFamilyFallback,
         styleCache: context.styleCache,
         viewportState: viewportState,
       );
@@ -472,6 +492,18 @@ WeftTextIndex? _suffixIncrementalTextIndex({
     carriedTopLevelBlocks: carried,
     shiftedIds: suffixIds,
   );
+}
+
+/// Whether two host fallback lists describe the same families in order.
+bool _sameFallback(List<String>? a, List<String>? b) {
+  if (identical(a, b)) return true;
+  final left = a ?? const <String>[];
+  final right = b ?? const <String>[];
+  if (left.length != right.length) return false;
+  for (var i = 0; i < left.length; i++) {
+    if (left[i] != right[i]) return false;
+  }
+  return true;
 }
 
 bool _sameLayoutInputs(
