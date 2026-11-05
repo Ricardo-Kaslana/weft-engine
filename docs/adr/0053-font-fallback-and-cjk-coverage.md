@@ -18,9 +18,9 @@ CJK 文本在 Weft 里始终渲染为豆腐块（空心方框）。排查确认�
 具体表现：
 
 - 平台默认字体为 Roboto（拉丁）时，中文全是豆腐块；
-- `font-family: monospace` / `serif` 这类通用族被当作具名字族原样传给 Flutter，
-  与 Flutter 的 `monospace` 语义并不等价；
-- 宿主的 `font-family` 即使写成 `"Noto Sans CJK SC", sans-serif`，第二个候选也被丢弃。
+- `font-family: "Noto Sans CJK SC", sans-serif` 整串因含 `sans-serif` 直接塌成 `null`，
+  前面点名的 CJK 族根本不会被查找；
+- `font-family: Georgia, serif` 因整串含 `serif` 而返回 `serif`，首个具名族 `Georgia` 被丢弃。
 
 ## 决策
 
@@ -56,7 +56,7 @@ CJK 文本在 Weft 里始终渲染为豆腐块（空心方框）。排查确认�
 
 ## 验证
 
-- `packages/weft_engine` 344 项测试全绿（新增 9 项覆盖本 ADR），
+- `packages/weft_engine` 352 项测试全绿（343 → 352，新增 9 项覆盖本 ADR），
   `packages/weft` 78 项全绿，`tool/check.sh` ALL GREEN（含 3 项像素黄金）。
 - `test/font_fallback_test.dart` 覆盖：候选顺序、通用关键字、宿主追加与去重、
   继承、以及回退列表变化时样式缓存必须失效。

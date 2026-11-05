@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Font fallback for CJK and other missing glyphs (ADR 0053). Computed styles carried a single `fontFamily`, `font-family` lists lost every candidate after the first, and hosts had no way to hand the engine a CJK face, so Chinese text always painted as tofu boxes. `font-family` now parses as the ordered candidate list CSS defines — the first named family is the primary, the rest become fallbacks, and generic keywords only participate when they lead the list (keeping the previous `monospace`/`serif` mapping, and fixing `font-family: Georgia, serif` to actually pick Georgia). Hosts can declare extra families through the new `fontFamilyFallback` parameter on `WeftLayoutEngine.layout()`/`layoutViewport()`, `WeftSurface` and `WeftView`; those are appended after the families the author already named and are inherited by descendants. Because the resolved list is baked into every style and every shaped `TextPainter`, a changed list drops `previous` and runs a cold layout rather than teaching each reuse path about the extra key. Tests 587 -> 596 (new `font_fallback_test.dart`); the three pixel goldens are unchanged.
+
 - First pub.dev publication of all eight packages at `0.7.0-dev.3` (2026-11-02). Verified with `tool/consumer_smoke.dart --mode published`: a plain `weft: ^0.7.0-dev.3` dependency resolves and renders outside the workspace. Docs updated accordingly: the README install section leads with the hosted one-liner (Git + overrides stays as the fallback), and the release runbook records the publishing gotchas hit in practice — a read-only `PUB_HOSTED_URL` mirror must be overridden to `https://pub.dev` for uploads, `flutter pub` rejects `-C`, and pub.dev rate-limits new package creation.
 
 ## 0.7.0-dev.3 (2026-11-02)

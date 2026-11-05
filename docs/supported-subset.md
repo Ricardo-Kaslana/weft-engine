@@ -52,7 +52,7 @@
 
 | 类别 | 当前属性 | 状态 |
 |---|---|---|
-| 字体 | `font-family/size/style/weight` | 部分实现：family 只识别通用族和首个名称 |
+| 字体 | `font-family/size/style/weight` | 已实现：`font-family` 按有序候选列表解析，首个具名族为主族、其余为回退；通用关键字 `monospace`/`serif` 映射到 Flutter 内置族，`sans-serif` 等交给默认族；宿主可声明额外的回退族（ADR 0053） |
 | 行高 | `line-height` | 已实现：普通数字、百分比和 px；按 CSS 半行距分配 |
 | 文本 | `color/text-align/text-decoration/white-space` | 已实现基础值 |
 | 方向 | `direction: rtl/ltr` | 已实现（ADR 0042）；`dir` 属性映射为 UA 级默认，CSS 层叠可覆盖 |
@@ -158,6 +158,7 @@
 - 固定字体下块级几何与 Chromium 误差小于 0.5px；`float_image` 案例的全部块/图片几何实测误差 ≤ 0.16px，逐行词盒由浏览器几何基线测试覆盖，但跨引擎像素差异仍高于 1% advisory 预算，主要来自字形抗锯齿。
 - 1:1 图片绘制目标在绘制时对齐整像素（浏览器同款行为）；缩放绘制仍按 FilterQuality.medium 重采样。
 - CJK 无固定可分发的像素字体，跨引擎像素验收按 ADR 0032 重定界为结构几何门禁 + 固定字体拉丁像素黄金；中文正确性由禁则测试、CJK 语料与浏览器几何基线覆盖，中文内容不设像素黄金。
+- 字形覆盖取决于宿主字体：引擎既不内置字体也不发起下载。`font-family` 解析出的族缺少某个字形时（典型如纯拉丁族遇到中文），需要宿主通过 `WeftView.fontFamilyFallback`（或 `WeftSurface` / `WeftLayoutEngine.layout` 的同名参数）提供 CJK 族，否则该字形渲染为方框（ADR 0053）。
 - 表格列宽为两遍自动布局（min/max-content + 比例分配）：固定字体下单元格边界与 Chromium 偏差约 ≤ 1px，自由分配场景可差数像素；`colgroup/col` 支持 px 固定列、百分比列与 span 轨道（ADR 0022），但浏览器级 auto 列宽分配精度仍有差距；嵌套表格触发 `requiresWebView`。详见 ADR 0012/0022。
 
 ## Float 的 MVP 边界

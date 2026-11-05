@@ -121,6 +121,7 @@
 - lazy 准入估算前缀采用（ADR 0049）：决策块重排为 diff 先行 + `_admitLazyLayout`（前 verdict 沿用 + raw 后缀验证，provisional allowLazy 不合格重跑 plain 模式）；`_prepareLazyState` 前缀段采用上一轮 `_LazyChild`（element 重绑），边界 pendingMargin/leading/orderedItem 零歧义恢复；同机对比滚动轮 2.01→1.57 / 6.02→3.88 / 12.76→6.94ms（−22/−36/−46%），eligibility 后缀化；家族累计 0047 U(2000) 30.8–42.4 → 6.9ms；测试 561 → 572。
 - plain 走查样式跨快照采用（ADR 0050，①(c) 按数据降级缓办）：决策块成对种子化 diff 已证顶层子的上一轮样式（前缀正扫 + 后缀尾逆扫，lazy 前缓存缺条目优雅退化）；E4f 同机 A/B mid-edit@300 轮 8 条规则 2.61→1.91ms（−27%）、256 条 29.14→11.66ms（−60%）——复用轮与样式表规模脱钩；新增 debugAdoptedStyleCount；测试 572 → 579。
 - k=0 头部插入索引条目平移（ADR 0051，0047 家族清单全部销账）：`WeftTextIndex.buildFromSuffix` ——头部子 fresh 走查后，carried 子逐个比对接缝四标志（相等则旧条目 globalStart 平移 + ids 重映射采用并止，不等则 fresh 走查；流首剥离分歧由此消费，走满即等价全量构建）；尾 trim/drop 还原为 0048 镜像；E1 head-insert 同机 stash A/B @300 2.11→1.16–1.38ms、@1000 7.82→3.02–3.09ms（entries 读数钉参与）；E1 每轮行新增 entries 字段；测试 579 → 587。
+- 字体回退与 CJK 覆盖（ADR 0053）：`font-family` 改按有序候选列表解析（首个具名族为主族、其余为回退族；通用关键字只在首位时参与映射，`monospace`/`serif` 语义不变，顺带修正 `Georgia, serif` 旧实现丢弃首个具名族的问题）；新增宿主级 `fontFamilyFallback`，经 `WeftLayoutEngine.layout()/layoutViewport()`、`WeftSurface`、`WeftView` 全链路透传，仅追加作者未声明的族并随父节点继承；回退列表被写进计算样式与整形后的 `TextPainter`，因此列表变化时入口丢弃 `previous` 退化为冷布局，避免三条复用路径各自识别新键。修复写测试时暴露的两个传递缺口（`layout()` 未下传参数、lazy→plain 回退递归漏传）；新增 9 项 `font_fallback_test`；测试 587 → 596，3 项像素黄金零 diff。
 
 ## 并行规则
 

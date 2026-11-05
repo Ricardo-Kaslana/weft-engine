@@ -49,11 +49,13 @@ flowchart TB
 
 ## 4. 布局与渲染
 
-采用约束到 Fragment 的布局契约，按 Block、Inline、Table 和 Float 格式化上下文组织。缓存键至少包含内容版本、约束、字体、DPR 和文本缩放。
+采用约束到 Fragment 的布局契约，按 Block、Inline、Table 和 Float 格式化上下文组织。缓存键至少包含内容版本、约束、字体（含宿主的回退族列表，ADR 0053）、DPR 和文本缩放。
 
 - Float 通过纵向区间的左右排除区计算逐行可用空间。
 - 表格采用固定布局和两遍 min/max-content 自动布局。
 - CJK 使用 Unicode 断行候选叠加可配置禁则表。
+- 字体解析走 CSS 的有序候选列表：首个具名族为主族、其余为回退族，宿主可再声明
+  额外的回退族（典型为 CJK 字面）；缺字形不再渲染为方框（ADR 0053）。
 - `TextShaper` 隔离 Flutter 文本整形能力，最终行按实际断点整形。
 - 单一 `RenderWeftSurface` 负责绘制、命中、选择和语义，不逐节点创建 Widget。
 - 按 body 顶层块缓存 `ui.Picture`，仅绘制可见块；流式追加保留命令实例与几何均未变的前缀 Picture，选择覆盖层独立重绘。

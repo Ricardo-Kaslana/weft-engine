@@ -17,6 +17,7 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 - 标题、段落、强调、链接、列表、引用、代码块、分隔线和强制换行。
 - Block/Inline 布局、空白折叠、相邻与父子 margin 折叠、列表标记和可缩放文本绘制。
 - 与 CSS 半行距一致的文本行高分配，固定字体下块级几何与 Chromium 误差小于 0.5px。
+- 字体回退（ADR 0053）：`font-family` 按有序候选列表解析（首个具名族为主族、其余为回退），宿主可通过 `WeftView.fontFamilyFallback` 声明额外回退族，中文等缺字形不再渲染为方框。
 - 块级 `width`/`min-width`/`max-width`（含百分比宽）、CSS `height`、水平 `auto` margin、`box-sizing` 和基础实线边框绘制（ADR 0021）。
 - 链接按行生成命中矩形，跨行链接可点击，并通过 `WeftView.onLinkTap` 交给宿主处理。
 - 图片由宿主 `WeftImageResolver` 按需提供，支持宽高属性、固有比例、CSS px/百分比宽度与显式高度、最大宽度约束和异步解码失效。
@@ -59,7 +60,7 @@ Weft 是一个面向 Flutter 的轻量级、受控型 HTML/CSS 渲染引擎项�
 
 尚未实现：
 
-- CJK 像素基线（无可分发 CJK 像素字体，跨引擎像素验收已按 ADR 0032 重定界为结构几何门禁）。
+- CJK 像素基线（无可分发 CJK 像素字体，跨引擎像素验收已按 ADR 0032 重定界为结构几何门禁；字形渲染本身依赖宿主提供 CJK 字族，见 ADR 0053）。
 - 表格的嵌套表格（触发回退）与浏览器级 auto 列宽分配精度。
 - 选择工具条（完整菜单）与 chrome 动画打磨；ARIA 增强（landmark/tab/menu 族角色、`aria-level`/`aria-labelledby`）；行内双向重排的中性字符行缘解析与竖排（基础 RTL 块方向已由 ADR 0042 支持，行内 BiDi 委托 SkParagraph）。
 - 未测区域的精确 O(1)/O(log N) 随机跳转，以及超高顶层块/表内行/图片解码资源虚拟化；冷跳仍分帧测量前缀，配置 `lazySettlingBuilder` 时由宿主遮罩覆盖，但仍不承诺零空白（ADR 0037）。
