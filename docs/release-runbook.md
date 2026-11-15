@@ -66,6 +66,12 @@ pub.dev（发布账号为个人 Google 账号，因此包页面显示 unverified
 转移到 verified publisher 仍是可选项，转移不可撤销）。后续版本只需走完
 §3 清单、改版本号后按下述顺序重发。
 
+**`0.7.0-dev.4` 已于 2026-11-15 发布**：8 个包全部上传，`consumer_smoke
+--mode published` 对 `weft: ^0.7.0-dev.4` 解析并渲染通过。实操补充：发布后
+立即用本机默认镜像跑 published 冒烟会报 `doesn't match any versions`——
+只读镜像同步新版本有滞后；先用 pub.dev API 确认版本已存在，等镜像同步后
+重跑即可。
+
 **认证方式**：pub.dev 使用 Google 账号 OAuth，不是 API key，也不走 `dart pub token add`
 （那条命令只用于第三方/私有 hosted 仓库）。首次发布前在本机执行：
 
