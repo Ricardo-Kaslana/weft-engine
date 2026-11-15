@@ -4,6 +4,10 @@ Per-package history for `weft_runtime_contract`. The full project history, inclu
 reasoning behind each change, lives in the repository
 [CHANGELOG](https://github.com/Ricardo-Kaslana/weft-engine/blob/main/CHANGELOG.md).
 
+## 0.7.0-dev.4
+
+- Version alignment with the workspace release; no code changes in this package.
+
 ## 0.7.0-dev.3
 
 - First published version. The runtime code matches the `0.7.0-dev.2` workspace state; publication metadata (README, LICENSE, repository, version constraints) is what this release adds.

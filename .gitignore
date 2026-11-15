@@ -11,6 +11,7 @@ coverage/
 .DS_Store
 Thumbs.db
 .workbuddy/
+.zcode/
 __pycache__/
 *.pyc
 packages/weft_quickjs/ios/Classes/native/build/
