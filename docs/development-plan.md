@@ -99,12 +99,12 @@
 - WebView 回退示例：`example/weft_fallback`，`decideWeftFallback` 三路决策（原生渲染 / requiresWebView → 宿主 WebView / 错误卡片），`webview_flutter` 只进示例包，widget 测试经注入占位走完整决策路径。
 - 发布回退：`docs/release-runbook.md`（统一版本号策略、兼容锚点表、发布清单、回滚层级）；回滚演练自动化在 `packages/weft_document/test/release_compat_test.dart`（旧向量逐字节复现、新版本快照被拒、外格式被拒）。
 - API 文档：`tool/doc_coverage.dart` 门禁（导出面的公开声明零文档缺口），已接入 `tool/check.sh`；公开 API dartdoc 已补全。
-- 真机矩阵：`docs/device-matrix.md` 定义设备档位、执行步骤、通过标准与结果表；`weft_lab` 增加性能浮层开关。Android 首轮与 ADR 0036 复测数据已填入 §4.1/§4.4（CI 不可替代）；iOS 仍暂缓。
+- 真机矩阵：`docs/device-matrix.md` 定义设备档位、执行步骤、通过标准与结果表；`weft_lab` 增加性能浮层开关。Android 首轮与 ADR 0036 复测数据已填入 §4.1/§4.4（CI 不可替代）；iOS 已由 macOS CI 完成构建/符号检查与模拟器 runtime 冒烟（见 device-matrix §2.2），物理设备未验。
 - 门禁：`tool/check.sh`（format、analyze、全包测试、doc coverage、像素黄金）全绿。
 
 阶段 5 之后补入（不算阶段 5 验收）：
 
-- 移动端原生构建（ADR 0035）：Android 构建/打包/真机加载与预算中断通过；iOS 暂缓。
+- 移动端原生构建（ADR 0035）：Android 构建/打包/真机加载与预算中断通过；iOS 构建/符号/模拟器 runtime 冒烟已由 macOS CI 通过（ADR 0052），物理设备仍未验证。
 - 懒布局窗口直物化（ADR 0036）：JNY-AL10 四项设备标准通过，严格 60fps 受 raster 限制，见 `docs/device-matrix.md` §4.4。
 - 冷深跳 settling 遮罩（ADR 0037）：WeftView 宿主视口遮罩 + post-frame settling 信号；未配置 builder 时保持原空白渐进填充。
 - Flutter 3.35.5 兼容基线（ADR 0038）：Flutter 依赖包与示例统一收紧下限，纯 Dart 包保持 Dart 3.5；包版本对齐到 0.7.0-dev.1，运行时行为不变。
@@ -136,7 +136,7 @@
 
 ### 里程碑与工作分解
 
-- M0 基线与范围冻结：补充本阶段 RFC/ADR；同步 ADR 0053 后遗留的文档状态（iOS 模拟器已通过、物理设备未验、关键 ADR 清单）；确认本轮非目标。若试点需要 ADR 0053，可先按发布清单切 `0.7.0-dev.4`，但该版本仍不是 RC。
+- M0 基线与范围冻结：补充本阶段 RFC/ADR（ADR 0054）；同步 ADR 0053 后遗留的文档状态（iOS 模拟器已通过、物理设备未验、关键 ADR 清单）；确认本轮非目标。若试点需要 ADR 0053，可先按发布清单切 `0.7.0-dev.4`，但该版本仍不是 RC。
 - M1 Runtime 安全补口（P0）：为 QuickJS 与 Fake 后端补齐超限、取消、销毁竞争和恢复去重契约测试；实现或明确降级 bridge 消息/队列限制；网络等异步操作不得绕过执行预算；所有新增公开契约先经 ADR 审查。
 - M2 真机与无障碍（P0）：iOS 物理设备至少验证加载、求值、墙钟/堆/微任务中断、恢复和代表场景帧耗时；TalkBack 抽查 heading 导航、live region/atomic、窗口化语义、RTL 播报和链接动作；设备证据写入 device matrix。
 - M3 性能画像与单项优化（P1）：重跑 `tool/incremental_profile_test.dart` 与同设备真机数据；仅当画像确认收益时，选择中部编辑后缀采用或剩余 lazy 估算/状态工作中的一个方向；canonical 全量、像素黄金与选区/语义行为必须零差异。
