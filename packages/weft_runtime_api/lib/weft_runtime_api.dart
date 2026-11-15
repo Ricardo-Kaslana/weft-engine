@@ -1,4 +1,5 @@
 library weft_runtime_api;
 
+export 'src/bridge_limits.dart';
 export 'src/capability_contracts.dart';
 export 'src/runtime_contracts.dart';

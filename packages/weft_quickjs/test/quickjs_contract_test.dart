@@ -34,6 +34,39 @@ void main() {
         _ => '',
       },
     );
+
+    registerJsSessionBridgeSecurityTests(
+      backendName: 'QuickJS FFI',
+      openSession: (bridge, limits) => backend.open(
+        RuntimeConfig(
+          documentId: 'contract-security',
+          memoryLimitBytes: 8 * 1024 * 1024,
+          stackLimitBytes: 256 * 1024,
+          bridgeLimits: limits,
+        ),
+        bridge,
+      ),
+      sourceFor: (id) => switch (id) {
+        ContractSecurityScriptIds.oversizeArgs =>
+          '__weftBridge("contract.cap", "echo", '
+              'JSON.stringify(["x".repeat(4096)]));',
+        ContractSecurityScriptIds.deepArgs =>
+          '__weftBridge("contract.cap", "echo", '
+              'JSON.stringify([[[[["deep"]]]]]))'
+              '.catch(function () {});',
+        ContractSecurityScriptIds.oversizeResult =>
+          '__weftBridge("contract.cap", "echo", \'["hello"]\')'
+              '.catch(function () {});',
+        ContractSecurityScriptIds.inflightCap =>
+          '__weftBridge("contract.cap", "echo", \'["a"]\');'
+              '__weftBridge("contract.cap", "echo", \'["b"]\');'
+              '__weftBridge("contract.cap", "echo", \'["c"]\');',
+        ContractSecurityScriptIds.disposeInflight =>
+          '__weftBridge("contract.cap", "echo", \'["late"]\');',
+        ContractScriptIds.returnsValue => '42',
+        _ => '',
+      },
+    );
   },
       skip: nativeReady
           ? null

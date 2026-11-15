@@ -41,6 +41,58 @@ void main() {
     ),
   );
 
+  final securityBackend = FakeRuntimeBackend(
+    behaviors: <String, FakeScriptBehavior>{
+      ContractScriptIds.returnsValue: (context) => context.success(42),
+      ContractSecurityScriptIds.oversizeArgs: (context) async {
+        await context.bridge(ContractBridge.capability, ContractBridge.method,
+            <JsValue>['x' * 4096]);
+        return context.success(null);
+      },
+      ContractSecurityScriptIds.deepArgs: (context) async {
+        Object? deep = 'deep';
+        for (var i = 0; i < 6; i++) {
+          deep = <JsValue>[deep];
+        }
+        await context.bridge(
+            ContractBridge.capability, ContractBridge.method, <JsValue>[deep]);
+        return context.success(null);
+      },
+      ContractSecurityScriptIds.oversizeResult: (context) async {
+        await context.bridge(ContractBridge.capability, ContractBridge.method,
+            ContractBridge.arguments);
+        return context.success(null);
+      },
+      ContractSecurityScriptIds.inflightCap: (context) async {
+        unawaited(context.bridge(
+            ContractBridge.capability, ContractBridge.method, const ['a']));
+        unawaited(context.bridge(
+            ContractBridge.capability, ContractBridge.method, const ['b']));
+        await context.bridge(
+            ContractBridge.capability, ContractBridge.method, const ['c']);
+        return context.success(null);
+      },
+      ContractSecurityScriptIds.disposeInflight: (context) {
+        unawaited(context.bridge(
+            ContractBridge.capability, ContractBridge.method, const ['late']));
+        return context.success(null);
+      },
+    },
+  );
+
+  registerJsSessionBridgeSecurityTests(
+    backendName: 'FakeRuntime',
+    openSession: (bridge, limits) => securityBackend.open(
+      RuntimeConfig(
+        documentId: 'contract-security',
+        memoryLimitBytes: 8 * 1024 * 1024,
+        stackLimitBytes: 256 * 1024,
+        bridgeLimits: limits,
+      ),
+      bridge,
+    ),
+  );
+
   group('FakeRuntime specifics', () {
     test('delivers host events on the backend stream', () async {
       final session = await backend.open(

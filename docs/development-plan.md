@@ -142,6 +142,11 @@
 - M3 性能画像与单项优化（P1）：重跑 `tool/incremental_profile_test.dart` 与同设备真机数据；仅当画像确认收益时，选择中部编辑后缀采用或剩余 lazy 估算/状态工作中的一个方向；canonical 全量、像素黄金与选区/语义行为必须零差异。
 - M4 试点与 RC 收敛（P0）：外部宿主使用发布包而非 path 依赖完成四类场景；覆盖 JS 全关、单能力关闭、WebView 回退、快照旧版本读取与回滚；缺陷按 S0/S1 清零后执行 release checklist、pub dry-run 与 published consumer smoke，最后才允许打 `0.7.0-rc.1` tag。
 
+### 已交付进度
+
+- M0（ADR 0054，2026-11-15）：范围冻结 + 文档同步完成；`0.7.0-dev.4` 已按发布清单切版并发到 pub.dev（8 包全部通过 dry-run、consumer smoke published 验证），仅承载 ADR 0053 字体回退，不是 RC。
+- M1（ADR 0055，2026-11-16）：对账清单 G1–G6 收口——`BridgeLimits` 进入公开契约（消息 JSON ≤256KB、深度 ≤32、in-flight ≤256，新失败种类 `bridgeLimit`），QuickJS/Fake 两后端在请求/结果/事件三向 session 层 enforcement（超限调用结构化拒绝、永不进入派发器或网关）；契约套件新增安全组（超限参数、深嵌套、超限结果、in-flight 帽、dispose 竞争）双端注册，weft 包补 recover 跨竞争测试（旧会话 in-flight 网络派发落地被丢弃、副作用恰好一次）；取消令牌按数据降级（0.7.0 无 token API，HTTP deadline 归宿主 client），security.md 改写为真实边界。测试 596 → 607，`tool/check.sh` ALL GREEN，像素黄金零 diff。
+
 ### 阶段门禁
 
 - 正确性：`tool/check.sh`、规范化 22 向量、API 文档覆盖与像素黄金全绿；新增行为同时覆盖正常、边界和失败路径。

@@ -1,3 +1,5 @@
+import 'bridge_limits.dart';
+
 /// The value type crossing the JS/Dart boundary in both directions.
 ///
 /// Values stay JSON-compatible (null, bool, num, String, List, Map) so every
@@ -51,6 +53,7 @@ final class RuntimeConfig {
     required this.memoryLimitBytes,
     required this.stackLimitBytes,
     Iterable<String> enabledCapabilities = const [],
+    this.bridgeLimits = const BridgeLimits(),
   })  : assert(memoryLimitBytes > 0),
 
         /// The stack limit must also be positive; no backend can honor less.
@@ -73,6 +76,11 @@ final class RuntimeConfig {
   /// Capability namespaces this session may call; the gateway rejects the
   /// rest.
   final Set<String> enabledCapabilities;
+
+  /// Bridge message and queue caps the backend must enforce at the JS/Dart
+  /// crossing; violations surface as [RuntimeFailureKind.bridgeLimit] (ADR
+  /// 0055).
+  final BridgeLimits bridgeLimits;
 }
 
 /// Why a runtime operation failed, as classified by the backend.
@@ -86,6 +94,7 @@ enum RuntimeFailureKind {
   microtaskBudget,
   scriptError,
   bridgeError,
+  bridgeLimit,
   disposed,
 }
 

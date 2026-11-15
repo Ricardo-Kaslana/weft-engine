@@ -15,6 +15,22 @@ final class _RecordingNetworkClient implements WeftNetworkClient {
   }
 }
 
+/// Network client whose responses are completed manually, to hold a request
+/// in flight across recovery.
+final class _HeldNetworkClient implements WeftNetworkClient {
+  final List<WeftNetworkRequest> requests = <WeftNetworkRequest>[];
+  final List<Completer<WeftNetworkResponse>> completers =
+      <Completer<WeftNetworkResponse>>[];
+
+  @override
+  Future<WeftNetworkResponse> request(WeftNetworkRequest request) {
+    requests.add(request);
+    final completer = Completer<WeftNetworkResponse>();
+    completers.add(completer);
+    return completer.future;
+  }
+}
+
 void main() {
   group('WeftDocumentRuntime', () {
     test('routes state and events for document scripts', () async {
@@ -123,6 +139,59 @@ void main() {
         const ScriptUnit(id: 'fetch-once', source: ''),
       );
       expect(second.isSuccess, isTrue);
+      expect(client.requests, hasLength(2));
+    });
+
+    test('drops in-flight network dispatches that settle across recovery',
+        () async {
+      final client = _HeldNetworkClient();
+      final backend = FakeRuntimeBackend(behaviors: {
+        'fetch-fire-and-forget': (context) {
+          unawaited(context.bridge(
+            WeftCapabilityIds.network,
+            'fetch',
+            <JsValue>['https://cdn.example.com/data.json'],
+          ));
+          return context.success(null);
+        },
+      });
+
+      final runtime = await WeftDocumentRuntime.open(
+        backend: backend,
+        documentId: 'doc-recovery-race',
+        policy: CapabilityPolicy(enabled: const {WeftCapabilityIds.network}),
+        services: WeftRuntimeServices(networkClient: client),
+        networkPolicy: WeftNetworkPolicy(
+          allowedHosts: const {'cdn.example.com'},
+        ),
+      );
+      addTearDown(runtime.dispose);
+
+      // The request stays pending, so settle cannot drain it and the
+      // execution fails loudly instead of pretending success.
+      final first = await runtime.execute(
+        const ScriptUnit(id: 'fetch-fire-and-forget', source: ''),
+      );
+      expect(first.isSuccess, isFalse);
+      expect(client.requests, hasLength(1));
+
+      // The session is torn down while the request is still in flight.
+      final report = await runtime.recover();
+      expect(report.replacedSession, isTrue);
+
+      // The host client completes after recovery: the result is dropped
+      // without touching the disposed session or the new one, and the
+      // network side effect stays exactly once.
+      client.completers.single.complete(const WeftNetworkResponse(
+        status: 200,
+        body: 'late-payload',
+      ));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(client.requests, hasLength(1));
+      await runtime.execute(
+        const ScriptUnit(id: 'fetch-fire-and-forget', source: ''),
+      );
       expect(client.requests, hasLength(2));
     });
 

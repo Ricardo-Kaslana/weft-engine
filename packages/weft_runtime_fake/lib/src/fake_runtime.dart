@@ -148,13 +148,15 @@ final class FakeRuntimeBackend implements JsRuntimeBackend {
 final class _FakeJsSession implements JsSession {
   _FakeJsSession._(this._backend, RuntimeConfig config, this._bridge)
       : id = 'fake:${config.documentId}:${_nextSessionId++}',
-        _heapLimitBytes = _backend.heapLimitBytes;
+        _heapLimitBytes = _backend.heapLimitBytes,
+        _limits = config.bridgeLimits;
 
   static int _nextSessionId = 1;
 
   final FakeRuntimeBackend _backend;
   final BridgeDispatcher _bridge;
   final int _heapLimitBytes;
+  final BridgeLimits _limits;
   int _heapUsed = 0;
   int _nextSequence = 1;
   bool _disposed = false;
@@ -165,6 +167,10 @@ final class _FakeJsSession implements JsSession {
 
   /// Dispatches one capability call with the next session-scoped sequence
   /// number; tracked as in-flight so [settle] waits for it.
+  ///
+  /// Arguments crossing the configured [BridgeLimits] and calls beyond the
+  /// in-flight cap are rejected with `bridgeLimit` before reaching the
+  /// dispatcher; results past the caps are rejected the same way (ADR 0055).
   Future<JsValue> issueBridge(
     String capability,
     String method,
@@ -178,6 +184,17 @@ final class _FakeJsSession implements JsSession {
       method: method,
       arguments: arguments,
     );
+    final argumentsViolation = _limits.checkValue(call.arguments);
+    if (argumentsViolation != null) {
+      return Future.error(_limitFailure(argumentsViolation));
+    }
+    if (_inflightBridges.length >= _limits.maxInflightCalls) {
+      return Future.error(_limitFailure(BridgeLimitViolation(
+        limitName: 'maxInflightCalls',
+        actual: _inflightBridges.length,
+        limit: _limits.maxInflightCalls,
+      )));
+    }
     final dispatch = _bridge.dispatch(call);
     _inflightBridges.add(dispatch);
     // `whenComplete` would rethrow dispatch errors as unhandled async work;
@@ -186,7 +203,20 @@ final class _FakeJsSession implements JsSession {
       (_) => _inflightBridges.remove(dispatch),
       onError: (Object error) => _inflightBridges.remove(dispatch),
     ));
-    return dispatch;
+    return dispatch.then((value) {
+      final violation = _limits.checkValue(value);
+      if (violation != null) {
+        throw _limitFailure(violation);
+      }
+      return value;
+    });
+  }
+
+  JsSessionFailure _limitFailure(BridgeLimitViolation violation) {
+    return JsSessionFailure(RuntimeFailure(
+      kind: RuntimeFailureKind.bridgeLimit,
+      message: violation.message,
+    ));
   }
 
   @override
@@ -230,6 +260,8 @@ final class _FakeJsSession implements JsSession {
         message: error.toString(),
         scriptId: script.id,
       ));
+    } on JsSessionFailure catch (failure) {
+      return JsResult.error(failure.failure);
     } catch (error) {
       return JsResult.error(RuntimeFailure(
         kind: RuntimeFailureKind.scriptError,

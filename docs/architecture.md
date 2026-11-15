@@ -153,3 +153,4 @@ JS 不获得节点、盒树或渲染对象。它只能通过 `__weftBridge`（�
 - `0052`：将 vendored QuickJS 移入 `ios/Classes/native/`，修复 CocoaPods 绝对/父目录源路径不生效导致的 iOS 静态库空链接；桌面、Android、iOS 共享同一份源码。
 - `0053`：字体回退与 CJK 覆盖——`font-family` 按有序候选列表解析（首个具名族为主族、其余为回退），宿主级 `fontFamilyFallback` 经布局引擎、表面与视图全链路透传；回退列表变化退化为冷布局。
 - `0054`：阶段 6 范围冻结——目标 `0.7.0-rc.1` 准入（不承诺 1.0.0），S6-1..S6-4 与里程碑 M0–M4、阶段门禁与明确非目标；dev 版本仅供试点消费、不代表 RC。
+- `0055`：Runtime 安全契约闭环——`BridgeLimits`（字节/深度/in-flight 帽）进公开契约，两后端三向 enforcement + `bridgeLimit` 失败种类；取消令牌降级，security.md 对齐真实边界。

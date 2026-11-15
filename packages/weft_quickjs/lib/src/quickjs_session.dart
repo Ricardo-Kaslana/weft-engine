@@ -41,7 +41,8 @@ final class QuickJsFfiSession implements JsSession {
     this._runtime,
     this._bridge,
     RuntimeConfig config,
-  ) : id = 'quickjs:${config.documentId}:${_nextSessionId++}' {
+  )   : id = 'quickjs:${config.documentId}:${_nextSessionId++}',
+        _limits = config.bridgeLimits {
     _bridgeCallable = NativeCallable<_BridgeNotifyNative>.isolateLocal(
       _onBridgeRequest,
     );
@@ -63,12 +64,18 @@ final class QuickJsFfiSession implements JsSession {
   final QuickJsNativeLibrary _library;
   final Pointer<WeftRuntimeFfi> _runtime;
   final BridgeDispatcher _bridge;
+  final BridgeLimits _limits;
   late final NativeCallable<_BridgeNotifyNative> _bridgeCallable;
   bool _disposed = false;
   final Set<Future<void>> _inflightDispatches = <Future<void>>{};
   int _bridgeCallsThisTurn = 0;
   bool _turnResetScheduled = false;
   RuntimeFailure? _stormFailure;
+
+  /// Set when a bridge message crosses the configured [BridgeLimits]; the
+  /// session keeps rejecting further oversized requests without decoding
+  /// them and settle/execute surface the failure (ADR 0055).
+  RuntimeFailure? _limitFailure;
 
   @override
   final String id;
@@ -132,6 +139,9 @@ final class QuickJsFfiSession implements JsSession {
     final value = envelope['undef'] == 1 ? null : envelope['value'];
 
     final status = _pumpJobs(budget.maxMicrotasks);
+    if (_limitFailure != null) {
+      return JsResult.error(_limitFailure!);
+    }
     if (status == kPumpBudgetExceeded) {
       return JsResult.error(
         RuntimeFailure(
@@ -160,6 +170,7 @@ final class QuickJsFfiSession implements JsSession {
         ),
       );
     }
+    _checkValueLimits(event.payload, what: 'Event payload for "${event.name}"');
     _library.setDeadline(
       _runtime,
       _library.nowMs() + _continuationTimeout.inMilliseconds,
@@ -224,6 +235,10 @@ final class QuickJsFfiSession implements JsSession {
       if (storm != null) {
         throw JsSessionFailure(storm);
       }
+      final limit = _limitFailure;
+      if (limit != null) {
+        throw JsSessionFailure(limit);
+      }
       if (_inflightDispatches.isNotEmpty) {
         await Future<void>.delayed(Duration.zero);
         continue;
@@ -280,8 +295,20 @@ final class QuickJsFfiSession implements JsSession {
       );
       return;
     }
-    final request =
-        jsonDecode(requestJson.toDartString()) as Map<String, Object?>;
+    final requestText = requestJson.toDartString();
+    // Cheap UTF-16 code-unit pre-check first: UTF-8 bytes never come in under
+    // one per code unit, so this rejects the pathological sizes without a
+    // full encode pass. The transient string itself is bounded by the JS
+    // heap budget, enforced natively (ADR 0055).
+    if (requestText.length > _limits.maxMessageBytes) {
+      _rejectRequestAsLimit();
+      return;
+    }
+    if (utf8.encode(requestText).length > _limits.maxMessageBytes) {
+      _rejectRequestAsLimit();
+      return;
+    }
+    final request = jsonDecode(requestText) as Map<String, Object?>;
     final call = BridgeCall(
       sessionId: id,
       sequence: request['call'] as int,
@@ -289,10 +316,60 @@ final class QuickJsFfiSession implements JsSession {
       method: request['method'] as String,
       arguments: (request['args'] as List<Object?>).toList(),
     );
+    final violation = _limits.checkValue(call.arguments);
+    if (violation != null) {
+      // The decoded request is bounded by the byte cap; resolving the pending
+      // call keeps the script in control instead of dangling its promise.
+      _resolveBridge(
+          call.sequence,
+          <String, Object?>{
+            'kind': 'bridgeLimit',
+            'message': violation.message,
+          },
+          isError: true);
+      return;
+    }
+    if (_inflightDispatches.length >= _limits.maxInflightCalls) {
+      _resolveBridge(
+          call.sequence,
+          <String, Object?>{
+            'kind': 'bridgeLimit',
+            'message': BridgeLimitViolation(
+              limitName: 'maxInflightCalls',
+              actual: _inflightDispatches.length,
+              limit: _limits.maxInflightCalls,
+            ).message,
+          },
+          isError: true);
+      return;
+    }
     final dispatch = _dispatch(call);
     _inflightDispatches.add(dispatch);
     unawaited(
         dispatch.whenComplete(() => _inflightDispatches.remove(dispatch)));
+  }
+
+  /// Marks the request-direction limit failure without decoding or
+  /// dispatching; the pending JS promise dangles like a storm-capped call and
+  /// settle/execute surface the structured failure.
+  void _rejectRequestAsLimit() {
+    _limitFailure ??= RuntimeFailure(
+      kind: RuntimeFailureKind.bridgeLimit,
+      message: 'Bridge request exceeds ${_limits.maxMessageBytes} bytes; '
+          'the call is rejected without dispatch.',
+    );
+  }
+
+  /// Throws [JsSessionFailure] with `bridgeLimit` when [value] crosses the
+  /// configured message caps.
+  void _checkValueLimits(Object? value, {required String what}) {
+    final violation = _limits.checkValue(value);
+    if (violation != null) {
+      throw JsSessionFailure(RuntimeFailure(
+        kind: RuntimeFailureKind.bridgeLimit,
+        message: '$what: ${violation.message}',
+      ));
+    }
   }
 
   Future<void> _dispatch(BridgeCall call) async {
@@ -307,6 +384,17 @@ final class QuickJsFfiSession implements JsSession {
           call.sequence,
           <String, Object?>{
             'message': error.toString(),
+          },
+          isError: true);
+      return;
+    }
+    final violation = _limits.checkValue(result);
+    if (violation != null) {
+      _resolveBridge(
+          call.sequence,
+          <String, Object?>{
+            'kind': 'bridgeLimit',
+            'message': violation.message,
           },
           isError: true);
       return;
@@ -399,6 +487,8 @@ final class QuickJsFfiSession implements JsSession {
         return RuntimeFailureKind.stackOverflow;
       case 'bridge':
         return RuntimeFailureKind.bridgeError;
+      case 'bridgeLimit':
+        return RuntimeFailureKind.bridgeLimit;
       default:
         return RuntimeFailureKind.scriptError;
     }

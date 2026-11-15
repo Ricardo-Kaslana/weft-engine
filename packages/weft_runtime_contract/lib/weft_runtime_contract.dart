@@ -49,6 +49,201 @@ abstract final class ContractBridge {
   static const arguments = <JsValue>['hello'];
 }
 
+/// Well-known script ids for the bridge security contract suite (ADR 0055).
+abstract final class ContractSecurityScriptIds {
+  /// Id of the unit that issues one bridge call with oversized arguments.
+  static const oversizeArgs = 'contract/security-oversize-args';
+
+  /// Id of the unit that issues one bridge call with deeply nested arguments.
+  static const deepArgs = 'contract/security-deep-args';
+
+  /// Id of the unit that issues one bridge call whose dispatcher answer is
+  /// oversized.
+  static const oversizeResult = 'contract/security-oversize-result';
+
+  /// Id of the unit that issues one more concurrent call than the in-flight
+  /// cap allows.
+  static const inflightCap = 'contract/security-inflight-cap';
+
+  /// Id of the unit that issues one call left pending across dispose.
+  static const disposeInflight = 'contract/security-dispose-inflight';
+}
+
+/// Deliberately small limits the security suite configures so tests exercise
+/// the rejection paths instead of allocating megabytes.
+const contractSecurityLimits = BridgeLimits(
+  maxMessageBytes: 1024,
+  maxDepth: 4,
+  maxInflightCalls: 2,
+);
+
+const _securityBudget = ExecutionBudget(timeout: Duration(seconds: 3));
+
+/// Dispatcher for the security suite: records every call and answers through
+/// a test-provided handler.
+final class ContractSecurityBridge implements BridgeDispatcher {
+  /// Creates a dispatcher; [_answer] resolves each recorded call.
+  ContractSecurityBridge(Future<JsValue> Function(BridgeCall call) answer)
+      : _answer = answer;
+
+  final Future<JsValue> Function(BridgeCall call) _answer;
+
+  /// Every call that reached this dispatcher, in arrival order.
+  final List<BridgeCall> calls = <BridgeCall>[];
+
+  @override
+  Future<JsValue> dispatch(BridgeCall call) async {
+    calls.add(call);
+    return _answer(call);
+  }
+}
+
+/// Registers the backend-neutral bridge security contract tests (ADR 0055).
+///
+/// Every backend that implements real JS/Dart marshalling must pass this
+/// suite unchanged: it pins the [BridgeLimits] enforcement points — oversized
+/// or deeply nested calls never reach the dispatcher, oversized dispatcher
+/// answers never reach the script, concurrent in-flight dispatches are
+/// capped, and dispatches that settle after disposal are dropped safely.
+/// The suite does not pin the script-visible failure shape for the
+/// result/deep-args paths because that depends on how a backend surfaces
+/// rejected marshalled promises; it pins "never dispatched" and "session
+/// stays usable" instead.
+void registerJsSessionBridgeSecurityTests({
+  required String backendName,
+  required Future<JsSession> Function(
+          BridgeDispatcher bridge, BridgeLimits limits)
+      openSession,
+  String sourceFor(String id)?,
+}) {
+  String sourceOf(String id) => sourceFor?.call(id) ?? id;
+
+  group('JsSession bridge security [$backendName]', () {
+    test('rejects oversized arguments without dispatching', () async {
+      final bridge = ContractSecurityBridge((_) async => null);
+      final session = await openSession(bridge, contractSecurityLimits);
+      addTearDown(session.dispose);
+
+      final result = await session.execute(
+        ScriptUnit(
+          id: ContractSecurityScriptIds.oversizeArgs,
+          source: sourceOf(ContractSecurityScriptIds.oversizeArgs),
+        ),
+        _securityBudget,
+      );
+
+      expect(bridge.calls, isEmpty);
+      expect(result.isSuccess, isFalse);
+      expect(result.failure?.kind, RuntimeFailureKind.bridgeLimit);
+    });
+
+    test('rejects deeply nested arguments without dispatching', () async {
+      final bridge = ContractSecurityBridge((_) async => null);
+      final session = await openSession(bridge, contractSecurityLimits);
+      addTearDown(session.dispose);
+
+      await session.execute(
+        ScriptUnit(
+          id: ContractSecurityScriptIds.deepArgs,
+          source: sourceOf(ContractSecurityScriptIds.deepArgs),
+        ),
+        _securityBudget,
+      );
+
+      expect(bridge.calls, isEmpty);
+      // The rejection must not wedge the session for later work.
+      final followUp = await session.execute(
+        ScriptUnit(
+          id: ContractScriptIds.returnsValue,
+          source: sourceOf(ContractScriptIds.returnsValue),
+        ),
+        _securityBudget,
+      );
+      expect(followUp.isSuccess, isTrue);
+      expect(followUp.value, 42);
+    });
+
+    test('rejects oversized dispatcher answers back to the script', () async {
+      final bridge = ContractSecurityBridge((_) async => 'y' * 4096);
+      final session = await openSession(bridge, contractSecurityLimits);
+      addTearDown(session.dispose);
+
+      await session.execute(
+        ScriptUnit(
+          id: ContractSecurityScriptIds.oversizeResult,
+          source: sourceOf(ContractSecurityScriptIds.oversizeResult),
+        ),
+        _securityBudget,
+      );
+
+      expect(bridge.calls, hasLength(1));
+      final followUp = await session.execute(
+        ScriptUnit(
+          id: ContractScriptIds.returnsValue,
+          source: sourceOf(ContractScriptIds.returnsValue),
+        ),
+        _securityBudget,
+      );
+      expect(followUp.isSuccess, isTrue);
+      expect(followUp.value, 42);
+    });
+
+    test('caps concurrent in-flight dispatches', () async {
+      final held = <Completer<JsValue>>[];
+      final bridge = ContractSecurityBridge((_) {
+        final completer = Completer<JsValue>();
+        held.add(completer);
+        return completer.future;
+      });
+      final session = await openSession(bridge, contractSecurityLimits);
+      addTearDown(session.dispose);
+
+      final result = await session.execute(
+        ScriptUnit(
+          id: ContractSecurityScriptIds.inflightCap,
+          source: sourceOf(ContractSecurityScriptIds.inflightCap),
+        ),
+        _securityBudget,
+      );
+      // cap = 2; the script issued 3 calls, the third must be rejected
+      // before reaching the dispatcher.
+      expect(bridge.calls, hasLength(2));
+      expect(held, hasLength(2));
+
+      for (final completer in held) {
+        completer.complete(null);
+      }
+      await session.settle();
+      expect(result.isSuccess || result.failure != null, isTrue);
+    });
+
+    test('drops in-flight dispatches that settle after disposal', () async {
+      final held = <Completer<JsValue>>[];
+      final bridge = ContractSecurityBridge((_) {
+        final completer = Completer<JsValue>();
+        held.add(completer);
+        return completer.future;
+      });
+      final session = await openSession(bridge, contractSecurityLimits);
+
+      await session.execute(
+        ScriptUnit(
+          id: ContractSecurityScriptIds.disposeInflight,
+          source: sourceOf(ContractSecurityScriptIds.disposeInflight),
+        ),
+        _securityBudget,
+      );
+      expect(bridge.calls, hasLength(1));
+
+      await session.dispose();
+      held.single.complete('late-resolution');
+      await Future<void>.delayed(Duration.zero);
+      // Reaching this point is the assertion: the late resolution was
+      // dropped without touching the disposed engine or throwing.
+    });
+  });
+}
+
 final class _RecordingBridge implements BridgeDispatcher {
   /// Every [BridgeCall] the session dispatched, in arrival order, for the
   /// contract assertions.

@@ -90,6 +90,7 @@ final class WeftDocumentRuntime {
     required WeftNetworkPolicy networkPolicy,
     required int memoryLimitBytes,
     required int stackLimitBytes,
+    required BridgeLimits bridgeLimits,
     required ExecutionBudget bootstrapBudget,
   })  : _documentId = documentId,
         _backend = backend,
@@ -131,6 +132,7 @@ final class WeftDocumentRuntime {
       memoryLimitBytes: memoryLimitBytes,
       stackLimitBytes: stackLimitBytes,
       enabledCapabilities: policy.enabledNamespaces,
+      bridgeLimits: bridgeLimits,
     );
   }
 
@@ -143,6 +145,7 @@ final class WeftDocumentRuntime {
     WeftNetworkPolicy? networkPolicy,
     int memoryLimitBytes = 16 * 1024 * 1024,
     int stackLimitBytes = 1024 * 1024,
+    BridgeLimits bridgeLimits = const BridgeLimits(),
     ExecutionBudget bootstrapBudget =
         const ExecutionBudget(timeout: Duration(seconds: 5)),
   }) async {
@@ -154,6 +157,7 @@ final class WeftDocumentRuntime {
       networkPolicy: networkPolicy ?? WeftNetworkPolicy(),
       memoryLimitBytes: memoryLimitBytes,
       stackLimitBytes: stackLimitBytes,
+      bridgeLimits: bridgeLimits,
       bootstrapBudget: bootstrapBudget,
     );
     await runtime._openSession();
